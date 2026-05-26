@@ -183,20 +183,21 @@ EXPIRED         支付超时
 
 ## 8. ER 关系概览
 
-```text
-users 1 ---- n passenger
-users 1 ---- n ticket_order
-flight 1 ---- n flight_seat
-flight 1 ---- n ticket_order
-ticket_order 1 ---- n order_passenger
-ticket_order 1 ---- 0..1 refund_record
-ticket_order 1 ---- 0..n change_record
-flight 1 ---- n waitlist_order
-ticket_order 0..1 ---- 0..1 waitlist_order
-waitlist_order 1 ---- n waitlist_passenger
-users 0..1 ---- n ai_chat_session
-ai_chat_session 1 ---- n ai_chat_message
-ai_chat_session 1 ---- n ai_recommendation_record
+```mermaid
+erDiagram
+  users ||--o{ passenger : has
+  users ||--o{ ticket_order : places
+  flight ||--o{ flight_seat : has
+  flight ||--o{ ticket_order : creates
+  ticket_order ||--o{ order_passenger : contains
+  ticket_order ||--o| refund_record : has
+  ticket_order ||--o{ change_record : has
+  flight ||--o{ waitlist_order : has
+  ticket_order |o--o| waitlist_order : generated_from
+  waitlist_order ||--o{ waitlist_passenger : contains
+  users ||--o{ ai_chat_session : starts
+  ai_chat_session ||--o{ ai_chat_message : contains
+  ai_chat_session ||--o{ ai_recommendation_record : records
 ```
 
 ## 9. 索引建议
