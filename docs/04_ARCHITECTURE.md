@@ -99,10 +99,11 @@ sequenceDiagram
     B->>DB: 计算手续费
     B->>DB: 订单更新为 REFUNDED
     B->>DB: 座位更新为 AVAILABLE
-    B->>DB: 查询最早候补订单
-    alt 存在候补订单
-        B->>DB: 为候补订单锁定座位
-        B->>DB: 候补状态改为 WAITING_PAY
+    B->>DB: 查询最早已支付候补订单
+    alt 存在可兑现候补订单
+        B->>DB: 分配座位并更新为 SOLD
+        B->>DB: 创建正式订单和乘机人快照
+        B->>DB: 候补状态改为 SUCCESS
     end
     B-->>U: 退票成功
 ```

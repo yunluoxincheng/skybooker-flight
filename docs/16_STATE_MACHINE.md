@@ -13,7 +13,7 @@ CHANGE_PENDING  改签处理中
 CHANGED         已改签
 ```
 
-基础版本支付成功后直接进入 `ISSUED`。`PAID` 不作为基础状态，真实支付或异步出票扩展时再引入。
+基础版本普通订单支付成功后直接进入 `ISSUED`。候补兑现成功时创建的正式订单也直接为 `ISSUED`。`PAID` 不作为基础状态，真实支付或异步出票扩展时再引入。
 
 状态流转：
 
@@ -26,8 +26,8 @@ ISSUED -> CHANGE_PENDING -> CHANGED
 
 约束：
 
-- `PENDING_PAYMENT` 只能由创建订单产生；
-- `ISSUED` 只能由模拟支付成功产生；
+- 票务订单的 `PENDING_PAYMENT` 只能由创建订单产生；
+- `ISSUED` 由普通订单模拟支付成功或候补兑现出票产生；
 - `CANCELLED` 只能取消待支付订单；
 - `REFUNDED` 只能由已出票订单退票产生；
 - `CHANGE_PENDING` 和 `CHANGED` 属于加分版本改签流程，未实现改签时不得在业务代码中产生这两个状态；
@@ -58,33 +58,40 @@ DISABLED -> AVAILABLE
 
 - `AVAILABLE -> LOCKED` 必须使用条件更新，条件至少包含 `id`、`status = 'AVAILABLE'` 和 `version`；
 - `LOCKED -> SOLD` 必须校验 `locked_by_order_id` 属于当前订单；
-- 释放座位时只允许释放当前订单或候补锁定的座位；
-- `DISABLED` 座位不能参与订单、候补和改签锁座。
+- 释放座位时只允许释放当前订单锁定或已售出的座位；
+- `DISABLED` 座位不能参与订单、候补兑现和改签锁座。
 
 ## 3. 候补状态
 
 ```text
-WAITING      排队中
-WAITING_PAY  已锁座，待支付
-SUCCESS      候补成功
-CANCELLED    已取消
-EXPIRED      已过期
+PENDING_PAYMENT 待支付
+WAITING         已支付，排队中
+SUCCESS         候补成功，已出票
+CANCELLED       用户已取消
+FAILED          候补失败
+REFUNDED        已退款
+EXPIRED         支付超时
 ```
 
 状态流转：
 
 ```text
-WAITING -> WAITING_PAY -> SUCCESS
-WAITING -> CANCELLED
-WAITING_PAY -> EXPIRED
-WAITING_PAY -> CANCELLED
+PENDING_PAYMENT -> WAITING
+PENDING_PAYMENT -> EXPIRED
+PENDING_PAYMENT -> CANCELLED
+WAITING -> SUCCESS
+WAITING -> CANCELLED -> REFUNDED
+WAITING -> FAILED
+FAILED -> REFUNDED
 ```
 
-候补按 `created_at` 先来先服务。候补锁座成功后，座位写入 `waitlist_passenger.locked_seat_id` 和 `locked_seat_no`。
+候补在支付成功后才进入队列，按 `paid_at ASC, id ASC` 先来先服务。候补兑现只能分配候补单目标舱位内的座位，兑现成功后座位写入 `waitlist_passenger.locked_seat_id` 和 `locked_seat_no`。
 
-多人候补必须整体满足，不允许部分乘机人成功、部分乘机人继续等待。候补排序使用 `created_at ASC, id ASC`，避免同一时间创建时排序不稳定。
+多人候补必须整体满足，不允许部分乘机人成功、部分乘机人继续等待。`paid_at` 相同时使用 `id` 排序，避免同一时间支付时排序不稳定。
 
-`WAITING_PAY -> SUCCESS` 时必须生成正式订单，并把订单 ID 写入 `waitlist_order.ticket_order_id`。重复支付成功的候补时，应返回同一个正式订单。
+`WAITING -> SUCCESS` 时必须生成正式订单，并把订单 ID 写入 `waitlist_order.ticket_order_id`。重复触发已成功候补时，应返回同一个正式订单。
+
+已支付候补取消后才进入 `REFUNDED`；`PENDING_PAYMENT -> CANCELLED` 不需要退款。
 
 ## 4. 余票一致性
 
@@ -93,8 +100,8 @@ WAITING_PAY -> CANCELLED
 - 锁座成功：`remaining_seats - passenger_count`；
 - 订单超时或取消：释放座位并 `remaining_seats + passenger_count`；
 - 支付出票：座位 `LOCKED -> SOLD`，余票不再变化；
-- 退票：座位释放，若没有候补接管则 `remaining_seats + passenger_count`；
-- 退票后候补接管：座位直接锁给候补，余票不增加；
+- 退票：座位释放，若没有候补兑现则 `remaining_seats + passenger_count`；
+- 退票后候补兑现：座位直接更新为 `SOLD` 并生成正式订单，余票不增加；
 - 改签：旧航班释放、新航班锁座，两个航班分别维护余票。
 
 实现约束：

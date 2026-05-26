@@ -20,10 +20,10 @@
 
 幂等约定：
 
-- 创建订单、支付、取消、退票、候补支付和改签提交都可能被前端重复点击或网络重试；
+- 创建订单、支付、取消、退票、候补提交、候补支付、候补取消和改签提交都可能被前端重复点击或网络重试；
 - 状态变更接口必须根据当前状态返回稳定结果，不能重复扣减余票、重复释放座位或重复生成记录；
 - 创建订单接口推荐支持请求头 `Idempotency-Key`，同一用户在短时间内使用相同 key 重复请求时返回同一个订单结果；
-- MVP 可以先不实现通用幂等表，但支付、取消、退票和候补支付必须通过订单状态校验保证业务幂等。
+- MVP 可以先不实现通用幂等表，但支付、取消、退票、候补支付和候补退款必须通过订单状态校验保证业务幂等。
 
 分页响应：
 
@@ -379,13 +379,14 @@ POST /api/waitlist
 ```json
 {
   "flightId": 1001,
+  "cabinClass": "ECONOMY",
   "passengerIds": [1]
 }
 ```
 
-后端根据 `passengerIds` 生成 `waitlist_passenger` 明细。候补只允许在目标航班无可售座位时提交。
+后端根据 `passengerIds` 生成 `waitlist_passenger` 明细，并根据 `cabinClass` 和乘机人数计算 `payAmount`。候补只允许在目标航班目标舱位无可售座位时提交。提交成功后生成 `PENDING_PAYMENT` 候补单，不进入候补队列，也不占用座位。
 
-多人候补必须整体满足。候补排序使用 `created_at ASC, id ASC`。
+多人候补必须整体满足。候补支付成功后才进入队列，排序使用 `paid_at ASC, id ASC`。候补兑现只能分配同一 `cabinClass` 的座位。
 
 ### 我的候补订单
 
@@ -401,10 +402,25 @@ POST /api/waitlist/{id}/pay
 
 幂等规则：
 
-- `WAITING_PAY` 且未超时：支付成功，候补状态变为 `SUCCESS`，座位变为 `SOLD`，并生成正式订单；
-- 支付成功后返回正式订单 ID，并写入 `waitlist_order.ticket_order_id`；
-- 已经是 `SUCCESS`：返回当前成功结果；
-- `WAITING`、`CANCELLED`、`EXPIRED`：返回状态不允许操作。
+- `PENDING_PAYMENT` 且未超时：按候补单 `payAmount` 支付成功，候补状态变为 `WAITING`，写入 `paid_at`，进入候补队列；
+- 已经是 `WAITING`：返回当前候补排队结果；
+- 已经是 `SUCCESS`：返回当前成功结果和正式订单 ID；
+- `CANCELLED`、`FAILED`、`REFUNDED`、`EXPIRED`：返回状态不允许操作。
+
+候补兑现由退票、航班取消前的定时任务或后台处理流程触发，不依赖用户再次支付。兑现成功后，系统分配座位、创建正式订单、写入 `waitlist_order.ticket_order_id`，并把候补状态改为 `SUCCESS`。
+
+### 取消候补订单
+
+```http
+POST /api/waitlist/{id}/cancel
+```
+
+幂等规则：
+
+- `PENDING_PAYMENT`：取消候补单，状态变为 `CANCELLED`，无需退款；
+- `WAITING`：取消候补单并发起原路退款，退款成功后状态变为 `REFUNDED`；
+- `SUCCESS`：不允许取消候补单，用户需要对正式订单发起退票；
+- 已经是 `CANCELLED` 或 `REFUNDED`：返回当前结果。
 
 ## 9. AI 智能购票助手接口
 

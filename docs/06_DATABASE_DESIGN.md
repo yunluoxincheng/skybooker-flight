@@ -27,7 +27,7 @@
 | flight_seat | 航班座位表 |
 | ticket_order | 订单表 |
 | order_passenger | 订单乘客表 |
-| refund_record | 退票记录表 |
+| refund_record | 正式订单退票记录表 |
 | change_record | 改签记录表 |
 | waitlist_order | 候补订单表 |
 | waitlist_passenger | 候补乘机人明细表 |
@@ -52,7 +52,7 @@
 - 普通用户只能操作自己的乘机人、订单和候补；
 - 创建订单时，乘机人和座位必须一一对应；
 - 座位必须属于订单指定航班；
-- 候补只能在目标航班无可售座位时提交；
+- 候补只能在目标航班目标舱位无可售座位时提交；
 - 余票缓存 `remaining_seats` 必须与座位状态在同一事务中维护。
 
 如果后续为了课堂演示或重置数据需要弱化外键，必须在脚本和文档中明确说明，并在 Service 层补足校验。
@@ -77,7 +77,7 @@
 - 行李额；
 - 上下架状态。
 
-`remaining_seats` 表示可售余票缓存，必须与 `flight_seat` 状态保持一致。创建订单锁座、支付出票、取消订单、退票、候补锁座和改签都必须在同一事务中同步维护余票；查询展示可以优先使用该字段，定期校验时可按 `flight_seat.status = 'AVAILABLE'` 聚合核对。
+`remaining_seats` 表示可售余票缓存，必须与 `flight_seat` 状态保持一致。创建订单锁座、支付出票、取消订单、退票、候补兑现出票和改签都必须在同一事务中同步维护余票；查询展示可以优先使用该字段，定期校验时可按 `flight_seat.status = 'AVAILABLE'` 聚合核对。
 
 ## 4. 座位表 flight_seat
 
@@ -119,7 +119,7 @@ CHANGE_PENDING  改签处理中
 CHANGED         已改签
 ```
 
-基础版本建议支付成功后直接进入 `ISSUED`，不单独保留 `PAID`。如果后续接入真实支付和异步出票，再新增 `PAID` 作为中间状态。
+基础版本建议普通订单支付成功后直接进入 `ISSUED`，候补兑现创建的正式订单也直接为 `ISSUED`，不单独保留 `PAID`。如果后续接入真实支付和异步出票，再新增 `PAID` 作为中间状态。
 
 订单金额包括：
 
@@ -134,27 +134,36 @@ CHANGED         已改签
 候补状态：
 
 ```text
-WAITING      排队中
-WAITING_PAY  已锁座，待支付
-SUCCESS      候补成功
-CANCELLED    已取消
-EXPIRED      已过期
+PENDING_PAYMENT 待支付
+WAITING         已支付，排队中
+SUCCESS         候补成功，已出票
+CANCELLED       用户已取消
+FAILED          候补失败
+REFUNDED        已退款
+EXPIRED         支付超时
 ```
 
-候补按创建时间排序，先提交的用户优先获得退票释放出的座位。
+候补支付成功后进入正式队列。候补按 `paid_at` 升序排序，支付时间相同按 `id` 升序排序，先付款的用户优先获得退票释放出的座位。
 
-候补乘机人和候补锁定座位保存在 `waitlist_passenger` 表中，避免多人候补时只记录人数而丢失乘机人身份。候补成功锁座后，每个候补乘机人明细记录对应的 `locked_seat_id` 和 `locked_seat_no`。
+候补单必须记录 `cabin_class` 和 `pay_amount`。`cabin_class` 表示候补目标舱位，候补兑现时只分配同一舱位的座位；`pay_amount` 表示候补下单时按目标舱位和乘机人数计算出的已付金额，也是候补失败或取消时的退款基准。
 
-`waitlist_order.ticket_order_id` 用于记录候补支付成功后生成的正式订单 ID。
+候补乘机人和候补兑现座位保存在 `waitlist_passenger` 表中，避免多人候补时只记录人数而丢失乘机人身份。候补成功出票后，每个候补乘机人明细记录对应的 `locked_seat_id` 和 `locked_seat_no`。
+
+`waitlist_order.ticket_order_id` 用于记录候补兑现成功后生成的正式订单 ID。`SUCCESS` 状态下必须存在该字段。
+
+`waitlist_order.paid_at` 用于记录候补支付成功时间，并作为候补队列排序依据。`waitlist_order.refund_time` 和 `waitlist_order.refund_amount` 用于记录候补取消或失败后的退款结果。候补退款结果直接记录在 `waitlist_order`，`refund_record` 只记录正式订单退票。
 
 `waitlist_order.last_skip_reason` 用于记录多人候补因本次释放座位数不足而被临时跳过的原因，便于后台排查。该字段只用于说明最近一次候补分配尝试，不参与排序。
 
 写入规则：
 
-- `WAITING` 阶段为空；
-- `WAITING_PAY` 阶段仍为空，只在 `waitlist_passenger` 中记录锁定座位；
-- 候补支付成功后创建 `ticket_order` 和 `order_passenger`，再把 `ticket_order_id` 写回 `waitlist_order`；
-- `SUCCESS` 状态下必须存在 `ticket_order_id`。
+- `PENDING_PAYMENT` 阶段不进入候补队列，不占用座位；
+- 候补提交时写入 `cabin_class`、`pay_amount` 和支付过期时间 `expire_time`；
+- 候补支付成功后写入 `paid_at`，状态改为 `WAITING`；
+- `WAITING` 阶段 `ticket_order_id` 为空，`waitlist_passenger.locked_seat_id` 和 `locked_seat_no` 为空；
+- 候补兑现成功时创建状态为 `ISSUED` 的 `ticket_order` 和 `order_passenger`，写回 `ticket_order_id`，并把分配座位写入 `waitlist_passenger`；
+- `SUCCESS` 状态下必须存在 `ticket_order_id`；
+- 已支付候补被取消或变为 `FAILED` 后必须发起退款，退款成功后状态改为 `REFUNDED`；未支付候补取消不需要退款。
 
 ## 7. AI 表设计
 
@@ -215,7 +224,8 @@ CREATE INDEX idx_order_no ON ticket_order(order_no);
 候补查询索引：
 
 ```sql
-CREATE INDEX idx_waitlist_flight_status_created ON waitlist_order(flight_id, status, created_at);
+CREATE INDEX idx_waitlist_flight_status_paid ON waitlist_order(flight_id, status, paid_at, id);
+CREATE INDEX idx_waitlist_status_expire ON waitlist_order(status, expire_time);
 ```
 
 约束索引：
