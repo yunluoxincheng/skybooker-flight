@@ -44,6 +44,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth
                             .requestMatchers("/api/auth/login").permitAll()
+                            .requestMatchers("/api/auth/email-code").permitAll()
+                            .requestMatchers("/api/auth/register").permitAll()
+                            .requestMatchers("/api/auth/reset-password").permitAll()
                             .requestMatchers("/api/admin/auth/login").permitAll()
                             .requestMatchers("/api/flights/**").permitAll()
                             .requestMatchers("/api/ai/**").access(
