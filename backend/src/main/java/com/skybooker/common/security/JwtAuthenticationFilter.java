@@ -1,5 +1,9 @@
 package com.skybooker.common.security;
 
+import com.skybooker.admin.entity.AdminUser;
+import com.skybooker.admin.mapper.AdminMapper;
+import com.skybooker.auth.entity.User;
+import com.skybooker.auth.mapper.AuthMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,6 +25,8 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuthMapper authMapper;
+    private final AdminMapper adminMapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -31,11 +37,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
             Claims claims = jwtTokenProvider.parseToken(token);
 
+            Long userId = claims.get("userId", Long.class);
+            String email = claims.get("email", String.class);
+            String role = claims.get("role", String.class);
+            String loginPortal = claims.get("loginPortal", String.class);
+
+            if (!isAccountActive(userId, email, role, loginPortal)) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             LoginUserPrincipal principal = new LoginUserPrincipal(
-                    claims.get("userId", Long.class),
-                    claims.get("email", String.class),
-                    claims.get("role", String.class),
-                    claims.get("loginPortal", String.class)
+                    userId,
+                    email,
+                    role,
+                    loginPortal
             );
 
             var authority = new SimpleGrantedAuthority("ROLE_" + principal.role());
@@ -53,5 +70,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return bearerToken.substring(7);
         }
         return null;
+    }
+
+    private boolean isAccountActive(Long userId, String email, String role, String loginPortal) {
+        if (userId == null || !StringUtils.hasText(email)
+                || !StringUtils.hasText(role) || !StringUtils.hasText(loginPortal)) {
+            return false;
+        }
+
+        User user = authMapper.findById(userId);
+        if (user == null || "DISABLED".equals(user.getStatus())
+                || !email.equals(user.getEmail()) || !role.equals(user.getRole())) {
+            return false;
+        }
+
+        if ("USER".equals(loginPortal)) {
+            return "USER".equals(role);
+        }
+
+        if ("ADMIN".equals(loginPortal)) {
+            AdminUser adminUser = adminMapper.findByUserId(userId);
+            return "ADMIN".equals(role)
+                    && adminUser != null
+                    && !"DISABLED".equals(adminUser.getStatus());
+        }
+
+        return false;
     }
 }

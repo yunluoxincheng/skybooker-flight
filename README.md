@@ -117,6 +117,7 @@ skybooker-flight-system/
 
 ```bash
 cd skybooker-flight-system
+cp .env.example .env
 
 docker compose up -d mysql redis
 ```
@@ -125,6 +126,7 @@ docker compose up -d mysql redis
 
 ```bash
 cd backend
+set -a; source ../.env; set +a
 mvn spring-boot:run
 ```
 
@@ -153,6 +155,8 @@ http://localhost:3000
 ```text
 http://localhost:8080/api
 ```
+
+后端主配置要求从环境变量读取数据库密码和 JWT secret；缺少 `MYSQL_PASSWORD` 或 `JWT_SECRET` 时会启动失败，避免测试服或生产环境误用默认敏感配置。
 
 ## 6. Flyway 数据库迁移
 

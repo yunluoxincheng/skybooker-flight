@@ -2,8 +2,8 @@ package com.skybooker.config;
 
 import com.skybooker.common.security.JwtAuthenticationFilter;
 import com.skybooker.common.security.LoginUserPrincipal;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -29,6 +29,9 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final SecurityExceptionHandler securityExceptionHandler;
 
+    @Value("${springdoc.api-docs.enabled:false}")
+    private boolean openApiEnabled;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -38,22 +41,28 @@ public class SecurityConfig {
                         .authenticationEntryPoint(securityExceptionHandler)
                         .accessDeniedHandler(securityExceptionHandler)
                 )
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/admin/auth/login").permitAll()
-                        .requestMatchers("/api/flights/**").permitAll()
-                        .requestMatchers("/api/ai/**").access(
-                                (authSupplier, ctx) -> checkAiAccess(authSupplier))
-                        .requestMatchers("/api/orders/**", "/api/passengers/**", "/api/waitlist/**")
-                        .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
-                        .requestMatchers("/api/auth/me", "/api/auth/logout")
-                        .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
-                        .requestMatchers("/api/admin/**")
-                        .access((authSupplier, ctx) -> requireAdminPortal(authSupplier))
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/doc.html", "/webjars/**", "/swagger-resources/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    auth
+                            .requestMatchers("/api/auth/login").permitAll()
+                            .requestMatchers("/api/admin/auth/login").permitAll()
+                            .requestMatchers("/api/flights/**").permitAll()
+                            .requestMatchers("/api/ai/**").access(
+                                    (authSupplier, ctx) -> checkAiAccess(authSupplier))
+                            .requestMatchers("/api/orders/**", "/api/passengers/**", "/api/waitlist/**")
+                            .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
+                            .requestMatchers("/api/auth/me", "/api/auth/logout")
+                            .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
+                            .requestMatchers("/api/admin/**")
+                            .access((authSupplier, ctx) -> requireAdminPortal(authSupplier));
+
+                    if (openApiEnabled) {
+                        auth
+                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                                .requestMatchers("/doc.html", "/webjars/**", "/swagger-resources/**").permitAll();
+                    }
+
+                    auth.anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

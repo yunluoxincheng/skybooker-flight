@@ -8,6 +8,11 @@ services:
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_PASSWORD:-123456}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/mysql/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
@@ -17,6 +22,11 @@ services:
     container_name: skybooker-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   mysql_data:

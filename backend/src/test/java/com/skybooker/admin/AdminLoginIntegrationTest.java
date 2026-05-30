@@ -56,7 +56,7 @@ class AdminLoginIntegrationTest extends AbstractIntegrationTest {
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andReturn();
 
         ApiResponse response = objectMapper.readValue(
@@ -73,7 +73,7 @@ class AdminLoginIntegrationTest extends AbstractIntegrationTest {
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andReturn();
 
         ApiResponse response = objectMapper.readValue(

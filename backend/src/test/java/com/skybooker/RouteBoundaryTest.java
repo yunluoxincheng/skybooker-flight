@@ -9,11 +9,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -26,6 +28,9 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private String userToken;
     private String adminToken;
@@ -105,8 +110,7 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
         int status = mockMvc.perform(get("/api/orders")
                         .header("Authorization", "Bearer " + userToken))
                 .andReturn().getResponse().getStatus();
-        assertNotEquals(401, status, "User routes should accept user token");
-        assertNotEquals(403, status, "User routes should accept user token");
+        assertThat(status).isIn(200, 404);
     }
 
     @Test
@@ -121,6 +125,32 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/ai/sessions")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void issuedUserToken_isRejectedAfterAccountDisabled() throws Exception {
+        try {
+            jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE email = ?", "user1@example.com");
+
+            mockMvc.perform(get("/api/auth/me")
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isUnauthorized());
+        } finally {
+            jdbcTemplate.update("UPDATE users SET status = 'ACTIVE' WHERE email = ?", "user1@example.com");
+        }
+    }
+
+    @Test
+    void issuedAdminToken_isRejectedAfterAdminProfileDisabled() throws Exception {
+        try {
+            jdbcTemplate.update("UPDATE admin_user SET status = 'DISABLED' WHERE username = ?", "admin");
+
+            mockMvc.perform(get("/api/admin/me")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isUnauthorized());
+        } finally {
+            jdbcTemplate.update("UPDATE admin_user SET status = 'ACTIVE' WHERE username = ?", "admin");
+        }
     }
 
     @SuppressWarnings("unchecked")
