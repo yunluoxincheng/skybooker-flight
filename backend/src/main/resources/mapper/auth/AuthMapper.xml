@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.auth.mapper.AuthMapper">
+
+    <select id="findByEmail" resultType="com.skybooker.auth.entity.User">
+        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+               role, status, email_verified, phone_verified, last_login_at,
+               created_at, updated_at
+        FROM users
+        WHERE email = #{email}
+    </select>
+
+    <select id="findById" resultType="com.skybooker.auth.entity.User">
+        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+               role, status, email_verified, phone_verified, last_login_at,
+               created_at, updated_at
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+</mapper>

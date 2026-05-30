@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.admin.mapper.AdminMapper">
+
+    <select id="findByUsername" resultType="com.skybooker.admin.entity.AdminUser">
+        SELECT id, user_id, username, job_no, real_name, remark, status,
+               created_at, updated_at
+        FROM admin_user
+        WHERE username = #{username}
+    </select>
+
+    <select id="findByUserId" resultType="com.skybooker.admin.entity.AdminUser">
+        SELECT id, user_id, username, job_no, real_name, remark, status,
+               created_at, updated_at
+        FROM admin_user
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>
