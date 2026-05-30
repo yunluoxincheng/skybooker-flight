@@ -22,8 +22,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -460,6 +462,7 @@ class OrderIntegrationTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrency);
         AtomicInteger successCount = new AtomicInteger(0);
+        AtomicReference<Exception> firstError = new AtomicReference<>();
 
         ExecutorService executor = Executors.newFixedThreadPool(concurrency);
         for (int i = 0; i < concurrency; i++) {
@@ -476,7 +479,8 @@ class OrderIntegrationTest {
                     if (status == 200) {
                         successCount.incrementAndGet();
                     }
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    firstError.compareAndSet(null, e);
                 } finally {
                     doneLatch.countDown();
                 }
@@ -487,8 +491,11 @@ class OrderIntegrationTest {
         doneLatch.await();
         executor.shutdown();
 
-        // At most 1 request should succeed for the same seat
-        assert successCount.get() <= 1 : "Expected at most 1 success but got " + successCount.get();
+        assertTrue(successCount.get() <= 1,
+                "Expected at most 1 success but got " + successCount.get());
+        if (firstError.get() != null) {
+            throw new AssertionError("Unexpected error during concurrent booking", firstError.get());
+        }
     }
 
     // ---- Helpers ----

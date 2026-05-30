@@ -27,6 +27,10 @@ public interface OrderMapper {
 
     void updateOrderStatus(@Param("id") Long id, @Param("status") String status);
 
+    int updateOrderStatusCAS(@Param("id") Long id,
+                             @Param("expectedStatus") String expectedStatus,
+                             @Param("newStatus") String newStatus);
+
     void updatePayTime(@Param("id") Long id, @Param("payTime") java.time.LocalDateTime payTime);
 
     List<TicketOrder> findExpiredPendingOrders();

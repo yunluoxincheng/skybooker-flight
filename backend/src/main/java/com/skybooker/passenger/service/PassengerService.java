@@ -49,7 +49,7 @@ public class PassengerService {
         }
         existing.setName(dto.getName());
         existing.setIdCardNo(dto.getIdCardNo());
-        existing.setPassengerType(dto.getPassengerType());
+        existing.setPassengerType(dto.getPassengerType() != null ? dto.getPassengerType() : existing.getPassengerType());
         existing.setPhone(dto.getPhone());
         passengerMapper.update(existing);
         return toVO(existing);

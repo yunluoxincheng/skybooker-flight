@@ -24,10 +24,7 @@ public class OrderCleanupService {
         TicketOrder order = orderMapper.findById(orderId);
         if (order != null && "PENDING_PAYMENT".equals(order.getStatus())
                 && order.getExpireTime() != null && order.getExpireTime().isBefore(java.time.LocalDateTime.now())) {
-            int passengerCount = countOrderPassengers(orderId);
-            orderMapper.updateOrderStatus(orderId, "CANCELLED");
-            flightMapper.releaseSeatsByOrderId(orderId);
-            flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
+            cancelSingleExpiredOrder(order);
         }
     }
 
@@ -36,14 +33,21 @@ public class OrderCleanupService {
         List<TicketOrder> expired = orderMapper.findExpiredPendingOrders();
         for (TicketOrder order : expired) {
             try {
-                int passengerCount = countOrderPassengers(order.getId());
-                orderMapper.updateOrderStatus(order.getId(), "CANCELLED");
-                flightMapper.releaseSeatsByOrderId(order.getId());
-                flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
+                cancelSingleExpiredOrder(order);
             } catch (Exception e) {
                 log.warn("Failed to cleanup expired order {}: {}", order.getId(), e.getMessage());
             }
         }
+    }
+
+    private void cancelSingleExpiredOrder(TicketOrder order) {
+        int affected = orderMapper.updateOrderStatusCAS(order.getId(), "PENDING_PAYMENT", "CANCELLED");
+        if (affected == 0) {
+            return;
+        }
+        int passengerCount = countOrderPassengers(order.getId());
+        flightMapper.releaseSeatsByOrderId(order.getId());
+        flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
     }
 
     private int countOrderPassengers(Long orderId) {

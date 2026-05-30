@@ -302,6 +302,13 @@ class AdminIntegrationTest {
                 .andExpect(jsonPath("$.data.passengers.length()").value(1));
     }
 
+    @Test
+    void getOrderDetail_notFound() throws Exception {
+        mockMvc.perform(get("/api/admin/orders/99999")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
+
     // ---- User Management ----
 
     @Test
@@ -310,7 +317,8 @@ class AdminIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.records").isArray());
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records[0].passwordHash").doesNotExist());
     }
 
     @Test

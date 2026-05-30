@@ -3,7 +3,7 @@ package com.skybooker.admin.controller;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.service.AdminFlightService;
 import com.skybooker.admin.service.AdminService;
-import com.skybooker.auth.entity.User;
+import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.vo.FlightVO;
@@ -68,7 +68,7 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<PageResponse<User>> listUsers(
+    public ApiResponse<PageResponse<UserAdminVO>> listUsers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ApiResponse.success(adminService.listUsers(page, size));

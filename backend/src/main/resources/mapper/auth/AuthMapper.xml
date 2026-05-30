@@ -33,8 +33,8 @@
         VALUES(#{target}, #{targetType}, #{scene}, #{sendStatus}, #{ipAddress})
     </insert>
 
-    <select id="findUsersByRole" resultType="com.skybooker.auth.entity.User">
-        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+    <select id="findUsersByRole" resultType="com.skybooker.admin.vo.UserAdminVO">
+        SELECT id, email, phone, nickname, real_name, avatar_url,
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
         FROM users WHERE role = #{role}

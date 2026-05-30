@@ -1,5 +1,6 @@
 package com.skybooker.admin.service;
 
+import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.common.exception.BusinessException;
@@ -19,9 +20,9 @@ public class AdminService {
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
 
-    public PageResponse<User> listUsers(int page, int size) {
+    public PageResponse<UserAdminVO> listUsers(int page, int size) {
         int offset = (page - 1) * size;
-        List<User> users = authMapper.findUsersByRole("USER", offset, size);
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", offset, size);
         long total = authMapper.countUsersByRole("USER");
         return new PageResponse<>(users, total, page, size);
     }
@@ -48,6 +49,10 @@ public class AdminService {
     }
 
     public OrderVO getOrderDetail(Long id) {
-        return orderMapper.findDetailById(id);
+        OrderVO order = orderMapper.findDetailById(id);
+        if (order == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return order;
     }
 }

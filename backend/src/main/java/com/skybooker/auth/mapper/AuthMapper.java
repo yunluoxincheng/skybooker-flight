@@ -1,5 +1,6 @@
 package com.skybooker.auth.mapper;
 
+import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.auth.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -23,7 +24,7 @@ public interface AuthMapper {
                                    @Param("sendStatus") String sendStatus,
                                    @Param("ipAddress") String ipAddress);
 
-    List<User> findUsersByRole(@Param("role") String role, @Param("offset") int offset, @Param("size") int size);
+    List<UserAdminVO> findUsersByRole(@Param("role") String role, @Param("offset") int offset, @Param("size") int size);
 
     long countUsersByRole(@Param("role") String role);
 
