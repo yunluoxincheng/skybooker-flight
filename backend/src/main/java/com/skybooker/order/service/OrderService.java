@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,26 +43,14 @@ public class OrderService {
         int passengerCount = items.size();
 
         validateItems(items);
+        cleanupAllExpiredOrders();
 
         List<Passenger> passengers = validatePassengerOwnership(items, userId);
         Flight flight = validateFlightSellability(dto.getFlightId(), passengerCount);
         List<FlightSeat> seats = validateSeats(items, dto.getFlightId());
 
-        // Lock seats in ascending seat_id order
-        List<Long> seatIds = seats.stream().map(FlightSeat::getId).sorted().toList();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireTime = now.plusMinutes(ORDER_EXPIRY_MINUTES);
-
-        int locked = flightMapper.lockSeats(seatIds, -1L, expireTime);
-        if (locked != passengerCount) {
-            throw new BusinessException(ErrorCode.SEAT_LOCK_FAILED);
-        }
-
-        // Decrement remaining seats
-        int decremented = flightMapper.decrementRemainingSeats(flight.getId(), passengerCount);
-        if (decremented == 0) {
-            throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
-        }
 
         // Calculate amounts
         BigDecimal ticketAmount = seats.stream().map(FlightSeat::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -71,7 +58,7 @@ public class OrderService {
         BigDecimal fuelFee = FUEL_FEE_PER_PASSENGER.multiply(BigDecimal.valueOf(passengerCount));
         BigDecimal totalAmount = ticketAmount.add(airportFee).add(fuelFee).add(SERVICE_FEE);
 
-        // Create order
+        // Create order first so we have a real ID for the FK
         TicketOrder order = new TicketOrder();
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
@@ -84,6 +71,19 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
         order.setExpireTime(expireTime);
         orderMapper.insertOrder(order);
+
+        // Lock seats in ascending seat_id order using the real order ID
+        List<Long> seatIds = seats.stream().map(FlightSeat::getId).sorted().toList();
+        int locked = flightMapper.lockSeats(seatIds, order.getId(), expireTime);
+        if (locked != passengerCount) {
+            throw new BusinessException(ErrorCode.SEAT_LOCK_FAILED);
+        }
+
+        // Decrement remaining seats
+        int decremented = flightMapper.decrementRemainingSeats(flight.getId(), passengerCount);
+        if (decremented == 0) {
+            throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
+        }
 
         // Create passenger snapshots
         List<OrderPassenger> orderPassengers = new ArrayList<>();
@@ -100,14 +100,7 @@ public class OrderService {
         }
         orderMapper.batchInsertOrderPassengers(orderPassengers);
 
-        // Update lock with actual order id
-        flightMapper.releaseSeatsByOrderId(-1L);
-        locked = flightMapper.lockSeats(seatIds, order.getId(), expireTime);
-        if (locked != passengerCount) {
-            throw new BusinessException(ErrorCode.SEAT_LOCK_FAILED);
-        }
-
-        return getOrderDetail(order.getId());
+        return getOrderDetailForUser(order.getId(), userId);
     }
 
     @Transactional
@@ -119,7 +112,7 @@ public class OrderService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if ("ISSUED".equals(order.getStatus())) {
-            return getOrderDetail(orderId);
+            return getOrderDetailForUser(orderId, userId);
         }
         if (!"PENDING_PAYMENT".equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -128,16 +121,23 @@ public class OrderService {
             throw new BusinessException(ErrorCode.ORDER_EXPIRED);
         }
 
+        // Verify all order seats are still locked by this order
+        int passengerCount = countOrderPassengers(orderId);
+        int sold = flightMapper.updateSeatStatusToSold(orderId);
+        if (sold != passengerCount) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
+
         LocalDateTime now = LocalDateTime.now();
         orderMapper.updateOrderStatus(orderId, "ISSUED");
         orderMapper.updatePayTime(orderId, now);
-        flightMapper.updateSeatStatusToSold(orderId);
 
-        return getOrderDetail(orderId);
+        return getOrderDetailForUser(orderId, userId);
     }
 
     public PageResponse<OrderVO> listMyOrders(int page, int size) {
         Long userId = SecurityUtil.getCurrentUserId();
+        cleanupAllExpiredOrders();
         int offset = (page - 1) * size;
         List<OrderVO> records = orderMapper.findByUserId(userId, offset, size);
         long total = orderMapper.countByUserId(userId);
@@ -146,22 +146,20 @@ public class OrderService {
 
     public OrderVO getOrderDetail(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
-        TicketOrder order = orderMapper.findById(orderId);
-        if (order == null || !order.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        return orderMapper.findDetailById(orderId);
+        cleanupExpiredOrder(orderId);
+        return getOrderDetailForUser(orderId, userId);
     }
 
     @Transactional
     public OrderVO cancelOrder(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
+        cleanupExpiredOrder(orderId);
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if ("CANCELLED".equals(order.getStatus())) {
-            return getOrderDetail(orderId);
+            return getOrderDetailForUser(orderId, userId);
         }
         if (!"PENDING_PAYMENT".equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -172,7 +170,7 @@ public class OrderService {
         flightMapper.releaseSeatsByOrderId(orderId);
         flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
 
-        return getOrderDetail(orderId);
+        return getOrderDetailForUser(orderId, userId);
     }
 
     @Transactional
@@ -269,5 +267,13 @@ public class OrderService {
     private int countOrderPassengers(Long orderId) {
         OrderVO detail = orderMapper.findDetailById(orderId);
         return detail != null && detail.getPassengers() != null ? detail.getPassengers().size() : 0;
+    }
+
+    private OrderVO getOrderDetailForUser(Long orderId, Long userId) {
+        TicketOrder order = orderMapper.findById(orderId);
+        if (order == null || !order.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return orderMapper.findDetailById(orderId);
     }
 }

@@ -30,4 +30,8 @@ public interface OrderMapper {
     void updatePayTime(@Param("id") Long id, @Param("payTime") java.time.LocalDateTime payTime);
 
     List<TicketOrder> findExpiredPendingOrders();
+
+    List<OrderVO> findAllOrders(@Param("offset") int offset, @Param("size") int size);
+
+    long countAllOrders();
 }

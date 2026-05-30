@@ -172,6 +172,11 @@
         WHERE id = #{flightId}
     </update>
 
+    <update id="setRemainingSeats">
+        UPDATE flight SET remaining_seats = #{count}
+        WHERE id = #{flightId}
+    </update>
+
     <update id="updateSeatStatusToSold">
         UPDATE flight_seat
         SET status = 'SOLD', version = version + 1
@@ -186,6 +191,21 @@
 
     <select id="countSeatsByFlightId" resultType="int">
         SELECT COUNT(*) FROM flight_seat WHERE flight_id = #{flightId}
+    </select>
+
+    <select id="searchAllFlights" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        ORDER BY f.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAllFlights" resultType="long">
+        SELECT COUNT(*) FROM flight f
+    </select>
+
+    <select id="findFlightByIdAnyStatus" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        WHERE f.id = #{id}
     </select>
 
 </mapper>

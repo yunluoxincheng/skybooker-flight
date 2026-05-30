@@ -42,8 +42,9 @@ public class AdminService {
 
     public PageResponse<OrderVO> listOrders(int page, int size) {
         int offset = (page - 1) * size;
-        List<OrderVO> orders = orderMapper.findByUserId(null, offset, size);
-        return new PageResponse<>(orders, orders.size(), page, size);
+        List<OrderVO> orders = orderMapper.findAllOrders(offset, size);
+        long total = orderMapper.countAllOrders();
+        return new PageResponse<>(orders, total, page, size);
     }
 
     public OrderVO getOrderDetail(Long id) {

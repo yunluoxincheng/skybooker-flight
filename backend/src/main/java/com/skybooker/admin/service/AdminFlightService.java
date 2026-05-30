@@ -15,17 +15,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class AdminFlightService {
 
+    private static final Set<String> VALID_STATUSES = Set.of("ON_TIME", "DELAYED", "CANCELLED");
+    private static final Set<String> VALID_PUBLISH_STATUSES = Set.of("PUBLISHED", "DRAFT");
+
     private final FlightMapper flightMapper;
 
     public PageResponse<FlightVO> listFlights(int page, int size) {
         int offset = (page - 1) * size;
-        List<FlightVO> records = flightMapper.searchFlights(null, null, null, null, offset, size);
-        long total = flightMapper.countFlights(null, null, null, null);
+        List<FlightVO> records = flightMapper.searchAllFlights(offset, size);
+        long total = flightMapper.countAllFlights();
         return new PageResponse<>(records, total, page, size);
     }
 
@@ -35,7 +39,7 @@ public class AdminFlightService {
         Flight flight = toEntity(dto);
         flight.setRemainingSeats(0);
         flightMapper.insertFlight(flight);
-        return flightMapper.findPublishedFlightById(flight.getId());
+        return flightMapper.findFlightByIdAnyStatus(flight.getId());
     }
 
     @Transactional
@@ -67,7 +71,7 @@ public class AdminFlightService {
         updated.setId(id);
         updated.setRemainingSeats(existing.getRemainingSeats());
         flightMapper.updateFlight(updated);
-        return flightMapper.findPublishedFlightById(id);
+        return flightMapper.findFlightByIdAnyStatus(id);
     }
 
     @Transactional
@@ -90,8 +94,8 @@ public class AdminFlightService {
     public void generateSeats(Long flightId) {
         Flight flight = flightMapper.findById(flightId);
         if (flight == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        if (flight.getTotalSeats() <= 0) throw new BusinessException(ErrorCode.SEAT_ALREADY_EXISTS);
-        if (flight.getBasePrice().compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(ErrorCode.SEAT_ALREADY_EXISTS);
+        if (flight.getTotalSeats() <= 0) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        if (flight.getBasePrice().compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         if (flightMapper.existsSeatsByFlightId(flightId)) throw new BusinessException(ErrorCode.SEAT_ALREADY_EXISTS);
 
         String[] letters = {"A", "B", "C", "D", "E", "F"};
@@ -114,8 +118,7 @@ public class AdminFlightService {
         }
 
         flightMapper.batchInsertFlightSeats(seats);
-        flight.setRemainingSeats(seatCount);
-        flightMapper.updateFlight(flight);
+        flightMapper.setRemainingSeats(flightId, seatCount);
     }
 
     private String getSeatType(String letter) {
@@ -131,6 +134,23 @@ public class AdminFlightService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
         if (!dto.getArrivalTime().isAfter(dto.getDepartureTime())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        String status = dto.getStatus() != null ? dto.getStatus() : "ON_TIME";
+        if (!VALID_STATUSES.contains(status)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        String publishStatus = dto.getPublishStatus() != null ? dto.getPublishStatus() : "DRAFT";
+        if (!VALID_PUBLISH_STATUSES.contains(publishStatus)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (dto.getDurationMinutes() == null || dto.getDurationMinutes() <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (dto.getBasePrice() == null || dto.getBasePrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (dto.getTotalSeats() == null || dto.getTotalSeats() <= 0) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
     }

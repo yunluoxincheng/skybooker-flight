@@ -103,4 +103,18 @@
         WHERE status = 'PENDING_PAYMENT' AND expire_time &lt; NOW()
     </select>
 
+    <select id="findAllOrders" resultMap="orderVOResult">
+        SELECT o.id, o.order_no, o.flight_id, f.flight_no, o.status,
+               o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
+               o.pay_time, o.expire_time, o.created_at
+        FROM ticket_order o
+        JOIN flight f ON o.flight_id = f.id
+        ORDER BY o.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAllOrders" resultType="long">
+        SELECT COUNT(*) FROM ticket_order
+    </select>
+
 </mapper>

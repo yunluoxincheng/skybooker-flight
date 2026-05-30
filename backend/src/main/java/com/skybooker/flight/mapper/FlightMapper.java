@@ -55,9 +55,18 @@ public interface FlightMapper {
     int incrementRemainingSeats(@Param("flightId") Long flightId,
                                 @Param("count") int count);
 
-    void updateSeatStatusToSold(@Param("orderId") Long orderId);
+    void setRemainingSeats(@Param("flightId") Long flightId,
+                           @Param("count") int count);
+
+    int updateSeatStatusToSold(@Param("orderId") Long orderId);
 
     void releaseSeatsByOrderId(@Param("orderId") Long orderId);
 
     int countSeatsByFlightId(@Param("flightId") Long flightId);
+
+    List<FlightVO> searchAllFlights(@Param("offset") int offset, @Param("size") int size);
+
+    long countAllFlights();
+
+    FlightVO findFlightByIdAnyStatus(@Param("id") Long id);
 }
