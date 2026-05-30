@@ -19,4 +19,35 @@
         WHERE id = #{id}
     </select>
 
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users(email, phone, password_hash, nickname, role, status, email_verified)
+        VALUES(#{email}, #{phone}, #{passwordHash}, #{nickname}, #{role}, #{status}, #{emailVerified})
+    </insert>
+
+    <update id="updatePassword">
+        UPDATE users SET password_hash = #{passwordHash} WHERE id = #{id}
+    </update>
+
+    <insert id="insertVerificationCodeLog">
+        INSERT INTO auth_verification_code_log(target, target_type, scene, send_status, ip_address)
+        VALUES(#{target}, #{targetType}, #{scene}, #{sendStatus}, #{ipAddress})
+    </insert>
+
+    <select id="findUsersByRole" resultType="com.skybooker.auth.entity.User">
+        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+               role, status, email_verified, phone_verified, last_login_at,
+               created_at, updated_at
+        FROM users WHERE role = #{role}
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countUsersByRole" resultType="long">
+        SELECT COUNT(*) FROM users WHERE role = #{role}
+    </select>
+
+    <update id="updateUserStatus">
+        UPDATE users SET status = #{status} WHERE id = #{id}
+    </update>
+
 </mapper>

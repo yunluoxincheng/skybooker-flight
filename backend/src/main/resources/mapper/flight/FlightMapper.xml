@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.flight.mapper.FlightMapper">
+
+    <resultMap id="flightVOResult" type="com.skybooker.flight.vo.FlightVO" autoMapping="false">
+        <id property="id" column="id"/>
+        <result property="flightNo" column="flight_no"/>
+        <result property="airlineCode" column="airline_code"/>
+        <result property="airlineName" column="airline_name"/>
+        <result property="departureAirportCode" column="departure_airport_code"/>
+        <result property="departureAirportName" column="departure_airport_name"/>
+        <result property="departureCity" column="departure_city"/>
+        <result property="arrivalAirportCode" column="arrival_airport_code"/>
+        <result property="arrivalAirportName" column="arrival_airport_name"/>
+        <result property="arrivalCity" column="arrival_city"/>
+        <result property="departureTime" column="departure_time"/>
+        <result property="arrivalTime" column="arrival_time"/>
+        <result property="durationMinutes" column="duration_minutes"/>
+        <result property="basePrice" column="base_price"/>
+        <result property="remainingSeats" column="remaining_seats"/>
+        <result property="totalSeats" column="total_seats"/>
+        <result property="status" column="status"/>
+        <result property="publishStatus" column="publish_status"/>
+        <result property="directFlag" column="direct_flag"/>
+        <result property="baggageAllowance" column="baggage_allowance"/>
+        <result property="punctualityRate" column="punctuality_rate"/>
+    </resultMap>
+
+    <sql id="flightSelect">
+        SELECT f.id, f.flight_no, f.departure_time, f.arrival_time, f.duration_minutes,
+               f.base_price, f.remaining_seats, f.total_seats, f.status, f.publish_status,
+               f.direct_flag, f.baggage_allowance, f.punctuality_rate,
+               al.code AS airline_code, al.name AS airline_name,
+               da.code AS departure_airport_code, da.name AS departure_airport_name, da.city AS departure_city,
+               aa.code AS arrival_airport_code, aa.name AS arrival_airport_name, aa.city AS arrival_city
+        FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+    </sql>
+
+    <select id="searchFlights" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        WHERE f.publish_status = 'PUBLISHED'
+        <if test="flightNo != null and flightNo != ''">
+            AND f.flight_no = #{flightNo}
+        </if>
+        <if test="departureCity != null and departureCity != ''">
+            AND da.city = #{departureCity}
+        </if>
+        <if test="arrivalCity != null and arrivalCity != ''">
+            AND aa.city = #{arrivalCity}
+        </if>
+        <if test="departureDate != null">
+            AND f.departure_time >= #{departureDate}
+            AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
+        </if>
+        ORDER BY f.departure_time
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countFlights" resultType="long">
+        SELECT COUNT(*)
+        FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        WHERE f.publish_status = 'PUBLISHED'
+        <if test="flightNo != null and flightNo != ''">
+            AND f.flight_no = #{flightNo}
+        </if>
+        <if test="departureCity != null and departureCity != ''">
+            AND da.city = #{departureCity}
+        </if>
+        <if test="arrivalCity != null and arrivalCity != ''">
+            AND aa.city = #{arrivalCity}
+        </if>
+        <if test="departureDate != null">
+            AND f.departure_time >= #{departureDate}
+            AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
+        </if>
+    </select>
+
+    <select id="findPublishedFlightById" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        WHERE f.id = #{id} AND f.publish_status = 'PUBLISHED'
+    </select>
+
+    <select id="findSeatsByFlightId" resultType="com.skybooker.flight.vo.FlightSeatVO">
+        SELECT id, seat_no, cabin_class, seat_type, price, status, version
+        FROM flight_seat
+        WHERE flight_id = #{flightId}
+        ORDER BY seat_no
+    </select>
+
+    <select id="findById" resultType="com.skybooker.flight.entity.Flight">
+        SELECT id, flight_no, airline_id, departure_airport_id, arrival_airport_id,
+               departure_time, arrival_time, duration_minutes, base_price,
+               remaining_seats, total_seats, status, publish_status,
+               direct_flag, baggage_allowance, punctuality_rate, created_at, updated_at
+        FROM flight WHERE id = #{id}
+    </select>
+
+    <select id="findSeatById" resultType="com.skybooker.flight.entity.FlightSeat">
+        SELECT id, flight_id, seat_no, cabin_class, seat_type, price, status, version,
+               locked_by_order_id, lock_expire_time, created_at, updated_at
+        FROM flight_seat WHERE id = #{id}
+    </select>
+
+    <insert id="insertFlight" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO flight(flight_no, airline_id, departure_airport_id, arrival_airport_id,
+                           departure_time, arrival_time, duration_minutes, base_price,
+                           remaining_seats, total_seats, status, publish_status,
+                           direct_flag, baggage_allowance, punctuality_rate)
+        VALUES(#{flightNo}, #{airlineId}, #{departureAirportId}, #{arrivalAirportId},
+               #{departureTime}, #{arrivalTime}, #{durationMinutes}, #{basePrice},
+               #{remainingSeats}, #{totalSeats}, #{status}, #{publishStatus},
+               #{directFlag}, #{baggageAllowance}, #{punctualityRate})
+    </insert>
+
+    <update id="updateFlight">
+        UPDATE flight
+        SET flight_no = #{flightNo}, airline_id = #{airlineId},
+            departure_airport_id = #{departureAirportId}, arrival_airport_id = #{arrivalAirportId},
+            departure_time = #{departureTime}, arrival_time = #{arrivalTime},
+            duration_minutes = #{durationMinutes}, base_price = #{basePrice},
+            total_seats = #{totalSeats}, status = #{status}, publish_status = #{publishStatus},
+            direct_flag = #{directFlag}, baggage_allowance = #{baggageAllowance},
+            punctuality_rate = #{punctualityRate}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertFlightSeat" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO flight_seat(flight_id, seat_no, cabin_class, seat_type, price, status)
+        VALUES(#{flightId}, #{seatNo}, #{cabinClass}, #{seatType}, #{price}, #{status})
+    </insert>
+
+    <insert id="batchInsertFlightSeats" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO flight_seat(flight_id, seat_no, cabin_class, seat_type, price, status)
+        VALUES
+        <foreach collection="seats" item="s" separator=",">
+            (#{s.flightId}, #{s.seatNo}, #{s.cabinClass}, #{s.seatType}, #{s.price}, #{s.status})
+        </foreach>
+    </insert>
+
+    <select id="existsSeatsByFlightId" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM flight_seat WHERE flight_id = #{flightId}
+    </select>
+
+    <select id="existsOrdersByFlightId" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM ticket_order WHERE flight_id = #{flightId}
+    </select>
+
+    <update id="lockSeats">
+        UPDATE flight_seat
+        SET status = 'LOCKED', locked_by_order_id = #{orderId}, lock_expire_time = #{lockExpireTime}, version = version + 1
+        WHERE id IN
+        <foreach collection="seatIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND status = 'AVAILABLE'
+    </update>
+
+    <update id="decrementRemainingSeats">
+        UPDATE flight SET remaining_seats = remaining_seats - #{count}
+        WHERE id = #{flightId} AND remaining_seats >= #{count}
+    </update>
+
+    <update id="incrementRemainingSeats">
+        UPDATE flight SET remaining_seats = remaining_seats + #{count}
+        WHERE id = #{flightId}
+    </update>
+
+    <update id="updateSeatStatusToSold">
+        UPDATE flight_seat
+        SET status = 'SOLD', version = version + 1
+        WHERE locked_by_order_id = #{orderId} AND status = 'LOCKED'
+    </update>
+
+    <update id="releaseSeatsByOrderId">
+        UPDATE flight_seat
+        SET status = 'AVAILABLE', locked_by_order_id = NULL, lock_expire_time = NULL, version = version + 1
+        WHERE locked_by_order_id = #{orderId} AND status = 'LOCKED'
+    </update>
+
+    <select id="countSeatsByFlightId" resultType="int">
+        SELECT COUNT(*) FROM flight_seat WHERE flight_id = #{flightId}
+    </select>
+
+</mapper>
