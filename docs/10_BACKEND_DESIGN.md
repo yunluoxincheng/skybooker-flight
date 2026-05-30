@@ -294,9 +294,9 @@ GlobalExceptionHandler
 ```yaml
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/flight_booking?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:flight_booking}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -308,7 +308,7 @@ spring:
       port: 6379
 
 jwt:
-  secret: change-me-change-me-change-me
+  secret: ${JWT_SECRET}
   expiration: 86400000
 ```
 

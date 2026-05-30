@@ -17,6 +17,7 @@
 ### 启动 MySQL 和 Redis
 
 ```bash
+cp .env.example .env
 docker compose up -d mysql redis
 ```
 
@@ -24,6 +25,7 @@ docker compose up -d mysql redis
 
 ```bash
 cd backend
+set -a; source ../.env; set +a
 mvn spring-boot:run
 ```
 
@@ -60,13 +62,20 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api
 ### 后端
 
 ```env
-SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/flight_booking
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=123456
-SPRING_REDIS_HOST=localhost
-JWT_SECRET=change-me-change-me-change-me
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=flight_booking
+MYSQL_USER=root
+MYSQL_PASSWORD=replace-with-local-password
+REDIS_HOST=localhost
+REDIS_PORT=6379
+JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
+JWT_EXPIRATION=86400000
+OPENAPI_ENABLED=false
 AI_API_KEY=optional
 ```
+
+`MYSQL_PASSWORD` 和 `JWT_SECRET` 没有应用内默认值，部署环境必须显式提供。Swagger / Knife4j 文档默认关闭，需要在开发或测试环境将 `OPENAPI_ENABLED=true` 后才开放。
 
 ## 4. Docker Compose 部署
 
