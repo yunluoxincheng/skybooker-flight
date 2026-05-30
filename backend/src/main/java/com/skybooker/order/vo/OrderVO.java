@@ -16,6 +16,9 @@ public class OrderVO {
     private String orderNo;
     private Long flightId;
     private String flightNo;
+    private Long userId;
+    private String userEmail;
+    private String userNickname;
     private String status;
     private BigDecimal ticketAmount;
     private BigDecimal airportFee;

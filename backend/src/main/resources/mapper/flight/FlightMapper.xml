@@ -208,4 +208,12 @@
         WHERE f.id = #{id}
     </select>
 
+    <select id="existsAirlineById" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM airline WHERE id = #{id}
+    </select>
+
+    <select id="existsAirportById" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM airport WHERE id = #{id}
+    </select>
+
 </mapper>

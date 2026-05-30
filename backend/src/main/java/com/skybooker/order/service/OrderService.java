@@ -30,6 +30,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final FlightMapper flightMapper;
     private final PassengerMapper passengerMapper;
+    private final OrderCleanupService cleanupService;
 
     private static final BigDecimal AIRPORT_FEE_PER_PASSENGER = new BigDecimal("50.00");
     private static final BigDecimal FUEL_FEE_PER_PASSENGER = new BigDecimal("30.00");
@@ -43,7 +44,7 @@ public class OrderService {
         int passengerCount = items.size();
 
         validateItems(items);
-        cleanupAllExpiredOrders();
+        cleanupService.cleanupAllExpiredOrders();
 
         List<Passenger> passengers = validatePassengerOwnership(items, userId);
         Flight flight = validateFlightSellability(dto.getFlightId(), passengerCount);
@@ -52,13 +53,11 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expireTime = now.plusMinutes(ORDER_EXPIRY_MINUTES);
 
-        // Calculate amounts
         BigDecimal ticketAmount = seats.stream().map(FlightSeat::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal airportFee = AIRPORT_FEE_PER_PASSENGER.multiply(BigDecimal.valueOf(passengerCount));
         BigDecimal fuelFee = FUEL_FEE_PER_PASSENGER.multiply(BigDecimal.valueOf(passengerCount));
         BigDecimal totalAmount = ticketAmount.add(airportFee).add(fuelFee).add(SERVICE_FEE);
 
-        // Create order first so we have a real ID for the FK
         TicketOrder order = new TicketOrder();
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
@@ -72,20 +71,17 @@ public class OrderService {
         order.setExpireTime(expireTime);
         orderMapper.insertOrder(order);
 
-        // Lock seats in ascending seat_id order using the real order ID
         List<Long> seatIds = seats.stream().map(FlightSeat::getId).sorted().toList();
         int locked = flightMapper.lockSeats(seatIds, order.getId(), expireTime);
         if (locked != passengerCount) {
             throw new BusinessException(ErrorCode.SEAT_LOCK_FAILED);
         }
 
-        // Decrement remaining seats
         int decremented = flightMapper.decrementRemainingSeats(flight.getId(), passengerCount);
         if (decremented == 0) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
 
-        // Create passenger snapshots
         List<OrderPassenger> orderPassengers = new ArrayList<>();
         for (int i = 0; i < items.size(); i++) {
             OrderPassenger op = new OrderPassenger();
@@ -106,7 +102,7 @@ public class OrderService {
     @Transactional
     public OrderVO payOrder(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
-        cleanupExpiredOrder(orderId);
+        cleanupService.cleanupExpiredOrder(orderId);
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -121,7 +117,6 @@ public class OrderService {
             throw new BusinessException(ErrorCode.ORDER_EXPIRED);
         }
 
-        // Verify all order seats are still locked by this order
         int passengerCount = countOrderPassengers(orderId);
         int sold = flightMapper.updateSeatStatusToSold(orderId);
         if (sold != passengerCount) {
@@ -137,7 +132,7 @@ public class OrderService {
 
     public PageResponse<OrderVO> listMyOrders(int page, int size) {
         Long userId = SecurityUtil.getCurrentUserId();
-        cleanupAllExpiredOrders();
+        cleanupService.cleanupAllExpiredOrders();
         int offset = (page - 1) * size;
         List<OrderVO> records = orderMapper.findByUserId(userId, offset, size);
         long total = orderMapper.countByUserId(userId);
@@ -146,14 +141,14 @@ public class OrderService {
 
     public OrderVO getOrderDetail(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
-        cleanupExpiredOrder(orderId);
+        cleanupService.cleanupExpiredOrder(orderId);
         return getOrderDetailForUser(orderId, userId);
     }
 
     @Transactional
     public OrderVO cancelOrder(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
-        cleanupExpiredOrder(orderId);
+        cleanupService.cleanupExpiredOrder(orderId);
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -171,32 +166,6 @@ public class OrderService {
         flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
 
         return getOrderDetailForUser(orderId, userId);
-    }
-
-    @Transactional
-    public void cleanupExpiredOrder(Long orderId) {
-        TicketOrder order = orderMapper.findById(orderId);
-        if (order != null && "PENDING_PAYMENT".equals(order.getStatus())
-                && order.getExpireTime() != null && order.getExpireTime().isBefore(LocalDateTime.now())) {
-            int passengerCount = countOrderPassengers(orderId);
-            orderMapper.updateOrderStatus(orderId, "CANCELLED");
-            flightMapper.releaseSeatsByOrderId(orderId);
-            flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
-        }
-    }
-
-    @Transactional
-    public void cleanupAllExpiredOrders() {
-        List<TicketOrder> expired = orderMapper.findExpiredPendingOrders();
-        for (TicketOrder order : expired) {
-            try {
-                int passengerCount = countOrderPassengers(order.getId());
-                orderMapper.updateOrderStatus(order.getId(), "CANCELLED");
-                flightMapper.releaseSeatsByOrderId(order.getId());
-                flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
-            } catch (Exception ignored) {
-            }
-        }
     }
 
     private void validateItems(List<CreateOrderDTO.OrderItemDTO> items) {

@@ -130,6 +130,32 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void createFlight_rejectsInvalidAirline() throws Exception {
+        FlightFormDTO dto = buildValidFlightForm();
+        dto.setAirlineId(99999L);
+
+        mockMvc.perform(post("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void createFlight_rejectsInvalidAirport() throws Exception {
+        FlightFormDTO dto = buildValidFlightForm();
+        dto.setDepartureAirportId(99999L);
+
+        mockMvc.perform(post("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
     void createFlight_rejectsInvalidStatus() throws Exception {
         FlightFormDTO dto = buildValidFlightForm();
         dto.setStatus("INVALID_STATUS");
@@ -259,7 +285,10 @@ class AdminIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)));
+                .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[0].userId").exists())
+                .andExpect(jsonPath("$.data.records[0].userEmail").exists())
+                .andExpect(jsonPath("$.data.records[0].userNickname").exists());
     }
 
     @Test

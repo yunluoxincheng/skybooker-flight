@@ -69,4 +69,8 @@ public interface FlightMapper {
     long countAllFlights();
 
     FlightVO findFlightByIdAnyStatus(@Param("id") Long id);
+
+    boolean existsAirlineById(@Param("id") Long id);
+
+    boolean existsAirportById(@Param("id") Long id);
 }

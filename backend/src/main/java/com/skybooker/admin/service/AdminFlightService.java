@@ -130,6 +130,15 @@ public class AdminFlightService {
     }
 
     private void validateFlightForm(FlightFormDTO dto) {
+        if (!flightMapper.existsAirlineById(dto.getAirlineId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (!flightMapper.existsAirportById(dto.getDepartureAirportId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (!flightMapper.existsAirportById(dto.getArrivalAirportId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
         if (dto.getDepartureAirportId().equals(dto.getArrivalAirportId())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }

@@ -8,6 +8,9 @@
         <result property="orderNo" column="order_no"/>
         <result property="flightId" column="flight_id"/>
         <result property="flightNo" column="flight_no"/>
+        <result property="userId" column="user_id"/>
+        <result property="userEmail" column="user_email"/>
+        <result property="userNickname" column="user_nickname"/>
         <result property="status" column="status"/>
         <result property="ticketAmount" column="ticket_amount"/>
         <result property="airportFee" column="airport_fee"/>
@@ -60,11 +63,14 @@
     </select>
 
     <select id="findByUserId" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no, o.status,
+        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+               o.user_id, u.email AS user_email, u.nickname AS user_nickname,
+               o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
                o.pay_time, o.expire_time, o.created_at
         FROM ticket_order o
         JOIN flight f ON o.flight_id = f.id
+        JOIN users u ON o.user_id = u.id
         WHERE o.user_id = #{userId}
         ORDER BY o.created_at DESC
         LIMIT #{offset}, #{size}
@@ -75,7 +81,9 @@
     </select>
 
     <select id="findDetailById" resultMap="orderDetailResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no, o.status,
+        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+               o.user_id, u.email AS user_email, u.nickname AS user_nickname,
+               o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
                o.pay_time, o.expire_time, o.created_at,
                op.passenger_id AS op_passenger_id, op.passenger_name AS op_passenger_name,
@@ -83,6 +91,7 @@
                op.seat_no AS op_seat_no, op.ticket_price AS op_ticket_price
         FROM ticket_order o
         JOIN flight f ON o.flight_id = f.id
+        JOIN users u ON o.user_id = u.id
         LEFT JOIN order_passenger op ON o.id = op.order_id
         WHERE o.id = #{id}
     </select>
@@ -104,11 +113,14 @@
     </select>
 
     <select id="findAllOrders" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no, o.status,
+        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+               o.user_id, u.email AS user_email, u.nickname AS user_nickname,
+               o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
                o.pay_time, o.expire_time, o.created_at
         FROM ticket_order o
         JOIN flight f ON o.flight_id = f.id
+        JOIN users u ON o.user_id = u.id
         ORDER BY o.created_at DESC
         LIMIT #{offset}, #{size}
     </select>
