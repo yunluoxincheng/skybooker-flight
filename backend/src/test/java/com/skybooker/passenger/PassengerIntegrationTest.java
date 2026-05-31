@@ -92,9 +92,11 @@ class PassengerIntegrationTest {
 
     @Test
     void createPassenger_rejectsDuplicateIdCard() throws Exception {
+        String idCard = uniqueIdCardNo();
+
         PassengerDTO dto = new PassengerDTO();
         dto.setName("首次乘机人");
-        dto.setIdCardNo("550101199909090099");
+        dto.setIdCardNo(idCard);
         dto.setPassengerType("ADULT");
         dto.setPhone("13900009999");
 
@@ -106,7 +108,7 @@ class PassengerIntegrationTest {
 
         PassengerDTO dup = new PassengerDTO();
         dup.setName("重复乘机人");
-        dup.setIdCardNo("550101199909090099");
+        dup.setIdCardNo(idCard);
         dup.setPassengerType("ADULT");
         dup.setPhone("13900008888");
 
