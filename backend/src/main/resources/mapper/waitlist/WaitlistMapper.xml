@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.waitlist.mapper.WaitlistMapper">
+
+    <resultMap id="waitlistVOResult" type="com.skybooker.waitlist.vo.WaitlistVO" autoMapping="false">
+        <id property="id" column="id"/>
+        <result property="waitlistNo" column="waitlist_no"/>
+        <result property="userId" column="user_id"/>
+        <result property="flightId" column="flight_id"/>
+        <result property="flightNo" column="flight_no"/>
+        <result property="cabinClass" column="cabin_class"/>
+        <result property="passengerCount" column="passenger_count"/>
+        <result property="payAmount" column="pay_amount"/>
+        <result property="status" column="status"/>
+        <result property="expireTime" column="expire_time"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="ticketOrderId" column="ticket_order_id"/>
+        <result property="refundAmount" column="refund_amount"/>
+        <result property="refundTime" column="refund_time"/>
+        <result property="lastSkipReason" column="last_skip_reason"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="waitlistDetailResult" type="com.skybooker.waitlist.vo.WaitlistVO" autoMapping="false" extends="waitlistVOResult">
+        <collection property="passengers" ofType="com.skybooker.waitlist.vo.WaitlistVO$WaitlistPassengerVO" autoMapping="false">
+            <result property="passengerId" column="wp_passenger_id"/>
+            <result property="passengerName" column="wp_passenger_name"/>
+            <result property="passengerType" column="wp_passenger_type"/>
+            <result property="seatId" column="wp_seat_id"/>
+            <result property="seatNo" column="wp_seat_no"/>
+        </collection>
+    </resultMap>
+
+    <sql id="waitlistSelect">
+        SELECT w.id, w.waitlist_no, w.user_id, w.flight_id, f.flight_no,
+               w.cabin_class, w.passenger_count, w.pay_amount, w.status,
+               w.expire_time, w.paid_at, w.ticket_order_id,
+               w.refund_amount, w.refund_time, w.last_skip_reason, w.created_at
+        FROM waitlist_order w
+        JOIN flight f ON w.flight_id = f.id
+    </sql>
+
+    <insert id="insertWaitlistOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO waitlist_order(waitlist_no, user_id, flight_id, passenger_count,
+                                   cabin_class, pay_amount, status, expire_time)
+        VALUES(#{waitlistNo}, #{userId}, #{flightId}, #{passengerCount},
+               #{cabinClass}, #{payAmount}, #{status}, #{expireTime})
+    </insert>
+
+    <insert id="batchInsertWaitlistPassengers" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO waitlist_passenger(waitlist_id, passenger_id, passenger_name, passenger_type)
+        VALUES
+        <foreach collection="list" item="wp" separator=",">
+            (#{wp.waitlistId}, #{wp.passengerId}, #{wp.passengerName}, #{wp.passengerType})
+        </foreach>
+    </insert>
+
+    <select id="findDetailById" resultMap="waitlistDetailResult">
+        SELECT w.id, w.waitlist_no, w.user_id, w.flight_id, f.flight_no,
+               w.cabin_class, w.passenger_count, w.pay_amount, w.status,
+               w.expire_time, w.paid_at, w.ticket_order_id,
+               w.refund_amount, w.refund_time, w.last_skip_reason, w.created_at,
+               wp.passenger_id AS wp_passenger_id, wp.passenger_name AS wp_passenger_name,
+               wp.passenger_type AS wp_passenger_type,
+               wp.locked_seat_id AS wp_seat_id, wp.locked_seat_no AS wp_seat_no
+        FROM waitlist_order w
+        JOIN flight f ON w.flight_id = f.id
+        LEFT JOIN waitlist_passenger wp ON w.id = wp.waitlist_id
+        WHERE w.id = #{id}
+    </select>
+
+    <select id="findByUserId" resultMap="waitlistDetailResult">
+        SELECT w.id, w.waitlist_no, w.user_id, w.flight_id, f.flight_no,
+               w.cabin_class, w.passenger_count, w.pay_amount, w.status,
+               w.expire_time, w.paid_at, w.ticket_order_id,
+               w.refund_amount, w.refund_time, w.last_skip_reason, w.created_at,
+               wp.passenger_id AS wp_passenger_id, wp.passenger_name AS wp_passenger_name,
+               wp.passenger_type AS wp_passenger_type,
+               wp.locked_seat_id AS wp_seat_id, wp.locked_seat_no AS wp_seat_no
+        FROM waitlist_order w
+        JOIN flight f ON w.flight_id = f.id
+        LEFT JOIN waitlist_passenger wp ON w.id = wp.waitlist_id
+        WHERE w.user_id = #{userId}
+        ORDER BY w.created_at DESC
+    </select>
+
+    <update id="updateStatusCAS">
+        UPDATE waitlist_order SET status = #{newStatus}
+        WHERE id = #{id} AND status = #{expectedStatus}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE waitlist_order SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <update id="updatePaidAt">
+        UPDATE waitlist_order SET paid_at = #{paidAt} WHERE id = #{id}
+    </update>
+
+    <update id="updateTicketOrderId">
+        UPDATE waitlist_order SET ticket_order_id = #{ticketOrderId} WHERE id = #{id}
+    </update>
+
+    <update id="updateSkipReason">
+        UPDATE waitlist_order SET last_skip_reason = #{reason} WHERE id = #{id}
+    </update>
+
+    <update id="updateRefund">
+        UPDATE waitlist_order
+        SET refund_amount = #{refundAmount}, refund_time = #{refundTime}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePassengerSeat">
+        UPDATE waitlist_passenger
+        SET locked_seat_id = #{seatId}, locked_seat_no = #{seatNo}
+        WHERE waitlist_id = #{waitlistId} AND passenger_id = #{passengerId}
+    </update>
+
+    <select id="findWaitingByFlightAndCabin" resultMap="waitlistVOResult">
+        <include refid="waitlistSelect"/>
+        WHERE w.flight_id = #{flightId}
+          AND w.cabin_class = #{cabinClass}
+          AND w.status = 'WAITING'
+        ORDER BY w.paid_at ASC, w.id ASC
+    </select>
+
+    <select id="findExpiredPending" resultType="com.skybooker.waitlist.entity.WaitlistOrder">
+        SELECT id, waitlist_no, user_id, flight_id, passenger_count, cabin_class,
+               pay_amount, status, expire_time, paid_at, created_at, updated_at
+        FROM waitlist_order
+        WHERE status = 'PENDING_PAYMENT' AND expire_time &lt; NOW()
+    </select>
+
+    <select id="findUnfulfillableWaiting" resultType="com.skybooker.waitlist.entity.WaitlistOrder">
+        SELECT w.id, w.waitlist_no, w.user_id, w.flight_id, w.passenger_count, w.cabin_class,
+               w.pay_amount, w.status, w.expire_time, w.paid_at, w.refund_amount, w.refund_time,
+               w.created_at, w.updated_at
+        FROM waitlist_order w
+        JOIN flight f ON w.flight_id = f.id
+        WHERE w.status = 'WAITING'
+          AND (f.departure_time &lt;= NOW()
+               OR f.publish_status != 'PUBLISHED'
+               OR f.status NOT IN ('ON_TIME', 'DELAYED'))
+    </select>
+
+</mapper>

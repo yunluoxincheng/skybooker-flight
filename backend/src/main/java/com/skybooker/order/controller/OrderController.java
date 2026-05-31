@@ -5,6 +5,8 @@ import com.skybooker.common.response.PageResponse;
 import com.skybooker.order.dto.CreateOrderDTO;
 import com.skybooker.order.service.OrderService;
 import com.skybooker.order.vo.OrderVO;
+import com.skybooker.refund.service.RefundService;
+import com.skybooker.refund.vo.RefundVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+    private final RefundService refundService;
 
     @PostMapping
     public ApiResponse<OrderVO> createOrder(@Valid @RequestBody CreateOrderDTO dto) {
@@ -41,5 +44,10 @@ public class OrderController {
     @PostMapping("/{id}/cancel")
     public ApiResponse<OrderVO> cancelOrder(@PathVariable Long id) {
         return ApiResponse.success(orderService.cancelOrder(id));
+    }
+
+    @PostMapping("/{id}/refund")
+    public ApiResponse<RefundVO> refundOrder(@PathVariable Long id) {
+        return ApiResponse.success(refundService.refundOrder(id));
     }
 }

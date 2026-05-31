@@ -93,13 +93,27 @@ class PassengerIntegrationTest {
     @Test
     void createPassenger_rejectsDuplicateIdCard() throws Exception {
         PassengerDTO dto = new PassengerDTO();
-        dto.setName("重复乘机人");
-        dto.setIdCardNo("110101199001010011");
+        dto.setName("首次乘机人");
+        dto.setIdCardNo("550101199909090099");
+        dto.setPassengerType("ADULT");
+        dto.setPhone("13900009999");
 
         mockMvc.perform(post("/api/passengers")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+
+        PassengerDTO dup = new PassengerDTO();
+        dup.setName("重复乘机人");
+        dup.setIdCardNo("550101199909090099");
+        dup.setPassengerType("ADULT");
+        dup.setPhone("13900008888");
+
+        mockMvc.perform(post("/api/passengers")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dup)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40005));
     }

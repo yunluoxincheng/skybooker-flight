@@ -128,6 +128,50 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void refundEndpoint_requiresUserToken() throws Exception {
+        mockMvc.perform(post("/api/orders/1/refund")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refundEndpoint_rejectsUnauthenticated() throws Exception {
+        mockMvc.perform(post("/api/orders/1/refund"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void waitlistEndpoints_requireUserToken() throws Exception {
+        mockMvc.perform(post("/api/waitlist")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/waitlist/my")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void waitlistEndpoints_rejectUnauthenticated() throws Exception {
+        mockMvc.perform(post("/api/waitlist"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/waitlist/my"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/waitlist/1"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/waitlist/1/pay"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/waitlist/1/cancel"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void issuedUserToken_isRejectedAfterAccountDisabled() throws Exception {
         try {
             jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE email = ?", "user1@example.com");
