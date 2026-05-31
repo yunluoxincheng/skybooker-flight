@@ -46,7 +46,12 @@ public enum ErrorCode {
     VERIFICATION_CODE_MAX_ATTEMPTS(10014, "验证码错误次数过多，请重新获取"),
     SCENE_NOT_SUPPORTED(10015, "不支持的场景类型"),
     FLIGHT_HAS_INVENTORY(40008, "航班已有座位或订单，不允许修改"),
-    ADMIN_ACCOUNT_PROTECTED(40009, "不允许操作管理员账号");
+    ADMIN_ACCOUNT_PROTECTED(40009, "不允许操作管理员账号"),
+    REFUND_WINDOW_CLOSED(50001, "退款窗口已关闭，距起飞不足2小时"),
+    WAITLIST_NOT_FOUND(50002, "候补订单不存在"),
+    WAITLIST_STATE_INVALID(50003, "候补订单状态不允许此操作"),
+    WAITLIST_NOT_NEEDED(50004, "当前舱位余票充足，无需候补"),
+    DUPLICATE_WAITLIST_PASSENGER(50005, "候补订单中存在重复乘机人");
 
     private final int code;
     private final String message;

@@ -73,4 +73,21 @@ public interface FlightMapper {
     boolean existsAirlineById(@Param("id") Long id);
 
     boolean existsAirportById(@Param("id") Long id);
+
+    int countAvailableSeatsByFlightAndCabin(@Param("flightId") Long flightId,
+                                            @Param("cabinClass") String cabinClass);
+
+    List<FlightSeat> findAvailableSeatsByFlightAndCabin(@Param("flightId") Long flightId,
+                                                         @Param("cabinClass") String cabinClass,
+                                                         @Param("limit") int limit);
+
+    int releaseSoldSeatsByOrderId(@Param("orderId") Long orderId);
+
+    int lockAvailableSeatsForWaitlist(@Param("seatIds") List<Long> seatIds,
+                                      @Param("orderId") Long orderId);
+
+    java.math.BigDecimal findMinPriceByFlightAndCabin(@Param("flightId") Long flightId,
+                                                       @Param("cabinClass") String cabinClass);
+
+    List<String> findCabinClassesByOrderId(@Param("orderId") Long orderId);
 }

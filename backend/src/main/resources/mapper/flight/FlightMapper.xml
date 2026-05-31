@@ -216,4 +216,53 @@
         SELECT COUNT(*) > 0 FROM airport WHERE id = #{id}
     </select>
 
+    <select id="countAvailableSeatsByFlightAndCabin" resultType="int">
+        SELECT COUNT(*)
+        FROM flight_seat
+        WHERE flight_id = #{flightId}
+          AND cabin_class = #{cabinClass}
+          AND status = 'AVAILABLE'
+    </select>
+
+    <select id="findAvailableSeatsByFlightAndCabin" resultType="com.skybooker.flight.entity.FlightSeat">
+        SELECT id, flight_id, seat_no, cabin_class, seat_type, price, status, version,
+               locked_by_order_id, lock_expire_time, created_at, updated_at
+        FROM flight_seat
+        WHERE flight_id = #{flightId}
+          AND cabin_class = #{cabinClass}
+          AND status = 'AVAILABLE'
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <update id="releaseSoldSeatsByOrderId">
+        UPDATE flight_seat
+        SET status = 'AVAILABLE', locked_by_order_id = NULL, lock_expire_time = NULL, version = version + 1
+        WHERE locked_by_order_id = #{orderId} AND status = 'SOLD'
+    </update>
+
+    <update id="lockAvailableSeatsForWaitlist">
+        UPDATE flight_seat
+        SET status = 'SOLD', locked_by_order_id = #{orderId}, version = version + 1
+        WHERE id IN
+        <foreach collection="seatIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND status = 'AVAILABLE'
+    </update>
+
+    <select id="findMinPriceByFlightAndCabin" resultType="java.math.BigDecimal">
+        SELECT MIN(price)
+        FROM flight_seat
+        WHERE flight_id = #{flightId}
+          AND cabin_class = #{cabinClass}
+          AND status != 'DISABLED'
+    </select>
+
+    <select id="findCabinClassesByOrderId" resultType="java.lang.String">
+        SELECT DISTINCT fs.cabin_class
+        FROM flight_seat fs
+        WHERE fs.locked_by_order_id = #{orderId} AND fs.status = 'SOLD'
+    </select>
+
 </mapper>

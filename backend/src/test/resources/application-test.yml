@@ -11,6 +11,9 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  task:
+    scheduling:
+      enabled: false
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
