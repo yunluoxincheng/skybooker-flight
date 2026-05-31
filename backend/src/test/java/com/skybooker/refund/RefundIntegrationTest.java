@@ -80,6 +80,65 @@ class RefundIntegrationTest {
                 .andExpect(jsonPath("$.data.refundAmount").value(406.00));
     }
 
+    // ---- Boundary: 24h / 2h thresholds ----
+    // Create flights far in the future so order+pay succeeds, then UPDATE departure_time
+    // right before refund to eliminate time-drift flakiness in slow CI.
+
+    @Test
+    void refund_boundary_justOver24h_charges10pct() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+        jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
+                LocalDateTime.now().plusHours(24).plusSeconds(30), flightId);
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.feeAmount").value(58.00))
+                .andExpect(jsonPath("$.data.refundAmount").value(522.00));
+    }
+
+    @Test
+    void refund_boundary_justUnder24h_charges30pct() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+        jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
+                LocalDateTime.now().plusHours(24).minusSeconds(30), flightId);
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.feeAmount").value(174.00))
+                .andExpect(jsonPath("$.data.refundAmount").value(406.00));
+    }
+
+    @Test
+    void refund_boundary_justOver2h_allowsRefund() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+        jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
+                LocalDateTime.now().plusHours(2).plusSeconds(30), flightId);
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.feeAmount").value(174.00))
+                .andExpect(jsonPath("$.data.refundAmount").value(406.00));
+    }
+
+    @Test
+    void refund_boundary_justUnder2h_rejected() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+        jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
+                LocalDateTime.now().plusHours(2).minusMinutes(1), flightId);
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(50001));
+    }
+
     // ---- Rejections ----
 
     @Test
