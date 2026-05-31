@@ -27,7 +27,7 @@ public class WaitlistFulfillmentService {
     private final OrderMapper orderMapper;
 
     @Transactional
-    public int tryFulfillWaitlists(Long flightId, String cabinClass, int releasedCount, Long flightIdForSeats) {
+    public int tryFulfillWaitlists(Long flightId, String cabinClass, int releasedCount) {
         if (releasedCount <= 0) {
             return 0;
         }
@@ -104,6 +104,13 @@ public class WaitlistFulfillmentService {
                 orderPassengers.add(op);
             }
             orderMapper.batchInsertOrderPassengers(orderPassengers);
+
+            for (int i = 0; i < wlPassengers.size(); i++) {
+                waitlistMapper.updatePassengerSeat(wl.getId(),
+                        wlPassengers.get(i).getPassengerId(),
+                        seats.get(i).getId(),
+                        seats.get(i).getSeatNo());
+            }
 
             waitlistMapper.updateTicketOrderId(wl.getId(), ticketOrder.getId());
             int cas = waitlistMapper.updateStatusCAS(wl.getId(), "WAITING", "SUCCESS");

@@ -112,6 +112,12 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updatePassengerSeat">
+        UPDATE waitlist_passenger
+        SET locked_seat_id = #{seatId}, locked_seat_no = #{seatNo}
+        WHERE waitlist_id = #{waitlistId} AND passenger_id = #{passengerId}
+    </update>
+
     <select id="findWaitingByFlightAndCabin" resultMap="waitlistVOResult">
         <include refid="waitlistSelect"/>
         WHERE w.flight_id = #{flightId}

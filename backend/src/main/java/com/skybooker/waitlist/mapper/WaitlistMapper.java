@@ -35,6 +35,11 @@ public interface WaitlistMapper {
                       @Param("refundAmount") java.math.BigDecimal refundAmount,
                       @Param("refundTime") java.time.LocalDateTime refundTime);
 
+    void updatePassengerSeat(@Param("waitlistId") Long waitlistId,
+                             @Param("passengerId") Long passengerId,
+                             @Param("seatId") Long seatId,
+                             @Param("seatNo") String seatNo);
+
     List<WaitlistVO> findWaitingByFlightAndCabin(@Param("flightId") Long flightId,
                                                   @Param("cabinClass") String cabinClass);
 

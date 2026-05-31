@@ -77,7 +77,7 @@ public class RefundService {
 
         for (String cabinClass : cabinClasses) {
             waitlistFulfillmentService.tryFulfillWaitlists(
-                    order.getFlightId(), cabinClass, passengerCount, flight.getId());
+                    order.getFlightId(), cabinClass, passengerCount);
         }
 
         return refundMapper.findByOrderId(orderId);
@@ -85,14 +85,14 @@ public class RefundService {
 
     private void validateRefundWindow(Flight flight) {
         Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
-        if (remaining.toHours() < 2) {
+        if (remaining.compareTo(Duration.ofHours(2)) < 0) {
             throw new BusinessException(ErrorCode.REFUND_WINDOW_CLOSED);
         }
     }
 
     private BigDecimal calculateFeeRate(Flight flight) {
         Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
-        if (remaining.toHours() > 24) {
+        if (remaining.compareTo(Duration.ofHours(24)) > 0) {
             return new BigDecimal("0.10");
         }
         return new BigDecimal("0.30");
