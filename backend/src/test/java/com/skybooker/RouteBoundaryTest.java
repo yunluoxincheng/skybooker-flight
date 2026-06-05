@@ -122,8 +122,34 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
 
     @Test
     void aiRoutes_rejectAdminToken() throws Exception {
-        mockMvc.perform(get("/api/ai/sessions")
+        mockMvc.perform(get("/api/ai/sessions/nonexistent/messages")
                         .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aiChat_anonymousAllowed() throws Exception {
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aiChat_userTokenAllowed() throws Exception {
+        mockMvc.perform(post("/api/ai/chat")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aiChat_adminTokenRejected() throws Exception {
+        mockMvc.perform(post("/api/ai/chat")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
                 .andExpect(status().isForbidden());
     }
 

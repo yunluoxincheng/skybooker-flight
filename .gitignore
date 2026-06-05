@@ -4,3 +4,4 @@ openspec/
 AGENTS.md
 CLAUDE.md
 backend/target/
+.env

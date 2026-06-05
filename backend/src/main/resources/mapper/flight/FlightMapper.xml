@@ -40,8 +40,7 @@
         JOIN airport aa ON f.arrival_airport_id = aa.id
     </sql>
 
-    <select id="searchFlights" resultMap="flightVOResult">
-        <include refid="flightSelect"/>
+    <sql id="publishedWhere">
         WHERE f.publish_status = 'PUBLISHED'
         <if test="flightNo != null and flightNo != ''">
             AND f.flight_no = #{flightNo}
@@ -56,6 +55,58 @@
             AND f.departure_time >= #{departureDate}
             AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
         </if>
+    </sql>
+
+    <sql id="advancedFilters">
+        <if test="airlineId != null">
+            AND f.airline_id = #{airlineId}
+        </if>
+        <if test="minPrice != null">
+            AND f.base_price >= #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND f.base_price &lt;= #{maxPrice}
+        </if>
+        <if test="departureTimeStart != null">
+            AND TIME(f.departure_time) >= #{departureTimeStart}
+        </if>
+        <if test="departureTimeEnd != null">
+            AND TIME(f.departure_time) &lt;= #{departureTimeEnd}
+        </if>
+        <if test="maxDurationMinutes != null">
+            AND f.duration_minutes &lt;= #{maxDurationMinutes}
+        </if>
+        <if test="directOnly != null and directOnly">
+            AND f.direct_flag = 1
+        </if>
+        <if test="status != null and status != ''">
+            AND f.status = #{status}
+        </if>
+    </sql>
+
+    <sql id="passengerCapacity">
+        <choose>
+            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
+                AND (
+                    SELECT COUNT(*) FROM flight_seat fs
+                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                ) >= #{passengerCount}
+            </when>
+            <when test="cabinClass != null and cabinClass != ''">
+                AND EXISTS (
+                    SELECT 1 FROM flight_seat fs
+                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                )
+            </when>
+            <when test="passengerCount != null and passengerCount > 0">
+                AND f.remaining_seats >= #{passengerCount}
+            </when>
+        </choose>
+    </sql>
+
+    <select id="searchFlights" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        <include refid="publishedWhere"/>
         ORDER BY f.departure_time
         LIMIT #{offset}, #{size}
     </select>
@@ -66,10 +117,34 @@
         JOIN airline al ON f.airline_id = al.id
         JOIN airport da ON f.departure_airport_id = da.id
         JOIN airport aa ON f.arrival_airport_id = aa.id
+        <include refid="publishedWhere"/>
+    </select>
+
+    <select id="searchFlightsAdvanced" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
+        <include refid="publishedWhere"/>
+        <include refid="advancedFilters"/>
+        <include refid="passengerCapacity"/>
+        ORDER BY ${orderBy}
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countFlightsAdvanced" resultType="long">
+        SELECT COUNT(*)
+        FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        <include refid="publishedWhere"/>
+        <include refid="advancedFilters"/>
+        <include refid="passengerCapacity"/>
+    </select>
+
+    <select id="searchRecommendationFlights" resultMap="flightVOResult">
+        <include refid="flightSelect"/>
         WHERE f.publish_status = 'PUBLISHED'
-        <if test="flightNo != null and flightNo != ''">
-            AND f.flight_no = #{flightNo}
-        </if>
+            AND f.departure_time > NOW()
+            AND f.status IN ('ON_TIME', 'DELAYED')
         <if test="departureCity != null and departureCity != ''">
             AND da.city = #{departureCity}
         </if>
@@ -80,6 +155,46 @@
             AND f.departure_time >= #{departureDate}
             AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
         </if>
+        <if test="airlineId != null">
+            AND f.airline_id = #{airlineId}
+        </if>
+        <if test="minPrice != null">
+            AND f.base_price >= #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND f.base_price &lt;= #{maxPrice}
+        </if>
+        <if test="departureTimeStart != null">
+            AND TIME(f.departure_time) >= #{departureTimeStart}
+        </if>
+        <if test="departureTimeEnd != null">
+            AND TIME(f.departure_time) &lt;= #{departureTimeEnd}
+        </if>
+        <if test="maxDurationMinutes != null">
+            AND f.duration_minutes &lt;= #{maxDurationMinutes}
+        </if>
+        <if test="directOnly != null and directOnly">
+            AND f.direct_flag = 1
+        </if>
+        <choose>
+            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
+                AND (
+                    SELECT COUNT(*) FROM flight_seat fs
+                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                ) >= #{passengerCount}
+            </when>
+            <when test="cabinClass != null and cabinClass != ''">
+                AND EXISTS (
+                    SELECT 1 FROM flight_seat fs
+                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                )
+            </when>
+            <when test="passengerCount != null and passengerCount > 0">
+                AND f.remaining_seats >= #{passengerCount}
+            </when>
+        </choose>
+        ORDER BY ${orderBy}
+        LIMIT #{limit}
     </select>
 
     <select id="findPublishedFlightById" resultMap="flightVOResult">
@@ -263,6 +378,12 @@
         SELECT DISTINCT fs.cabin_class
         FROM flight_seat fs
         WHERE fs.locked_by_order_id = #{orderId} AND fs.status = 'SOLD'
+    </select>
+
+    <select id="findAirlineIdByCodeOrName" resultType="java.lang.Long">
+        SELECT id FROM airline
+        WHERE code = #{code} OR name = #{name}
+        LIMIT 1
     </select>
 
 </mapper>

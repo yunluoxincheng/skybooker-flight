@@ -23,9 +23,10 @@ docker compose up -d mysql redis
 
 ### 启动后端
 
+后端通过 `spring-dotenv` 自动加载项目根目录的 `.env`，无需手动 source。
+
 ```bash
 cd backend
-set -a; source ../.env; set +a
 mvn spring-boot:run
 ```
 
@@ -60,6 +61,8 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api
 ```
 
 ### 后端
+
+后端通过 `spring-dotenv` 在启动时自动加载项目根目录 `.env`，不需要手动设置环境变量。`.env` 文件不提交到 Git，从 `.env.example` 复制生成。
 
 ```env
 MYSQL_HOST=localhost

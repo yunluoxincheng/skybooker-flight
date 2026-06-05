@@ -98,6 +98,13 @@
             <version>${knife4j.version}</version>
         </dependency>
 
+        <!-- Dotenv -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
+
         <!-- BCrypt (provided by Spring Security) -->
 
         <!-- Lombok -->
