@@ -40,12 +40,12 @@ class AiIntegrationTest extends AbstractIntegrationTest {
         userToken = obtainUserToken();
         adminToken = obtainAdminToken();
 
-        // Refresh flight dates to tomorrow for AI recommendation tests
+        // Refresh seed flight dates (IDs 1-5) to tomorrow for AI recommendation tests
         String tomorrow = LocalDate.now().plusDays(1).toString();
         tomorrowStr = tomorrow;
         jdbcTemplate.update(
                 "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
-                        "arrival_time = TIMESTAMP(?, TIME(arrival_time))",
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id <= 5",
                 tomorrow, tomorrow);
     }
 
@@ -574,6 +574,101 @@ class AiIntegrationTest extends AbstractIntegrationTest {
         // Verify session is marked deleted
         mockMvc.perform(get("/api/ai/sessions/" + sessionId + "/messages"))
                 .andExpect(status().isNotFound());
+    }
+
+    // --- PR review fix tests ---
+
+    @Test
+    void chat_deletedSessionReturns404NotStateError() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("查机票");
+
+        MvcResult chatResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        ApiResponse<Map> chatResponse = objectMapper.readValue(
+                chatResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) chatResponse.getData()).get("sessionId");
+
+        mockMvc.perform(delete("/api/ai/sessions/" + sessionId))
+                .andExpect(status().isOk());
+
+        AiChatRequest resumeRequest = new AiChatRequest();
+        resumeRequest.setSessionId(sessionId);
+        resumeRequest.setMessage("继续查");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resumeRequest)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void chat_multiTurnMergesDate() throws Exception {
+        AiChatRequest firstRequest = new AiChatRequest();
+        firstRequest.setMessage("从上海到北京");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest secondRequest = new AiChatRequest();
+        secondRequest.setSessionId(sessionId);
+        secondRequest.setMessage("明天出发");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(secondRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
+    }
+
+    @Test
+    void chat_dayAfterTomorrow() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        String expectedDate = LocalDate.now().plusDays(3).toString();
+        request.setMessage("从上海到北京大后天出发");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(expectedDate));
+    }
+
+    @Test
+    void chat_searchUrlProperlyEncoded() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("从上海到北京" + tomorrowStr + "便宜");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        Map<String, Object> data = (Map<String, Object>) response.getData();
+
+        if ("FLIGHT_RECOMMENDATION".equals(data.get("replyType"))) {
+            String searchUrl = (String) data.get("searchUrl");
+            assertThat(searchUrl).isNotNull();
+            assertThat(searchUrl).contains("departureCity=");
+            assertThat(searchUrl).doesNotContain("departureCity= ").startsWith("/flights");
+        }
     }
 
     // --- Session message history shape ---

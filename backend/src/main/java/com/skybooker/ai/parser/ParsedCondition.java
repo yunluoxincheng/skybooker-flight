@@ -9,7 +9,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class ParsedCondition {
     private String departureCity;
     private String arrivalCity;

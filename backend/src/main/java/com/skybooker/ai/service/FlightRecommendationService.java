@@ -6,6 +6,7 @@ import com.skybooker.flight.mapper.FlightMapper;
 import com.skybooker.flight.vo.FlightVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,20 +46,20 @@ public class FlightRecommendationService {
     }
 
     public String buildSearchUrl(ParsedCondition condition) {
-        StringBuilder sb = new StringBuilder("/flights?");
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/flights");
         if (condition.getDepartureCity() != null) {
-            sb.append("departureCity=").append(urlEncode(condition.getDepartureCity())).append("&");
+            builder.queryParam("departureCity", condition.getDepartureCity());
         }
         if (condition.getArrivalCity() != null) {
-            sb.append("arrivalCity=").append(urlEncode(condition.getArrivalCity())).append("&");
+            builder.queryParam("arrivalCity", condition.getArrivalCity());
         }
         if (condition.getDepartureDate() != null) {
-            sb.append("departureDate=").append(condition.getDepartureDate()).append("&");
+            builder.queryParam("departureDate", condition.getDepartureDate().toString());
         }
         if (condition.getSort() != null) {
-            sb.append("sort=").append(condition.getSort()).append("&");
+            builder.queryParam("sort", condition.getSort());
         }
-        return sb.toString();
+        return builder.build().encode().toUriString();
     }
 
     public String buildDetailUrl(Long flightId) {
@@ -107,7 +108,4 @@ public class FlightRecommendationService {
         };
     }
 
-    private String urlEncode(String value) {
-        return value.replace(" ", "%20");
-    }
 }

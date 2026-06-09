@@ -34,7 +34,7 @@ class FlightCatalogIntegrationTest {
         tomorrowStr = tomorrow;
         jdbcTemplate.update(
                 "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
-                        "arrival_time = TIMESTAMP(?, TIME(arrival_time))",
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id <= 5",
                 tomorrow, tomorrow);
     }
 

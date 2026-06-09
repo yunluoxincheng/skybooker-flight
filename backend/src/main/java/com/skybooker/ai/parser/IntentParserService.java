@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -78,7 +79,7 @@ public class IntentParserService {
     private static final Pattern PRICE_PATTERN = Pattern.compile(
             "(?:低于|不超过|最高|最多|预算)[^\\d]?(\\d+)");
     private static final Pattern DURATION_PATTERN = Pattern.compile(
-            "(?:不超过|最多|短于|小于)[^\\d]?(\\d+)(?:小时|小时以内|分钟|min)");
+            "(?:不超过|最多|短于|小于)[^\\d]?(\\d+)(小时|分钟|min)");
 
     private Clock clock = Clock.systemDefaultZone();
 
@@ -131,7 +132,7 @@ public class IntentParserService {
             int year = Integer.parseInt(dateMatcher.group(1));
             int month = Integer.parseInt(dateMatcher.group(2));
             int day = Integer.parseInt(dateMatcher.group(3));
-            departureDate = LocalDate.of(year, month, day);
+            departureDate = safeDate(year, month, day);
         }
 
         if (departureDate == null) {
@@ -140,17 +141,17 @@ public class IntentParserService {
                 int month = Integer.parseInt(shortDate.group(1));
                 int day = Integer.parseInt(shortDate.group(2));
                 int year = LocalDate.now(clock).getYear();
-                departureDate = LocalDate.of(year, month, day);
+                departureDate = safeDate(year, month, day);
             }
         }
 
         // Relative dates
         if (departureDate == null) {
             LocalDate today = LocalDate.now(clock);
-            if (text.contains("后天")) {
-                departureDate = today.plusDays(2);
-            } else if (text.contains("大后天")) {
+            if (text.contains("大后天")) {
                 departureDate = today.plusDays(3);
+            } else if (text.contains("后天")) {
+                departureDate = today.plusDays(2);
             } else if (text.contains("明天")) {
                 departureDate = today.plusDays(1);
             } else if (text.contains("今天")) {
@@ -203,8 +204,13 @@ public class IntentParserService {
         }
         Matcher durationMatcher = DURATION_PATTERN.matcher(text);
         if (durationMatcher.find()) {
-            int hours = Integer.parseInt(durationMatcher.group(1));
-            maxDurationMinutes = hours * 60;
+            int value = Integer.parseInt(durationMatcher.group(1));
+            String unit = durationMatcher.group(2);
+            if ("分钟".equals(unit) || "min".equals(unit)) {
+                maxDurationMinutes = value;
+            } else {
+                maxDurationMinutes = value * 60;
+            }
         }
 
         // Time-of-day preference
@@ -268,6 +274,14 @@ public class IntentParserService {
                 .followUpQuestion(followUpQuestion)
                 .quickActionLabels(quickActionLabels)
                 .build();
+    }
+
+    private LocalDate safeDate(int year, int month, int day) {
+        try {
+            return LocalDate.of(year, month, day);
+        } catch (DateTimeException e) {
+            return null;
+        }
     }
 
     private String resolveCity(String text) {

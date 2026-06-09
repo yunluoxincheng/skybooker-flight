@@ -21,6 +21,8 @@ public interface AiMapper {
 
     List<AiChatMessage> findMessagesBySessionId(@Param("sessionId") Long sessionId);
 
+    AiChatMessage findLatestAssistantMessage(@Param("sessionId") Long sessionId);
+
     void insertRecommendationRecord(AiRecommendationRecord record);
 
     boolean existsSessionByPublicId(@Param("publicSessionId") String publicSessionId);

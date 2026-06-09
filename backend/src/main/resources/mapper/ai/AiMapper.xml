@@ -30,6 +30,14 @@
         ORDER BY created_at ASC
     </select>
 
+    <select id="findLatestAssistantMessage" resultType="com.skybooker.ai.entity.AiChatMessage">
+        SELECT id, session_id, role, content, message_type, extra_json, created_at
+        FROM ai_chat_message
+        WHERE session_id = #{sessionId} AND role = 'ASSISTANT'
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
     <insert id="insertRecommendationRecord" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO ai_recommendation_record(session_id, user_id, query_text, parsed_condition_json, recommended_flight_ids, search_url)
         VALUES(#{sessionId}, #{userId}, #{queryText}, #{parsedConditionJson}, #{recommendedFlightIds}, #{searchUrl})

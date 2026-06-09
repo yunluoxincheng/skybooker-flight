@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,7 +49,7 @@ public class AiChatService {
         if (sessionId != null && !sessionId.isBlank()) {
             session = loadAndAuthorizeSession(sessionId, currentUserId);
             if (SessionStatus.DELETED.name().equals(session.getStatus())) {
-                throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
             }
         } else {
             session = createSession(currentUserId);
@@ -64,6 +65,9 @@ public class AiChatService {
 
         // Parse intent
         ParsedCondition condition = intentParserService.parse(message);
+
+        // Multi-turn: merge with previous assistant context if current parse is incomplete
+        condition = mergeWithPreviousContext(session.getId(), condition);
 
         // Build response
         AiChatReplyVO reply;
@@ -155,6 +159,50 @@ public class AiChatService {
             }
         }
         return session;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParsedCondition mergeWithPreviousContext(Long sessionId, ParsedCondition current) {
+        if (current.isComplete()) return current;
+
+        AiChatMessage prevAssistant = aiMapper.findLatestAssistantMessage(sessionId);
+        if (prevAssistant == null || prevAssistant.getExtraJson() == null) return current;
+
+        Map<String, Object> prevCondition;
+        try {
+            Map<String, Object> extra = objectMapper.readValue(
+                    prevAssistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
+            prevCondition = (Map<String, Object>) extra.get("parsedCondition");
+        } catch (Exception e) {
+            log.warn("Failed to parse previous context for merging", e);
+            return current;
+        }
+
+        if (prevCondition == null) return current;
+
+        ParsedCondition.ParsedConditionBuilder merged = current.toBuilder();
+        if (current.getDepartureCity() == null && prevCondition.get("departureCity") != null)
+            merged.departureCity((String) prevCondition.get("departureCity"));
+        if (current.getArrivalCity() == null && prevCondition.get("arrivalCity") != null)
+            merged.arrivalCity((String) prevCondition.get("arrivalCity"));
+        if (current.getDepartureDate() == null && prevCondition.get("departureDate") != null) {
+            merged.departureDate(LocalDate.parse((String) prevCondition.get("departureDate")));
+        }
+
+        ParsedCondition result = merged.build();
+        // Recompute missing fields
+        List<String> missing = new ArrayList<>();
+        if (result.getDepartureCity() == null) missing.add("departureCity");
+        if (result.getArrivalCity() == null) missing.add("arrivalCity");
+        if (result.getDepartureDate() == null) missing.add("departureDate");
+        if (!missing.isEmpty()) {
+            String followUp = intentParserService.parse("").getFollowUpQuestion();
+            return result.toBuilder().missingFields(missing)
+                    .followUpQuestion(followUp)
+                    .quickActionLabels(List.of())
+                    .build();
+        }
+        return result;
     }
 
     private Long resolveAirlineId(String airlineRaw) {
