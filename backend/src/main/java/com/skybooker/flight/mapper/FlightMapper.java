@@ -7,7 +7,9 @@ import com.skybooker.flight.vo.FlightSeatVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Mapper
@@ -24,6 +26,54 @@ public interface FlightMapper {
                       @Param("departureCity") String departureCity,
                       @Param("arrivalCity") String arrivalCity,
                       @Param("departureDate") LocalDate departureDate);
+
+    List<FlightVO> searchFlightsAdvanced(@Param("flightNo") String flightNo,
+                                          @Param("departureCity") String departureCity,
+                                          @Param("arrivalCity") String arrivalCity,
+                                          @Param("departureDate") LocalDate departureDate,
+                                          @Param("airlineId") Long airlineId,
+                                          @Param("minPrice") BigDecimal minPrice,
+                                          @Param("maxPrice") BigDecimal maxPrice,
+                                          @Param("departureTimeStart") LocalTime departureTimeStart,
+                                          @Param("departureTimeEnd") LocalTime departureTimeEnd,
+                                          @Param("maxDurationMinutes") Integer maxDurationMinutes,
+                                          @Param("directOnly") Boolean directOnly,
+                                          @Param("status") String status,
+                                          @Param("passengerCount") Integer passengerCount,
+                                          @Param("cabinClass") String cabinClass,
+                                          @Param("orderBy") String orderBy,
+                                          @Param("offset") int offset,
+                                          @Param("size") int size);
+
+    long countFlightsAdvanced(@Param("flightNo") String flightNo,
+                               @Param("departureCity") String departureCity,
+                               @Param("arrivalCity") String arrivalCity,
+                               @Param("departureDate") LocalDate departureDate,
+                               @Param("airlineId") Long airlineId,
+                               @Param("minPrice") BigDecimal minPrice,
+                               @Param("maxPrice") BigDecimal maxPrice,
+                               @Param("departureTimeStart") LocalTime departureTimeStart,
+                               @Param("departureTimeEnd") LocalTime departureTimeEnd,
+                               @Param("maxDurationMinutes") Integer maxDurationMinutes,
+                               @Param("directOnly") Boolean directOnly,
+                               @Param("status") String status,
+                               @Param("passengerCount") Integer passengerCount,
+                               @Param("cabinClass") String cabinClass);
+
+    List<FlightVO> searchRecommendationFlights(@Param("departureCity") String departureCity,
+                                                @Param("arrivalCity") String arrivalCity,
+                                                @Param("departureDate") LocalDate departureDate,
+                                                @Param("airlineId") Long airlineId,
+                                                @Param("minPrice") BigDecimal minPrice,
+                                                @Param("maxPrice") BigDecimal maxPrice,
+                                                @Param("departureTimeStart") LocalTime departureTimeStart,
+                                                @Param("departureTimeEnd") LocalTime departureTimeEnd,
+                                                @Param("maxDurationMinutes") Integer maxDurationMinutes,
+                                                @Param("directOnly") Boolean directOnly,
+                                                @Param("passengerCount") Integer passengerCount,
+                                                @Param("cabinClass") String cabinClass,
+                                                @Param("orderBy") String orderBy,
+                                                @Param("limit") int limit);
 
     FlightVO findPublishedFlightById(@Param("id") Long id);
 
@@ -90,4 +140,6 @@ public interface FlightMapper {
                                                        @Param("cabinClass") String cabinClass);
 
     List<String> findCabinClassesByOrderId(@Param("orderId") Long orderId);
+
+    Long findAirlineIdByCodeOrName(@Param("code") String code, @Param("name") String name);
 }

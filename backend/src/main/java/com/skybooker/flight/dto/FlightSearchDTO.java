@@ -3,7 +3,9 @@ package com.skybooker.flight.dto;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Data
 public class FlightSearchDTO {
@@ -13,6 +15,23 @@ public class FlightSearchDTO {
 
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate departureDate;
+
+    private Long airlineId;
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
+
+    @DateTimeFormat(pattern = "HH:mm")
+    private LocalTime departureTimeStart;
+
+    @DateTimeFormat(pattern = "HH:mm")
+    private LocalTime departureTimeEnd;
+
+    private Integer maxDurationMinutes;
+    private Boolean directOnly;
+    private String status;
+    private String sort;
+    private Integer passengerCount;
+    private String cabinClass;
 
     private Integer page = 1;
     private Integer size = 10;

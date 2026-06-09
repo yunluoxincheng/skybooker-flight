@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.ai.mapper.AiMapper">
+
+    <insert id="insertSession" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_chat_session(public_session_id, user_id, session_title, status)
+        VALUES(#{publicSessionId}, #{userId}, #{sessionTitle}, #{status})
+    </insert>
+
+    <select id="findSessionByPublicId" resultType="com.skybooker.ai.entity.AiChatSession">
+        SELECT id, public_session_id, user_id, session_title, status, created_at, updated_at
+        FROM ai_chat_session
+        WHERE public_session_id = #{publicSessionId}
+    </select>
+
+    <update id="updateSessionStatus">
+        UPDATE ai_chat_session SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <insert id="insertMessage" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_chat_message(session_id, role, content, message_type, extra_json)
+        VALUES(#{sessionId}, #{role}, #{content}, #{messageType}, #{extraJson})
+    </insert>
+
+    <select id="findMessagesBySessionId" resultType="com.skybooker.ai.entity.AiChatMessage">
+        SELECT id, session_id, role, content, message_type, extra_json, created_at
+        FROM ai_chat_message
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="findLatestAssistantMessage" resultType="com.skybooker.ai.entity.AiChatMessage">
+        SELECT id, session_id, role, content, message_type, extra_json, created_at
+        FROM ai_chat_message
+        WHERE session_id = #{sessionId} AND role = 'ASSISTANT'
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insertRecommendationRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_recommendation_record(session_id, user_id, query_text, parsed_condition_json, recommended_flight_ids, search_url)
+        VALUES(#{sessionId}, #{userId}, #{queryText}, #{parsedConditionJson}, #{recommendedFlightIds}, #{searchUrl})
+    </insert>
+
+    <select id="existsSessionByPublicId" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM ai_chat_session WHERE public_session_id = #{publicSessionId}
+    </select>
+
+</mapper>

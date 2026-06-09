@@ -1,0 +1,348 @@
+package com.skybooker.ai.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skybooker.ai.entity.AiChatMessage;
+import com.skybooker.ai.entity.AiChatSession;
+import com.skybooker.ai.entity.AiRecommendationRecord;
+import com.skybooker.ai.enums.AiReplyType;
+import com.skybooker.ai.enums.MessageType;
+import com.skybooker.ai.enums.SessionStatus;
+import com.skybooker.ai.mapper.AiMapper;
+import com.skybooker.ai.parser.IntentParserService;
+import com.skybooker.ai.parser.ParsedCondition;
+import com.skybooker.ai.vo.AiChatReplyVO;
+import com.skybooker.ai.vo.AiSessionMessageVO;
+import com.skybooker.ai.vo.AiSessionMessagesVO;
+import com.skybooker.common.exception.BusinessException;
+import com.skybooker.common.exception.ErrorCode;
+import com.skybooker.common.security.SecurityUtil;
+import com.skybooker.flight.mapper.FlightMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AiChatService {
+
+    private static final int MAX_PUBLIC_ID_RETRIES = 10;
+
+    private final AiMapper aiMapper;
+    private final IntentParserService intentParserService;
+    private final FlightRecommendationService flightRecommendationService;
+    private final FlightMapper flightMapper;
+    private final ObjectMapper objectMapper;
+
+    @Transactional
+    public AiChatReplyVO chat(String sessionId, String message) {
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        AiChatSession session;
+
+        if (sessionId != null && !sessionId.isBlank()) {
+            session = loadAndAuthorizeSession(sessionId, currentUserId);
+            if (SessionStatus.DELETED.name().equals(session.getStatus())) {
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            }
+        } else {
+            session = createSession(currentUserId);
+        }
+
+        // Persist user message
+        AiChatMessage userMsg = new AiChatMessage();
+        userMsg.setSessionId(session.getId());
+        userMsg.setRole("USER");
+        userMsg.setContent(message);
+        userMsg.setMessageType(MessageType.TEXT.name());
+        aiMapper.insertMessage(userMsg);
+
+        // Parse intent
+        ParsedCondition condition = intentParserService.parse(message);
+
+        // Multi-turn: merge with previous assistant context if current parse is incomplete
+        condition = mergeWithPreviousContext(session.getId(), condition);
+
+        // Build response
+        AiChatReplyVO reply;
+        if (!condition.isComplete()) {
+            reply = buildFollowUpReply(session.getPublicSessionId(), condition);
+        } else {
+            Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
+            List<Map<String, Object>> flights = flightRecommendationService.recommend(condition, resolvedAirlineId);
+
+            if (flights.isEmpty()) {
+                reply = buildNoResultReply(session.getPublicSessionId(), condition);
+            } else {
+                reply = buildRecommendationReply(session.getPublicSessionId(), condition, flights, resolvedAirlineId, message);
+            }
+        }
+
+        // Persist assistant message
+        AiChatMessage assistantMsg = new AiChatMessage();
+        assistantMsg.setSessionId(session.getId());
+        assistantMsg.setRole("ASSISTANT");
+        assistantMsg.setContent(reply.getReplyText());
+        assistantMsg.setMessageType(
+                AiReplyType.FLIGHT_RECOMMENDATION.name().equals(reply.getReplyType())
+                        ? MessageType.RECOMMENDATION.name() : MessageType.TEXT.name());
+        assistantMsg.setExtraJson(toJson(buildExtraJson(reply)));
+        aiMapper.insertMessage(assistantMsg);
+
+        return reply;
+    }
+
+    public AiSessionMessagesVO getSessionMessages(String sessionId) {
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        AiChatSession session = loadAndAuthorizeSession(sessionId, currentUserId);
+        if (SessionStatus.DELETED.name().equals(session.getStatus())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        List<AiChatMessage> messages = aiMapper.findMessagesBySessionId(session.getId());
+        List<AiSessionMessageVO> voMessages = messages.stream()
+                .map(this::toMessageVO)
+                .collect(Collectors.toList());
+
+        return AiSessionMessagesVO.builder()
+                .sessionId(session.getPublicSessionId())
+                .status(session.getStatus())
+                .messages(voMessages)
+                .build();
+    }
+
+    @Transactional
+    public void deleteSession(String sessionId) {
+        Long currentUserId = SecurityUtil.getCurrentUserId();
+        AiChatSession session = loadAndAuthorizeSession(sessionId, currentUserId);
+        aiMapper.updateSessionStatus(session.getId(), SessionStatus.DELETED.name());
+    }
+
+    private AiChatSession createSession(Long userId) {
+        AiChatSession session = new AiChatSession();
+        session.setPublicSessionId(generatePublicSessionId());
+        session.setUserId(userId);
+        session.setSessionTitle("AI航班助手对话");
+        session.setStatus(SessionStatus.ACTIVE.name());
+        aiMapper.insertSession(session);
+        return session;
+    }
+
+    private String generatePublicSessionId() {
+        for (int i = 0; i < MAX_PUBLIC_ID_RETRIES; i++) {
+            String id = UUID.randomUUID().toString().replace("-", "");
+            if (!aiMapper.existsSessionByPublicId(id)) {
+                return id;
+            }
+        }
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+    }
+
+    private AiChatSession loadAndAuthorizeSession(String publicSessionId, Long currentUserId) {
+        AiChatSession session = aiMapper.findSessionByPublicId(publicSessionId);
+        if (session == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        if (currentUserId != null) {
+            if (session.getUserId() == null || !currentUserId.equals(session.getUserId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        } else {
+            if (session.getUserId() != null) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
+        return session;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParsedCondition mergeWithPreviousContext(Long sessionId, ParsedCondition current) {
+        if (current.isComplete()) return current;
+
+        AiChatMessage prevAssistant = aiMapper.findLatestAssistantMessage(sessionId);
+        if (prevAssistant == null || prevAssistant.getExtraJson() == null) return current;
+
+        Map<String, Object> prevCondition;
+        try {
+            Map<String, Object> extra = objectMapper.readValue(
+                    prevAssistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
+            prevCondition = (Map<String, Object>) extra.get("parsedCondition");
+        } catch (Exception e) {
+            log.warn("Failed to parse previous context for merging", e);
+            return current;
+        }
+
+        if (prevCondition == null) return current;
+
+        ParsedCondition.ParsedConditionBuilder merged = current.toBuilder();
+        if (current.getDepartureCity() == null && prevCondition.get("departureCity") != null)
+            merged.departureCity((String) prevCondition.get("departureCity"));
+        if (current.getArrivalCity() == null && prevCondition.get("arrivalCity") != null)
+            merged.arrivalCity((String) prevCondition.get("arrivalCity"));
+        if (current.getDepartureDate() == null && prevCondition.get("departureDate") != null) {
+            merged.departureDate(LocalDate.parse((String) prevCondition.get("departureDate")));
+        }
+
+        ParsedCondition result = merged.build();
+        // Recompute missing fields
+        List<String> missing = new ArrayList<>();
+        if (result.getDepartureCity() == null) missing.add("departureCity");
+        if (result.getArrivalCity() == null) missing.add("arrivalCity");
+        if (result.getDepartureDate() == null) missing.add("departureDate");
+        if (!missing.isEmpty()) {
+            String followUp = intentParserService.parse("").getFollowUpQuestion();
+            return result.toBuilder().missingFields(missing)
+                    .followUpQuestion(followUp)
+                    .quickActionLabels(List.of())
+                    .build();
+        }
+        return result;
+    }
+
+    private Long resolveAirlineId(String airlineRaw) {
+        if (airlineRaw == null || airlineRaw.isBlank()) {
+            return null;
+        }
+        return flightMapper.findAirlineIdByCodeOrName(airlineRaw, airlineRaw);
+    }
+
+    private AiChatReplyVO buildFollowUpReply(String sessionId, ParsedCondition condition) {
+        List<Map<String, String>> quickActions = condition.getQuickActionLabels().stream()
+                .map(label -> Map.of("label", label, "value", label))
+                .collect(Collectors.toList());
+
+        return AiChatReplyVO.builder()
+                .sessionId(sessionId)
+                .replyType(AiReplyType.FOLLOW_UP.name())
+                .replyText(condition.getFollowUpQuestion())
+                .parsedCondition(conditionToMap(condition))
+                .missingFields(condition.getMissingFields())
+                .followUpQuestion(condition.getFollowUpQuestion())
+                .searchUrl(null)
+                .flights(Collections.emptyList())
+                .quickActions(quickActions)
+                .build();
+    }
+
+    private AiChatReplyVO buildRecommendationReply(String sessionId, ParsedCondition condition,
+                                                    List<Map<String, Object>> flights, Long resolvedAirlineId,
+                                                    String originalQuery) {
+        String searchUrl = flightRecommendationService.buildSearchUrl(condition);
+        String replyText = "为您找到 " + flights.size() + " 个推荐航班：";
+
+        List<Map<String, String>> quickActions = List.of(
+                Map.of("label", "查看全部航班", "value", "查看全部航班"),
+                Map.of("label", "换个时间", "value", "换个时间")
+        );
+
+        // Persist recommendation record
+        AiRecommendationRecord record = new AiRecommendationRecord();
+        // We need the session - get it from sessionId
+        AiChatSession session = aiMapper.findSessionByPublicId(sessionId);
+        record.setSessionId(session.getId());
+        record.setUserId(session.getUserId());
+        record.setQueryText(originalQuery);
+        record.setParsedConditionJson(toJson(conditionToMap(condition)));
+        record.setRecommendedFlightIds(flights.stream()
+                .map(f -> String.valueOf(f.get("flightId")))
+                .collect(Collectors.joining(",")));
+        record.setSearchUrl(searchUrl);
+        aiMapper.insertRecommendationRecord(record);
+
+        return AiChatReplyVO.builder()
+                .sessionId(sessionId)
+                .replyType(AiReplyType.FLIGHT_RECOMMENDATION.name())
+                .replyText(replyText)
+                .parsedCondition(conditionToMap(condition))
+                .missingFields(Collections.emptyList())
+                .followUpQuestion(null)
+                .searchUrl(searchUrl)
+                .flights(flights)
+                .quickActions(quickActions)
+                .build();
+    }
+
+    private AiChatReplyVO buildNoResultReply(String sessionId, ParsedCondition condition) {
+        String replyText = "抱歉，没有找到符合条件的航班。请尝试调整搜索条件。";
+        List<Map<String, String>> quickActions = List.of(
+                Map.of("label", "换个日期", "value", "换个日期"),
+                Map.of("label", "查看全部航班", "value", "查看全部航班")
+        );
+
+        return AiChatReplyVO.builder()
+                .sessionId(sessionId)
+                .replyType(AiReplyType.NO_RESULT.name())
+                .replyText(replyText)
+                .parsedCondition(conditionToMap(condition))
+                .missingFields(Collections.emptyList())
+                .followUpQuestion("是否需要调整搜索条件？")
+                .searchUrl(null)
+                .flights(Collections.emptyList())
+                .quickActions(quickActions)
+                .build();
+    }
+
+    private Map<String, Object> conditionToMap(ParsedCondition condition) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (condition.getDepartureCity() != null) map.put("departureCity", condition.getDepartureCity());
+        if (condition.getArrivalCity() != null) map.put("arrivalCity", condition.getArrivalCity());
+        if (condition.getDepartureDate() != null) map.put("departureDate", condition.getDepartureDate().toString());
+        if (condition.getPassengerCount() != null) map.put("passengerCount", condition.getPassengerCount());
+        if (condition.getCabinClass() != null) map.put("cabinClass", condition.getCabinClass());
+        if (condition.getAirlineRaw() != null) map.put("airlineRaw", condition.getAirlineRaw());
+        if (condition.getMaxPrice() != null) map.put("maxPrice", condition.getMaxPrice());
+        if (condition.getDepartureTimeStart() != null) map.put("departureTimeStart", condition.getDepartureTimeStart().toString());
+        if (condition.getDepartureTimeEnd() != null) map.put("departureTimeEnd", condition.getDepartureTimeEnd().toString());
+        if (condition.getMaxDurationMinutes() != null) map.put("maxDurationMinutes", condition.getMaxDurationMinutes());
+        if (condition.getDirectOnly() != null) map.put("directOnly", condition.getDirectOnly());
+        if (condition.getSort() != null) map.put("sort", condition.getSort());
+        return map;
+    }
+
+    private Map<String, Object> buildExtraJson(AiChatReplyVO reply) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("replyType", reply.getReplyType());
+        if (reply.getParsedCondition() != null) extra.put("parsedCondition", reply.getParsedCondition());
+        if (reply.getMissingFields() != null && !reply.getMissingFields().isEmpty())
+            extra.put("missingFields", reply.getMissingFields());
+        if (reply.getFollowUpQuestion() != null) extra.put("followUpQuestion", reply.getFollowUpQuestion());
+        if (reply.getSearchUrl() != null) extra.put("searchUrl", reply.getSearchUrl());
+        if (reply.getFlights() != null && !reply.getFlights().isEmpty())
+            extra.put("flights", reply.getFlights());
+        if (reply.getQuickActions() != null && !reply.getQuickActions().isEmpty())
+            extra.put("quickActions", reply.getQuickActions());
+        return extra;
+    }
+
+    private AiSessionMessageVO toMessageVO(AiChatMessage msg) {
+        AiSessionMessageVO vo = new AiSessionMessageVO();
+        vo.setRole(msg.getRole());
+        vo.setContent(msg.getContent());
+        vo.setMessageType(msg.getMessageType());
+        vo.setCreatedAt(msg.getCreatedAt());
+        if (msg.getExtraJson() != null && !msg.getExtraJson().isBlank()) {
+            try {
+                vo.setExtra(objectMapper.readValue(msg.getExtraJson(),
+                        new TypeReference<LinkedHashMap<String, Object>>() {}));
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse extra_json for message {}", msg.getId(), e);
+            }
+        }
+        return vo;
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize to JSON", e);
+            return "{}";
+        }
+    }
+}

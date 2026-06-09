@@ -1,11 +1,15 @@
 package com.skybooker.flight;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDate;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -18,6 +22,21 @@ class FlightCatalogIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    private String tomorrowStr;
+
+    @BeforeEach
+    void refreshFlightDates() {
+        String tomorrow = LocalDate.now().plusDays(1).toString();
+        tomorrowStr = tomorrow;
+        jdbcTemplate.update(
+                "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id BETWEEN 2 AND 5",
+                tomorrow, tomorrow);
+    }
 
     @Test
     void searchFlights_byRouteAndDate() throws Exception {
@@ -85,5 +104,168 @@ class FlightCatalogIntegrationTest {
         String seats2 = mockMvc.perform(get("/api/flights/2/seats"))
                 .andReturn().getResponse().getContentAsString();
         assert !seats1.equals(seats2) : "Different flights should have different seats";
+    }
+
+    // --- Advanced filter tests ---
+
+    @Test
+    void searchFlights_filterByAirline() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("airlineId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_filterByPriceRange() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("minPrice", "500")
+                        .param("maxPrice", "700"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records[*].basePrice").value(everyItem(lessThanOrEqualTo(700.0))))
+                .andExpect(jsonPath("$.data.records[*].basePrice").value(everyItem(greaterThanOrEqualTo(500.0))));
+    }
+
+    @Test
+    void searchFlights_filterByDepartureTime() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("departureTimeStart", "06:00")
+                        .param("departureTimeEnd", "12:00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records.length()").value(greaterThan(0)));
+    }
+
+    @Test
+    void searchFlights_filterByMaxDuration() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("maxDurationMinutes", "140"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records[*].durationMinutes").value(everyItem(lessThanOrEqualTo(140))));
+    }
+
+    @Test
+    void searchFlights_filterByDirectOnly() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("directOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_filterByStatus() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("status", "ON_TIME"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records[*].status").value(everyItem(is("ON_TIME"))));
+    }
+
+    @Test
+    void searchFlights_filterByPassengerCount() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_filterByCabinAvailability() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "2")
+                        .param("cabinClass", "ECONOMY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    // --- Sort tests ---
+
+    @Test
+    void searchFlights_sortByPriceAsc() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("size", "10")
+                        .param("sort", "PRICE_ASC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray())
+                .andExpect(jsonPath("$.data.records.length()").value(greaterThan(1)));
+    }
+
+    @Test
+    void searchFlights_sortByPriceAscLowercase() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "price_asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_sortByDurationAsc() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "DURATION_ASC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_sortByTimeAsc() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "TIME_ASC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_sortBySeatsDesc() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "seats_desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_sortByPunctualityDesc() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "PUNCTUAL_DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_defaultSortUnchanged() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
     }
 }
