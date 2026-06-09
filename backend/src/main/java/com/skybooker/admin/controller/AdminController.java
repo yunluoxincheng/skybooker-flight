@@ -1,8 +1,12 @@
 package com.skybooker.admin.controller;
 
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
 import com.skybooker.admin.service.AdminService;
+import com.skybooker.admin.vo.DashboardSummaryVO;
+import com.skybooker.admin.vo.HotRouteVO;
+import com.skybooker.admin.vo.OrderStatusDistributionVO;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
@@ -12,6 +16,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -19,6 +25,7 @@ public class AdminController {
 
     private final AdminFlightService adminFlightService;
     private final AdminService adminService;
+    private final AdminDashboardService adminDashboardService;
 
     @GetMapping("/flights")
     public ApiResponse<PageResponse<FlightVO>> listFlights(
@@ -84,5 +91,21 @@ public class AdminController {
     public ApiResponse<Void> enableUser(@PathVariable Long id) {
         adminService.enableUser(id);
         return ApiResponse.success();
+    }
+
+    @GetMapping("/dashboard/summary")
+    public ApiResponse<DashboardSummaryVO> getDashboardSummary() {
+        return ApiResponse.success(adminDashboardService.getSummary());
+    }
+
+    @GetMapping("/dashboard/hot-routes")
+    public ApiResponse<List<HotRouteVO>> listDashboardHotRoutes(
+            @RequestParam(required = false) Integer limit) {
+        return ApiResponse.success(adminDashboardService.listHotRoutes(limit));
+    }
+
+    @GetMapping("/dashboard/order-status")
+    public ApiResponse<List<OrderStatusDistributionVO>> listDashboardOrderStatus() {
+        return ApiResponse.success(adminDashboardService.listOrderStatusDistribution());
     }
 }

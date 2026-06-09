@@ -3,6 +3,35 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.skybooker.admin.mapper.AdminMapper">
 
+    <resultMap id="dashboardSummaryResult" type="com.skybooker.admin.vo.DashboardSummaryVO" autoMapping="false">
+        <result property="totalUsers" column="total_users"/>
+        <result property="totalFlights" column="total_flights"/>
+        <result property="totalTicketOrders" column="total_ticket_orders"/>
+        <result property="issuedTicketOrders" column="issued_ticket_orders"/>
+        <result property="refundedTicketOrders" column="refunded_ticket_orders"/>
+        <result property="pendingPaymentTicketOrders" column="pending_payment_ticket_orders"/>
+        <result property="totalWaitlistOrders" column="total_waitlist_orders"/>
+        <result property="waitingWaitlistOrders" column="waiting_waitlist_orders"/>
+        <result property="grossIssuedOrderRevenue" column="gross_issued_order_revenue"/>
+        <result property="ticketRefundAmount" column="ticket_refund_amount"/>
+        <result property="waitlistRefundAmount" column="waitlist_refund_amount"/>
+        <result property="totalRefundAmount" column="total_refund_amount"/>
+    </resultMap>
+
+    <resultMap id="hotRouteResult" type="com.skybooker.admin.vo.HotRouteVO" autoMapping="false">
+        <result property="departureCity" column="departure_city"/>
+        <result property="arrivalCity" column="arrival_city"/>
+        <result property="routeLabel" column="route_label"/>
+        <result property="issuedOrderCount" column="issued_order_count"/>
+        <result property="passengerCount" column="passenger_count"/>
+        <result property="revenue" column="revenue"/>
+    </resultMap>
+
+    <resultMap id="orderStatusDistributionResult" type="com.skybooker.admin.vo.OrderStatusDistributionVO" autoMapping="false">
+        <result property="status" column="status"/>
+        <result property="count" column="order_count"/>
+    </resultMap>
+
     <select id="findByUsername" resultType="com.skybooker.admin.entity.AdminUser">
         SELECT id, user_id, username, job_no, real_name, remark, status,
                created_at, updated_at
@@ -15,6 +44,60 @@
                created_at, updated_at
         FROM admin_user
         WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectDashboardSummary" resultMap="dashboardSummaryResult">
+        SELECT
+            (SELECT COUNT(*) FROM users WHERE role = 'USER') AS total_users,
+            (SELECT COUNT(*) FROM flight) AS total_flights,
+            (SELECT COUNT(*) FROM ticket_order) AS total_ticket_orders,
+            (SELECT COUNT(*) FROM ticket_order WHERE status = 'ISSUED') AS issued_ticket_orders,
+            (SELECT COUNT(*) FROM ticket_order WHERE status = 'REFUNDED') AS refunded_ticket_orders,
+            (SELECT COUNT(*) FROM ticket_order WHERE status = 'PENDING_PAYMENT') AS pending_payment_ticket_orders,
+            (SELECT COUNT(*) FROM waitlist_order) AS total_waitlist_orders,
+            (SELECT COUNT(*) FROM waitlist_order WHERE status = 'WAITING') AS waiting_waitlist_orders,
+            COALESCE((SELECT SUM(total_amount) FROM ticket_order WHERE status = 'ISSUED'), 0.00) AS gross_issued_order_revenue,
+            COALESCE((SELECT SUM(refund_amount) FROM refund_record), 0.00) AS ticket_refund_amount,
+            COALESCE((SELECT SUM(refund_amount) FROM waitlist_order), 0.00) AS waitlist_refund_amount,
+            (
+                COALESCE((SELECT SUM(refund_amount) FROM refund_record), 0.00)
+                + COALESCE((SELECT SUM(refund_amount) FROM waitlist_order), 0.00)
+            ) AS total_refund_amount
+    </select>
+
+    <select id="selectHotRoutes" resultMap="hotRouteResult">
+        SELECT
+            route.departure_city,
+            route.arrival_city,
+            CONCAT(route.departure_city, ' - ', route.arrival_city) AS route_label,
+            COUNT(*) AS issued_order_count,
+            COALESCE(SUM(route.passenger_count), 0) AS passenger_count,
+            COALESCE(SUM(route.total_amount), 0.00) AS revenue
+        FROM (
+            SELECT
+                o.id,
+                o.total_amount,
+                da.city AS departure_city,
+                aa.city AS arrival_city,
+                COUNT(op.id) AS passenger_count
+            FROM ticket_order o
+            JOIN flight f ON o.flight_id = f.id
+            JOIN airport da ON f.departure_airport_id = da.id
+            JOIN airport aa ON f.arrival_airport_id = aa.id
+            LEFT JOIN order_passenger op ON o.id = op.order_id
+            WHERE o.status = 'ISSUED'
+            GROUP BY o.id, o.total_amount, da.city, aa.city
+        ) route
+        GROUP BY route.departure_city, route.arrival_city
+        ORDER BY issued_order_count DESC, revenue DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectOrderStatusDistribution" resultMap="orderStatusDistributionResult">
+        SELECT status, COUNT(*) AS order_count
+        FROM ticket_order
+        GROUP BY status
+        ORDER BY FIELD(status, 'PENDING_PAYMENT', 'ISSUED', 'CANCELLED', 'REFUNDED', 'CHANGE_PENDING', 'CHANGED')
     </select>
 
 </mapper>
