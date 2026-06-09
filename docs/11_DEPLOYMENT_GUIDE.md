@@ -27,6 +27,7 @@ docker compose up -d mysql redis
 
 ```bash
 cd backend
+set -a; source ../.env; set +a
 mvn spring-boot:run
 ```
 
