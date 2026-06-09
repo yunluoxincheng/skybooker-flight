@@ -40,12 +40,12 @@ class AiIntegrationTest extends AbstractIntegrationTest {
         userToken = obtainUserToken();
         adminToken = obtainAdminToken();
 
-        // Refresh seed flight dates (IDs 1-5) to tomorrow for AI recommendation tests
+        // Refresh seed flight dates (IDs 2-5) to tomorrow, skip id=1 to avoid polluting order tests
         String tomorrow = LocalDate.now().plusDays(1).toString();
         tomorrowStr = tomorrow;
         jdbcTemplate.update(
                 "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
-                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id <= 5",
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id BETWEEN 2 AND 5",
                 tomorrow, tomorrow);
     }
 
