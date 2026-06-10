@@ -21,7 +21,7 @@ CHANGED         已改签
 PENDING_PAYMENT -> ISSUED
 PENDING_PAYMENT -> CANCELLED
 ISSUED -> REFUNDED
-ISSUED -> CHANGE_PENDING -> CHANGED
+ISSUED -> CHANGED
 ```
 
 约束：
@@ -30,7 +30,8 @@ ISSUED -> CHANGE_PENDING -> CHANGED
 - `ISSUED` 由普通订单模拟支付成功或候补兑现出票产生；
 - `CANCELLED` 只能取消待支付订单；
 - `REFUNDED` 只能由已出票订单退票产生；
-- `CHANGE_PENDING` 和 `CHANGED` 属于加分版本改签流程，未实现改签时不得在业务代码中产生这两个状态；
+- 当前加分版本改签采用单步确认，成功后直接 `ISSUED -> CHANGED`；
+- `CHANGE_PENDING` 预留给后续真实支付差价、人工审核或异步出票流程，当前单步改签实现不得产生该状态；
 - 所有状态变更接口必须具备幂等语义，重复请求不能重复扣减或释放座位。
 
 ## 2. 座位状态
@@ -58,7 +59,7 @@ DISABLED -> AVAILABLE
 
 - `AVAILABLE -> LOCKED` 必须使用条件更新，条件至少包含 `id`、`status = 'AVAILABLE'` 和 `version`；
 - `LOCKED -> SOLD` 必须校验 `locked_by_order_id` 属于当前订单；
-- 释放座位时只允许释放当前订单锁定或已售出的座位；
+- 释放座位时只允许释放当前订单锁定或已售出的座位；改签释放旧座位时必须按改签前旧 `seat_id` 白名单更新，不能在新座位写入同一订单 ID 后按 `order_id` 全量释放；
 - `DISABLED` 座位不能参与订单、候补兑现和改签锁座。
 
 ## 3. 候补状态
@@ -102,7 +103,7 @@ FAILED -> REFUNDED
 - 支付出票：座位 `LOCKED -> SOLD`，余票不再变化；
 - 退票：座位释放，若没有候补兑现则 `remaining_seats + passenger_count`；
 - 退票后候补兑现：座位直接更新为 `SOLD` 并生成正式订单，余票不增加；
-- 改签：旧航班释放、新航班锁座，两个航班分别维护余票。
+- 改签：旧航班旧座位释放、新航班新座位直接售出，两个航班分别维护余票。
 
 实现约束：
 

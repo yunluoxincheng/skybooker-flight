@@ -344,6 +344,13 @@ POST /api/orders/{id}/refund
 GET /api/orders/{id}/change-options
 ```
 
+规则：
+
+- 仅普通用户可查询自己的 `ISSUED` 订单；
+- 当前版本采用单步改签，候选航班必须与原订单航班具有相同出发机场和到达机场；
+- 候选航班必须已发布、未起飞、状态为 `ON_TIME` 或 `DELAYED`，且可用座位数能满足订单全部乘机人；
+- 候选列表必须排除当前订单航班，当前版本不支持同航班仅换座。
+
 ### 提交改签
 
 ```http
@@ -364,7 +371,25 @@ POST /api/orders/{id}/change
 }
 ```
 
-改签属于加分版本。实现时必须保证旧座位释放、新座位锁定、差价记录和订单状态更新在同一事务内完成。
+确认规则：
+
+- 仅 `ISSUED` 订单允许改签，成功后直接变为 `CHANGED`；
+- 当前版本跳过 `CHANGE_PENDING`，该状态仅预留给后续真实差价支付、人工审核或异步出票流程；
+- `newFlightId` 必须不同于当前订单航班，并且必须与原航班具有相同出发机场和到达机场；
+- `items` 必须为订单内每个乘机人各提供一个新座位，不能遗漏乘机人、重复乘机人或重复座位；
+- 新座位必须属于 `newFlightId`，且状态为 `AVAILABLE`；
+- 旧座位释放必须按改签前旧 `seatId` 白名单更新，不能在新座位写入同一订单 ID 后按 `orderId` 全量释放；
+- 改签确认必须在同一事务中完成旧座位释放、新座位售出、订单状态更新、订单乘机人座位快照更新、订单金额更新和 `change_record` 写入；
+- 任一环节失败必须整体回滚，重复提交在订单已离开 `ISSUED` 后返回当前状态或订单状态错误，但不能重复释放座位、售出座位、扣减余票或插入改签记录。
+
+金额口径：
+
+- `change_record.price_diff = 新座位票价 - 原乘机人票价`，按乘机人记录；
+- `change_record.change_fee` 使用当前简化规则记录改签手续费；
+- `ticket_order.ticket_amount` 更新为新座位票价合计；
+- `ticket_order.airport_fee`、`fuel_fee`、`service_fee` 按既有固定公式和不变乘机人数重新计算；
+- `ticket_order.total_amount = ticket_amount + airport_fee + fuel_fee + service_fee`；
+- 当前版本不实现真实差价支付或退款，`change_fee` 不计入 `ticket_order.total_amount`，仅作为改签记录审计字段。
 
 ## 8. 候补接口
 
