@@ -6,3 +6,7 @@ CLAUDE.md
 backend/target/
 .env
 .codegraph/
+reports/
+*.jtl
+*.jmeter.log
+jmeter.log

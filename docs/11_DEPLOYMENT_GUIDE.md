@@ -39,6 +39,10 @@ http://localhost:8080
 
 ### 启动前端
 
+当前 `frontend/` 目录只有 `DESIGN.md`，没有 Next.js 工程或构建输入。本分支不提供前端启动命令和前端容器。
+
+前端工程补齐后，预期本地启动方式为：
+
 ```bash
 cd frontend
 pnpm install
@@ -77,21 +81,43 @@ JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
 JWT_EXPIRATION=86400000
 OPENAPI_ENABLED=false
 AI_API_KEY=optional
+BACKEND_PORT=8080
+NGINX_PORT=8088
 ```
 
 `MYSQL_PASSWORD` 和 `JWT_SECRET` 没有应用内默认值，部署环境必须显式提供。Swagger / Knife4j 文档默认关闭，需要在开发或测试环境将 `OPENAPI_ENABLED=true` 后才开放。
 
 ## 4. Docker Compose 部署
 
-建议服务：
+当前 Compose 部署服务：
 
 ```text
 mysql
 redis
 backend
-frontend
 nginx
 ```
+
+说明：
+
+- `backend` 使用 `backend/Dockerfile` 构建 Spring Boot API；
+- `nginx` 使用 `deploy/nginx/api-gateway.conf` 转发 `/api` 和 `/api/` 到后端；
+- 当前 `frontend/` 只有 `DESIGN.md`，没有 Next.js 工程或构建输入，因此本分支不提供真实前端容器；
+- 未来前端工程补齐后，再新增 `frontend` 服务并由 Nginx 将 `/` 转发到前端服务。
+
+`.env` 必须显式配置：
+
+```env
+MYSQL_PASSWORD=replace-with-local-password
+JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
+MYSQL_DB=flight_booking
+MYSQL_USER=root
+BACKEND_PORT=8080
+NGINX_PORT=8088
+OPENAPI_ENABLED=false
+```
+
+`docker-compose.yml` 不再为 MySQL 密码和 JWT 密钥提供 `123456` 这类明文默认值。缺少 `MYSQL_PASSWORD` 或 `JWT_SECRET` 时，Compose 会直接报错，避免误用不安全配置。
 
 启动：
 
@@ -99,10 +125,32 @@ nginx
 docker compose up -d --build
 ```
 
+只启动基础设施：
+
+```bash
+docker compose up -d mysql redis
+```
+
 查看日志：
 
 ```bash
 docker compose logs -f backend
+```
+
+健康检查：
+
+```bash
+docker compose ps
+curl http://localhost:${BACKEND_PORT:-8080}/api/flights?page=1\&size=1
+curl http://localhost:${NGINX_PORT:-8088}/healthz
+curl http://localhost:${NGINX_PORT:-8088}/api/flights?page=1\&size=1
+```
+
+对外演示时优先访问 Nginx：
+
+```text
+API 基地址：http://localhost:8088/api
+公开验证接口：http://localhost:8088/api/flights?page=1&size=1
 ```
 
 ## 5. Flyway 初始化
@@ -123,6 +171,20 @@ CREATE DATABASE flight_booking DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uni
 然后重启后端。
 
 ## 6. Nginx 反向代理示例
+
+本仓库已提供 Compose 场景下的 API 网关配置：
+
+```text
+deploy/nginx/api-gateway.conf
+```
+
+其行为：
+
+- `GET /healthz` 返回 Nginx 健康状态；
+- `/api` 和 `/api/` 反向代理到 `backend:8080`；
+- `/` 返回一个纯文本说明，提示当前分支未打包前端。
+
+服务器部署时可参考下面的前后端分离示例。当前仓库还没有可构建的前端工程，因此 `/` 的前端代理需要等前端服务补齐后再启用。
 
 ```nginx
 server {
@@ -147,11 +209,11 @@ server {
 
 实训演示时推荐：
 
-- 使用 Docker Compose 启动 MySQL 和 Redis；
-- 本地运行后端；
-- 本地运行前端；
+- 使用 Docker Compose 启动 MySQL、Redis、backend 和 Nginx；
+- 如需展示前端页面，由前端同学按未来 Next.js 工程手动启动或接入；
 - 提前准备演示数据；
 - 如演示日期已晚于初始化航班日期，先执行 `scripts/refresh-demo-flight-dates.sql` 刷新演示航班和订单日期；
+- 运行 `scripts/smoke/backend-smoke.sh` 验证后端、登录边界、AI 和管理员统计；
 - 首次部署后修改默认管理员密码；
 - 提前录制系统视频，避免现场网络或环境问题。
 
@@ -189,6 +251,24 @@ http://localhost:3000
 ### Token 失效
 
 重新登录即可。
+
+### Compose 提示缺少 MYSQL_PASSWORD 或 JWT_SECRET
+
+原因：部署文件要求显式配置敏感变量。
+
+解决：从 `.env.example` 复制 `.env`，填入本地 MySQL 密码和足够长的 JWT 密钥后重新启动。
+
+### Docker Hub 镜像拉取失败
+
+原因：本地网络或机房策略拒绝访问 Docker Hub。
+
+解决：从团队批准的镜像源拉取等价的 `mysql:8.0`、`redis:7-alpine`、`maven:3.9-eclipse-temurin-21`、`eclipse-temurin:21-jre`、`nginx:1.27-alpine` 镜像，并打成本地标准标签后再运行 `docker compose up -d --build`。不要把镜像源凭据或个人代理配置提交到仓库。
+
+### Nginx 首页不是前端页面
+
+原因：当前 `frontend/` 目录没有 Next.js 工程或构建输入，本分支只提供 API 网关。
+
+解决：访问 `/api/flights?page=1&size=1` 验证后端；前端工程补齐后，再新增前端容器或把 Nginx `/` 转发到前端服务。
 
 ## 邮件服务配置
 

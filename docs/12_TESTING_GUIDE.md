@@ -103,6 +103,97 @@
 - flight_seat 中该座位状态为 LOCKED 或 SOLD；
 - 不存在多个订单绑定同一个座位。
 
+### 可复现 JMeter 资产
+
+仓库提供同座位并发下单测试计划：
+
+```text
+scripts/jmeter/same-seat-order-race.jmx
+```
+
+运行前准备：
+
+1. 启动 MySQL、Redis 和后端；
+2. 如演示数据日期过期，执行 `scripts/refresh-demo-flight-dates.sql`；
+3. 选择一个属于 `user1@example.com` 的 `passenger.id`；
+4. 选择一个未来已发布航班的 `AVAILABLE` 座位，记录 `flight_id` 和 `seat_id`。
+
+运行示例：
+
+```bash
+mkdir -p reports/jmeter
+jmeter -n \
+  -t scripts/jmeter/same-seat-order-race.jmx \
+  -l reports/jmeter/same-seat-order-race.jtl \
+  -e -o reports/jmeter/same-seat-order-race-html \
+  -JBASE_URL=http://localhost:8080 \
+  -JUSER_EMAIL=user1@example.com \
+  -JUSER_PASSWORD='User@123456' \
+  -JFLIGHT_ID=<flight_id> \
+  -JPASSENGER_ID=<passenger_id> \
+  -JSEAT_ID=<seat_id> \
+  -JTHREADS=20
+```
+
+数据库校验：
+
+```bash
+SEAT_ID=<seat_id> MYSQL_PASSWORD=<password> scripts/concurrency/verify-same-seat-order-race.sh
+```
+
+如果宿主机没有 `mysql` 客户端，校验脚本会在 `skybooker-mysql` 容器运行时自动改用 `docker exec` 查询数据库。
+
+期望：
+
+- JMeter 中只有一个 `Create order for same seat` 请求业务成功；
+- 其他请求返回座位占用或业务规则失败；
+- 校验脚本输出 `Order-passenger rows for target seat: 1` 和 `Distinct order bindings for target seat: 1`；
+- 生成的 `.jtl`、HTML 报告和日志保存在 `reports/`，默认不提交到 Git。
+
+## 3.1 部署烟测
+
+后端部署后运行：
+
+```bash
+SKYBOOKER_BASE_URL=http://localhost:8080 scripts/smoke/backend-smoke.sh
+```
+
+通过 Nginx API 网关运行：
+
+```bash
+SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
+```
+
+脚本检查：
+
+- 公共航班查询；
+- 普通用户登录和 `/api/auth/me`；
+- 管理员登录和 `/api/admin/me`；
+- 普通用户不能访问管理员身份接口；
+- 管理员不能访问用户身份接口；
+- 普通用户订单列表；
+- 匿名 AI 聊天响应；
+- 管理员数据统计摘要。
+
+可配置变量：
+
+```text
+SKYBOOKER_BASE_URL
+SKYBOOKER_SMOKE_OUTPUT_DIR
+SKYBOOKER_USER_EMAIL
+SKYBOOKER_USER_PASSWORD
+SKYBOOKER_ADMIN_USERNAME
+SKYBOOKER_ADMIN_PASSWORD
+```
+
+输出默认写入：
+
+```text
+reports/smoke/
+```
+
+该目录默认不提交到 Git。PR 或演示中只需要贴关键命令、HTTP 结果摘要和必要截图。
+
 ## 4. 接口测试
 
 推荐使用：

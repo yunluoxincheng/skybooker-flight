@@ -46,6 +46,26 @@ AI 智能购票助手
 进入管理员后台查看订单和数据统计
 ```
 
+## 2.1 演示前检查清单
+
+演示前至少完成：
+
+- 从 `dev` 或演示分支启动最新代码；
+- `.env` 已配置 `MYSQL_PASSWORD`、`JWT_SECRET`、数据库名、端口和 `OPENAPI_ENABLED`；
+- `docker compose up -d --build` 后 `mysql`、`redis`、`backend`、`nginx` 均为 healthy；
+- `curl http://localhost:8088/healthz` 返回 `ok`；
+- `curl http://localhost:8088/api/flights?page=1\&size=1` 返回标准 API 包装；
+- 如航班日期已过期，执行 `scripts/refresh-demo-flight-dates.sql`；
+- `scripts/smoke/backend-smoke.sh` 通过，输出保存在 `reports/smoke/`；
+- AI 助手对“我想去北京”能返回追问或推荐响应；
+- 准备一个余票充足航班用于订票演示；
+- 准备一个目标舱位无票航班用于候补演示；
+- 准备一个已出票订单用于退票和改签演示；
+- 管理后台数据统计接口可访问；
+- JMeter 同座位并发测试已跑过，摘要和数据库校验结果可在 PPT 或答辩中展示。
+
+当前 `frontend/` 目录没有 Next.js 工程或构建输入，本分支只提供后端容器和 Nginx API 网关。展示前端页面时，需要由前端工程另行启动；本仓库的 Nginx `/api/` 路由可作为前端 API 接入地址。
+
 ## 3. 重点讲解内容
 
 ### AI 智能购票助手
@@ -66,6 +86,7 @@ AI 智能购票助手
 - 使用数据库条件更新；
 - 防止多人同时购买同一座位；
 - 使用事务保证一致性。
+- 可展示 `scripts/jmeter/same-seat-order-race.jmx` 和 `scripts/concurrency/verify-same-seat-order-race.sh` 的运行结果，证明同一座位最终只绑定一个订单。
 
 ### Flyway
 
