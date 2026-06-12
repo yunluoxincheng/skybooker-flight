@@ -164,11 +164,14 @@ PUNCTUAL_DESC 准点率高优先
 
 ## 8. 增强实现：LLM 解析版
 
+LLM 解析是可选增强能力。默认情况下系统继续使用规则解析；只有配置 `AI_LLM_ENABLED=true` 且 `AI_LLM_BASE_URL`、`AI_LLM_API_KEY`、`AI_LLM_MODEL` 都有效时，后端才会优先调用 OpenAI-compatible 接口。
+
 LLM 提示词核心要求：
 
 ```text
 你是机票查询条件解析器。你只能把用户的购票需求解析成 JSON。
-不要编造航班、价格、库存、机场或航空公司。
+当前日期是 {yyyy-MM-dd}。用户提到“今天、明天、后天、下周”等相对日期时，必须基于这个日期换算。
+不要编造航班、价格、库存、机场、航空公司或 URL。
 如果缺少必要字段，请在 missingFields 中列出，并给出 followUpQuestion。
 ```
 
@@ -176,18 +179,48 @@ LLM 输出示例：
 
 ```json
 {
-  "intent": "SEARCH_FLIGHT",
   "departureCity": "上海",
   "arrivalCity": "北京",
   "departureDate": "2026-05-26",
   "passengerCount": 1,
-  "timePreference": null,
-  "pricePreference": "LOW_PRICE",
+  "cabinClass": "ECONOMY",
+  "airlineRaw": "南方航空",
+  "maxPrice": 1200,
+  "departureTimeStart": "08:00",
+  "departureTimeEnd": "12:00",
+  "maxDurationMinutes": 180,
+  "directOnly": true,
   "sort": "PRICE_ASC",
   "missingFields": [],
-  "followUpQuestion": null
+  "followUpQuestion": null,
+  "quickActionLabels": []
 }
 ```
+
+当前后端只接受并归一化现有 `ParsedCondition` 支持的字段：
+
+```text
+departureCity
+arrivalCity
+departureDate
+passengerCount
+cabinClass
+airlineRaw
+minPrice
+maxPrice
+departureTimeStart
+departureTimeEnd
+maxDurationMinutes
+directOnly
+sort
+missingFields
+followUpQuestion
+quickActionLabels
+```
+
+文档早期示例中提到的 `timePreference`、`pricePreference`、`baggageRequired` 等扩展字段当前不进入后端搜索条件。LLM 如果返回未知字段，后端会忽略；如果返回非法日期、非法舱位、非法排序、超出范围的人数或非 JSON 内容，系统会降级为规则解析。
+
+LLM 只负责意图解析，不生成推荐结果。航班号、价格、余票、舱位可用性、详情链接和预订链接仍由 `FlightRecommendationService` 基于数据库航班和座位数据生成。
 
 ## 9. 后端处理流程
 
@@ -196,7 +229,11 @@ AiChatController
 ↓
 AiChatService
 ↓
-IntentParserService
+CompositeIntentParser
+├── LlmIntentParserService（配置开启且可用）
+└── IntentParserService（默认规则解析和失败降级）
+↓
+ParsedCondition
 ↓
 FlightRecommendationService
 ↓

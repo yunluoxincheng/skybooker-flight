@@ -80,12 +80,19 @@ REDIS_PORT=6379
 JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
 JWT_EXPIRATION=86400000
 OPENAPI_ENABLED=false
-AI_API_KEY=optional
+AI_LLM_ENABLED=false
+AI_LLM_BASE_URL=https://api.openai.com/v1
+AI_LLM_API_KEY=replace-with-llm-provider-key
+AI_LLM_MODEL=gpt-4o-mini
+AI_LLM_TIMEOUT_MS=8000
+AI_LLM_MAX_RETRIES=1
 BACKEND_PORT=8080
 NGINX_PORT=8088
 ```
 
 `MYSQL_PASSWORD` 和 `JWT_SECRET` 没有应用内默认值，部署环境必须显式提供。Swagger / Knife4j 文档默认关闭，需要在开发或测试环境将 `OPENAPI_ENABLED=true` 后才开放。
+
+AI 助手默认使用规则解析，不需要 LLM 密钥。启用 LLM 意图解析时，将 `AI_LLM_ENABLED=true`，并配置兼容 OpenAI Chat Completions 的 `AI_LLM_BASE_URL`、`AI_LLM_API_KEY` 和 `AI_LLM_MODEL`。旧变量名 `AI_API_KEY` 不再使用，避免和 LLM 专用配置混淆。`AI_LLM_API_KEY` 只能写在本地 `.env` 或服务器环境变量中，不得提交真实值。
 
 ## 4. Docker Compose 部署
 
@@ -115,6 +122,12 @@ MYSQL_USER=root
 BACKEND_PORT=8080
 NGINX_PORT=8088
 OPENAPI_ENABLED=false
+AI_LLM_ENABLED=false
+AI_LLM_BASE_URL=https://api.openai.com/v1
+AI_LLM_API_KEY=replace-with-llm-provider-key
+AI_LLM_MODEL=gpt-4o-mini
+AI_LLM_TIMEOUT_MS=8000
+AI_LLM_MAX_RETRIES=1
 ```
 
 `docker-compose.yml` 不再为 MySQL 密码和 JWT 密钥提供 `123456` 这类明文默认值。缺少 `MYSQL_PASSWORD` 或 `JWT_SECRET` 时，Compose 会直接报错，避免误用不安全配置。

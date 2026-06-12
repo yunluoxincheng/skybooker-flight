@@ -35,3 +35,12 @@ springdoc:
   api-docs:
     path: /v3/api-docs
     enabled: ${OPENAPI_ENABLED:false}
+
+ai:
+  llm:
+    enabled: ${AI_LLM_ENABLED:false}
+    base-url: ${AI_LLM_BASE_URL:}
+    api-key: ${AI_LLM_API_KEY:}
+    model: ${AI_LLM_MODEL:}
+    timeout-ms: ${AI_LLM_TIMEOUT_MS:8000}
+    max-retries: ${AI_LLM_MAX_RETRIES:1}

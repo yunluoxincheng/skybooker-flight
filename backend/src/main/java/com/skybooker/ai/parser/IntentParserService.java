@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-public class IntentParserService {
+public class IntentParserService implements IntentParser {
 
     private static final Map<String, String> CITY_ALIASES = Map.ofEntries(
             Map.entry("上海", "上海"), Map.entry("北京", "北京"), Map.entry("广州", "广州"),
@@ -87,6 +87,7 @@ public class IntentParserService {
         this.clock = clock;
     }
 
+    @Override
     public ParsedCondition parse(String message) {
         if (message == null || message.isBlank()) {
             return ParsedCondition.builder()

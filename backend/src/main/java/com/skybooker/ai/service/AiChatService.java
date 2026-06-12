@@ -10,6 +10,7 @@ import com.skybooker.ai.enums.AiReplyType;
 import com.skybooker.ai.enums.MessageType;
 import com.skybooker.ai.enums.SessionStatus;
 import com.skybooker.ai.mapper.AiMapper;
+import com.skybooker.ai.parser.IntentParser;
 import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.parser.ParsedCondition;
 import com.skybooker.ai.vo.AiChatReplyVO;
@@ -36,7 +37,8 @@ public class AiChatService {
     private static final int MAX_PUBLIC_ID_RETRIES = 10;
 
     private final AiMapper aiMapper;
-    private final IntentParserService intentParserService;
+    private final IntentParser intentParser;
+    private final IntentParserService ruleIntentParserService;
     private final FlightRecommendationService flightRecommendationService;
     private final FlightMapper flightMapper;
     private final ObjectMapper objectMapper;
@@ -64,7 +66,7 @@ public class AiChatService {
         aiMapper.insertMessage(userMsg);
 
         // Parse intent
-        ParsedCondition condition = intentParserService.parse(message);
+        ParsedCondition condition = intentParser.parse(message);
 
         // Multi-turn: merge with previous assistant context if current parse is incomplete
         condition = mergeWithPreviousContext(session.getId(), condition);
@@ -196,7 +198,7 @@ public class AiChatService {
         if (result.getArrivalCity() == null) missing.add("arrivalCity");
         if (result.getDepartureDate() == null) missing.add("departureDate");
         if (!missing.isEmpty()) {
-            String followUp = intentParserService.parse("").getFollowUpQuestion();
+            String followUp = ruleIntentParserService.parse("").getFollowUpQuestion();
             return result.toBuilder().missingFields(missing)
                     .followUpQuestion(followUp)
                     .quickActionLabels(List.of())
