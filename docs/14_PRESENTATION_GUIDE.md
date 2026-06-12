@@ -44,6 +44,8 @@ AI 智能购票助手
 退票并触发候补
 ↓
 进入管理员后台查看订单和数据统计
+↓
+调用高级报表接口展示销售趋势、航线表现、客座率、退票趋势和候补表现
 ```
 
 ## 2.1 演示前检查清单
@@ -62,6 +64,7 @@ AI 智能购票助手
 - 准备一个目标舱位无票航班用于候补演示；
 - 准备一个已出票订单用于退票和改签演示；
 - 管理后台数据统计接口可访问；
+- 管理后台高级报表接口可访问，并准备固定日期范围用于截图或接口演示；
 - JMeter 同座位并发测试已跑过，摘要和数据库校验结果可在 PPT 或答辩中展示。
 
 当前 `frontend/` 目录没有 Next.js 工程或构建输入，本分支只提供后端容器和 Nginx API 网关。展示前端页面时，需要由前端工程另行启动；本仓库的 Nginx `/api/` 路由可作为前端 API 接入地址。
@@ -95,6 +98,18 @@ AI 智能购票助手
 - 数据库结构版本化；
 - 项目启动自动建表；
 - 更符合真实项目开发流程。
+
+### 管理后台高级报表
+
+强调：
+
+- 基础 `/api/admin/dashboard/**` 看板不变，高级报表新增在 `/api/admin/reports/**`；
+- 销售趋势使用 `ticket_order.pay_time`，活跃订单包含 `ISSUED` 和 `CHANGED`；
+- 航线表现同时展示收入、退款和净收入，能看到只有退款没有同期销售的航线；
+- 航班客座率使用 `flight.departure_time` 和已出票/已改签乘机人数量计算；
+- 退票趋势使用 `refund_record.created_at`，候补表现使用 `waitlist_order.created_at`；
+- 候补表现展示 `submittedCount` 以及 `pendingPaymentCount`、`waitingCount`、`successCount`、`failedCount`、`cancelledCount`、`refundedCount`、`expiredCount`，状态计数之和等于提交数；
+- 可在答辩中展示 `AdminReportIntegrationTest` 结果，证明权限、日期范围、粒度、限制条数、空周期补零和金额汇总均已覆盖。
 
 ## 4. 视频录制建议
 
