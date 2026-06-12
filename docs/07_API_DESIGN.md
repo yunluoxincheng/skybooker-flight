@@ -627,3 +627,129 @@ GET /api/admin/dashboard/summary
 GET /api/admin/dashboard/hot-routes
 GET /api/admin/dashboard/order-status
 ```
+
+`/api/admin/dashboard/**` 保持基础看板语义不变。高级报表使用单独的 `/api/admin/reports/**` 路径，统一要求管理员 Token。
+
+### 高级经营报表
+
+通用查询参数：
+
+```text
+startDate     必填，yyyy-MM-dd，含开始日期
+endDate       必填，yyyy-MM-dd，含结束日期
+granularity   趋势接口必填，DAY 或 MONTH
+airlineId     可选，航司 ID
+departureCity 可选，出发城市
+arrivalCity   可选，到达城市
+limit         榜单接口可选，默认 20，最大 50，必须大于 0
+```
+
+日期范围必须满足 `startDate <= endDate`，最大跨度为 366 天。金额字段均为 decimal，订单口径中的活跃机票订单指 `ticket_order.status IN ('ISSUED', 'CHANGED')`。
+
+销售趋势：
+
+```http
+GET /api/admin/reports/sales-trend
+```
+
+参数：`startDate`、`endDate`、`granularity`。按 `ticket_order.pay_time` 过滤和分组，返回请求范围内每个日/月周期；无数据周期返回 0。
+
+响应 `data[]`：
+
+```json
+{
+  "period": "2026-06-01",
+  "activeOrderCount": 2,
+  "passengerCount": 3,
+  "revenue": 500.00
+}
+```
+
+航线表现：
+
+```http
+GET /api/admin/reports/route-performance
+```
+
+参数：`startDate`、`endDate`、`airlineId`、`departureCity`、`arrivalCity`、`limit`。收入按活跃机票订单的 `ticket_order.pay_time` 过滤，退款按 `refund_record.created_at` 过滤。排序为 `netRevenue` 降序、`activeOrderCount` 降序、`routeLabel` 升序。仅有退款、没有同期收入的航线也会返回，`netRevenue = revenue - refundAmount`。
+
+响应 `data[]`：
+
+```json
+{
+  "departureCity": "上海",
+  "arrivalCity": "北京",
+  "routeLabel": "上海 - 北京",
+  "activeOrderCount": 2,
+  "passengerCount": 3,
+  "revenue": 900.00,
+  "refundAmount": 100.00,
+  "netRevenue": 800.00
+}
+```
+
+航班客座率：
+
+```http
+GET /api/admin/reports/flight-load-factor
+```
+
+参数：`startDate`、`endDate`、`airlineId`、`departureCity`、`arrivalCity`、`limit`。按 `flight.departure_time` 过滤，`soldPassengerCount` 只统计活跃机票订单关联的 `order_passenger`，`loadFactorPercent = soldPassengerCount * 100 / totalSeats`，当 `totalSeats = 0` 时返回 0。
+
+响应 `data[]`：
+
+```json
+{
+  "flightId": 1,
+  "flightNo": "MU5101",
+  "airlineName": "东方航空",
+  "routeLabel": "上海 - 北京",
+  "departureTime": "2026-06-05T08:00:00",
+  "totalSeats": 30,
+  "soldPassengerCount": 24,
+  "loadFactorPercent": 80.00
+}
+```
+
+退票趋势：
+
+```http
+GET /api/admin/reports/refund-trend
+```
+
+参数：`startDate`、`endDate`、`granularity`。按 `refund_record.created_at` 过滤和分组，返回请求范围内每个日/月周期；无数据周期返回 0。
+
+响应 `data[]`：
+
+```json
+{
+  "period": "2026-06-01",
+  "refundCount": 2,
+  "refundAmount": 200.00
+}
+```
+
+候补表现：
+
+```http
+GET /api/admin/reports/waitlist-performance
+```
+
+参数：`startDate`、`endDate`、`airlineId`、`departureCity`、`arrivalCity`。按 `waitlist_order.created_at` 过滤；`payAmount` 和 `refundAmount` 使用同一批候补单汇总。状态计数覆盖 `PENDING_PAYMENT`、`WAITING`、`SUCCESS`、`FAILED`、`CANCELLED`、`REFUNDED`、`EXPIRED`，其中 `expiredCount` 表示已过期未支付或未兑现的候补单数量；各状态计数之和应等于 `submittedCount`。
+
+响应 `data`：
+
+```json
+{
+  "submittedCount": 7,
+  "pendingPaymentCount": 1,
+  "waitingCount": 1,
+  "successCount": 1,
+  "failedCount": 1,
+  "cancelledCount": 1,
+  "refundedCount": 1,
+  "expiredCount": 1,
+  "payAmount": 910.00,
+  "refundAmount": 110.00
+}
+```

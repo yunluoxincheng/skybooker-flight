@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.admin.mapper.AdminReportMapper">
+
+    <sql id="activeOrderStatuses">'ISSUED', 'CHANGED'</sql>
+
+    <sql id="routeJoin">
+        JOIN flight f ON o.flight_id = f.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+    </sql>
+
+    <sql id="routeFilter">
+        <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
+        <if test="departureCity != null">AND da.city = #{departureCity}</if>
+        <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
+    </sql>
+
+    <!-- Sales Trend: DAY -->
+    <select id="selectSalesTrendByDay" resultType="com.skybooker.admin.vo.SalesTrendVO">
+        SELECT
+            DATE_FORMAT(o.pay_time, '%Y-%m-%d') AS period,
+            COUNT(DISTINCT o.id) AS activeOrderCount,
+            COALESCE(SUM(op_cnt.cnt), 0) AS passengerCount,
+            COALESCE(SUM(o.total_amount), 0.00) AS revenue
+        FROM ticket_order o
+        LEFT JOIN (
+            SELECT order_id, COUNT(*) AS cnt FROM order_passenger GROUP BY order_id
+        ) op_cnt ON o.id = op_cnt.order_id
+        WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+          AND o.pay_time &gt;= #{startDateTime}
+          AND o.pay_time &lt; #{endDateTime}
+        GROUP BY DATE_FORMAT(o.pay_time, '%Y-%m-%d')
+        ORDER BY period
+    </select>
+
+    <!-- Sales Trend: MONTH -->
+    <select id="selectSalesTrendByMonth" resultType="com.skybooker.admin.vo.SalesTrendVO">
+        SELECT
+            DATE_FORMAT(o.pay_time, '%Y-%m') AS period,
+            COUNT(DISTINCT o.id) AS activeOrderCount,
+            COALESCE(SUM(op_cnt.cnt), 0) AS passengerCount,
+            COALESCE(SUM(o.total_amount), 0.00) AS revenue
+        FROM ticket_order o
+        LEFT JOIN (
+            SELECT order_id, COUNT(*) AS cnt FROM order_passenger GROUP BY order_id
+        ) op_cnt ON o.id = op_cnt.order_id
+        WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+          AND o.pay_time &gt;= #{startDateTime}
+          AND o.pay_time &lt; #{endDateTime}
+        GROUP BY DATE_FORMAT(o.pay_time, '%Y-%m')
+        ORDER BY period
+    </select>
+
+    <!-- Route Performance: UNION revenue side + refund side to avoid filtering refund-only routes -->
+    <select id="selectRoutePerformance" resultType="com.skybooker.admin.vo.RoutePerformanceVO">
+        SELECT
+            combined.departure_city AS departureCity,
+            combined.arrival_city AS arrivalCity,
+            CONCAT(combined.departure_city, ' - ', combined.arrival_city) AS routeLabel,
+            COALESCE(SUM(combined.active_order_count), 0) AS activeOrderCount,
+            COALESCE(SUM(combined.passenger_count), 0) AS passengerCount,
+            COALESCE(SUM(combined.revenue), 0.00) AS revenue,
+            COALESCE(SUM(combined.refund_amount), 0.00) AS refundAmount,
+            COALESCE(SUM(combined.revenue), 0.00) - COALESCE(SUM(combined.refund_amount), 0.00) AS netRevenue
+        FROM (
+            <!-- Revenue side: active orders grouped by route -->
+            SELECT
+                da.city AS departure_city,
+                aa.city AS arrival_city,
+                COUNT(DISTINCT o.id) AS active_order_count,
+                COALESCE(SUM(op_cnt.cnt), 0) AS passenger_count,
+                COALESCE(SUM(o.total_amount), 0.00) AS revenue,
+                0.00 AS refund_amount
+            FROM ticket_order o
+            JOIN flight f ON o.flight_id = f.id
+            JOIN airport da ON f.departure_airport_id = da.id
+            JOIN airport aa ON f.arrival_airport_id = aa.id
+            LEFT JOIN (
+                SELECT order_id, COUNT(*) AS cnt FROM order_passenger GROUP BY order_id
+            ) op_cnt ON o.id = op_cnt.order_id
+            WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+              AND o.pay_time &gt;= #{startDateTime}
+              AND o.pay_time &lt; #{endDateTime}
+              <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
+              <if test="departureCity != null">AND da.city = #{departureCity}</if>
+              <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
+            GROUP BY da.city, aa.city
+
+            UNION ALL
+
+            <!-- Refund side: refund records grouped by route -->
+            SELECT
+                da.city AS departure_city,
+                aa.city AS arrival_city,
+                0 AS active_order_count,
+                0 AS passenger_count,
+                0.00 AS revenue,
+                COALESCE(SUM(r.refund_amount), 0.00) AS refund_amount
+            FROM refund_record r
+            JOIN ticket_order o ON r.order_id = o.id
+            JOIN flight f ON o.flight_id = f.id
+            JOIN airport da ON f.departure_airport_id = da.id
+            JOIN airport aa ON f.arrival_airport_id = aa.id
+            WHERE r.created_at &gt;= #{startDateTime}
+              AND r.created_at &lt; #{endDateTime}
+              AND r.status = 'SUCCESS'
+              <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
+              <if test="departureCity != null">AND da.city = #{departureCity}</if>
+              <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
+            GROUP BY da.city, aa.city
+        ) combined
+        GROUP BY combined.departure_city, combined.arrival_city
+        ORDER BY netRevenue DESC, activeOrderCount DESC, routeLabel ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- Flight Load Factor -->
+    <select id="selectFlightLoadFactor" resultType="com.skybooker.admin.vo.FlightLoadFactorVO">
+        SELECT
+            f.id AS flightId,
+            f.flight_no AS flightNo,
+            al.name AS airlineName,
+            CONCAT(da.city, ' - ', aa.city) AS routeLabel,
+            f.departure_time AS departureTime,
+            f.total_seats AS totalSeats,
+            COALESCE(sold.cnt, 0) AS soldPassengerCount,
+            CASE WHEN f.total_seats = 0 THEN 0.00
+                 ELSE ROUND(COALESCE(sold.cnt, 0) * 100.0 / f.total_seats, 2)
+            END AS loadFactorPercent
+        FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        LEFT JOIN (
+            SELECT o.flight_id, COUNT(op.id) AS cnt
+            FROM ticket_order o
+            JOIN order_passenger op ON o.id = op.order_id
+            WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+            GROUP BY o.flight_id
+        ) sold ON f.id = sold.flight_id
+        WHERE f.departure_time &gt;= #{startDateTime}
+          AND f.departure_time &lt; #{endDateTime}
+          <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
+          <if test="departureCity != null">AND da.city = #{departureCity}</if>
+          <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
+        ORDER BY f.departure_time
+        LIMIT #{limit}
+    </select>
+
+    <!-- Refund Trend: DAY -->
+    <select id="selectRefundTrendByDay" resultType="com.skybooker.admin.vo.RefundTrendVO">
+        SELECT
+            DATE_FORMAT(r.created_at, '%Y-%m-%d') AS period,
+            COUNT(*) AS refundCount,
+            COALESCE(SUM(r.refund_amount), 0.00) AS refundAmount
+        FROM refund_record r
+        WHERE r.created_at &gt;= #{startDateTime}
+          AND r.created_at &lt; #{endDateTime}
+          AND r.status = 'SUCCESS'
+        GROUP BY DATE_FORMAT(r.created_at, '%Y-%m-%d')
+        ORDER BY period
+    </select>
+
+    <!-- Refund Trend: MONTH -->
+    <select id="selectRefundTrendByMonth" resultType="com.skybooker.admin.vo.RefundTrendVO">
+        SELECT
+            DATE_FORMAT(r.created_at, '%Y-%m') AS period,
+            COUNT(*) AS refundCount,
+            COALESCE(SUM(r.refund_amount), 0.00) AS refundAmount
+        FROM refund_record r
+        WHERE r.created_at &gt;= #{startDateTime}
+          AND r.created_at &lt; #{endDateTime}
+          AND r.status = 'SUCCESS'
+        GROUP BY DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY period
+    </select>
+
+    <!-- Waitlist Performance -->
+    <select id="selectWaitlistPerformance" resultType="com.skybooker.admin.vo.WaitlistPerformanceVO">
+        SELECT
+            COUNT(*) AS submittedCount,
+            SUM(CASE WHEN w.status = 'PENDING_PAYMENT' THEN 1 ELSE 0 END) AS pendingPaymentCount,
+            SUM(CASE WHEN w.status = 'WAITING' THEN 1 ELSE 0 END) AS waitingCount,
+            SUM(CASE WHEN w.status = 'SUCCESS' THEN 1 ELSE 0 END) AS successCount,
+            SUM(CASE WHEN w.status = 'FAILED' THEN 1 ELSE 0 END) AS failedCount,
+            SUM(CASE WHEN w.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelledCount,
+            SUM(CASE WHEN w.status = 'REFUNDED' THEN 1 ELSE 0 END) AS refundedCount,
+            SUM(CASE WHEN w.status = 'EXPIRED' THEN 1 ELSE 0 END) AS expiredCount,
+            COALESCE(SUM(w.pay_amount), 0.00) AS payAmount,
+            COALESCE(SUM(w.refund_amount), 0.00) AS refundAmount
+        FROM waitlist_order w
+        JOIN flight f ON w.flight_id = f.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        WHERE w.created_at &gt;= #{startDateTime}
+          AND w.created_at &lt; #{endDateTime}
+          <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
+          <if test="departureCity != null">AND da.city = #{departureCity}</if>
+          <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
+    </select>
+
+</mapper>
