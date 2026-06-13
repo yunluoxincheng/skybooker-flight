@@ -172,6 +172,16 @@ SKYBOOKER_BASE_URL=http://localhost:8080 scripts/smoke/backend-smoke.sh
 SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 ```
 
+服务器公网验证：
+
+```bash
+# 纯 IP
+SKYBOOKER_BASE_URL=http://<server-ip>:8088 scripts/smoke/backend-smoke.sh
+
+# 域名
+SKYBOOKER_BASE_URL=https://skybooker.example.com scripts/smoke/backend-smoke.sh
+```
+
 脚本检查：
 
 - 公共航班查询；
@@ -182,6 +192,13 @@ SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 - 普通用户订单列表；
 - 匿名 AI 聊天响应；
 - 管理员数据统计摘要。
+
+高级报表验证（`/api/admin/reports/**`）仅在报表端点已启用时覆盖，不作为 Smoke 脚本的必要检查项。如需手动验证：
+
+```bash
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$SKYBOOKER_BASE_URL/api/admin/reports/sales-trend?startDate=2025-01-01&endDate=2026-12-31&granularity=MONTH"
+```
 
 可配置变量：
 

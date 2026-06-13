@@ -59,13 +59,28 @@ AI 智能购票助手
 - `curl http://localhost:8088/api/flights?page=1\&size=1` 返回标准 API 包装；
 - 如航班日期已过期，执行 `scripts/refresh-demo-flight-dates.sql`；
 - `scripts/smoke/backend-smoke.sh` 通过，输出保存在 `reports/smoke/`；
-- AI 助手对“我想去北京”能返回追问或推荐响应；
+- AI 助手对”我想去北京”能返回追问或推荐响应；
 - 准备一个余票充足航班用于订票演示；
 - 准备一个目标舱位无票航班用于候补演示；
 - 准备一个已出票订单用于退票和改签演示；
 - 管理后台数据统计接口可访问；
 - 管理后台高级报表接口可访问，并准备固定日期范围用于截图或接口演示；
 - JMeter 同座位并发测试已跑过，摘要和数据库校验结果可在 PPT 或答辩中展示。
+
+### 服务器部署演示就绪
+
+如需在服务器上部署并演示，额外确认：
+
+- [ ] 服务器 `docker compose ps` 全部 healthy；
+- [ ] `scripts/smoke/backend-smoke.sh` 通过 `SKYBOOKER_BASE_URL=http://<server-ip>:8088` 验证；
+- [ ] 管理员密码已从默认 `Admin@123456` 修改；
+- [ ] 演示数据日期未过期（执行 `scripts/refresh-demo-flight-dates.sql`）；
+- [ ] 前端可通过公网访问或由前端同学另行启动；
+- [ ] 保存以下证据用于答辩或 PR：
+  - `docker compose ps` 输出截图；
+  - Smoke 脚本输出摘要；
+  - `/healthz` 和 `/api/flights` curl 结果；
+  - 如有前端页面，浏览器访问截图。
 
 当前 `frontend/` 目录没有 Next.js 工程或构建输入，本分支只提供后端容器和 Nginx API 网关。展示前端页面时，需要由前端工程另行启动；本仓库的 Nginx `/api/` 路由可作为前端 API 接入地址。
 

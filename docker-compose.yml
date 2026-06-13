@@ -6,7 +6,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: ${MYSQL_DB:-flight_booking}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${MYSQL_PORT:-127.0.0.1:3306}:3306"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$${MYSQL_ROOT_PASSWORD}"]
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     container_name: skybooker-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-127.0.0.1:6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -55,7 +55,7 @@ services:
       AI_LLM_TIMEOUT_MS: ${AI_LLM_TIMEOUT_MS:-8000}
       AI_LLM_MAX_RETRIES: ${AI_LLM_MAX_RETRIES:-1}
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_PORT:-127.0.0.1:8080}:8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS 'http://localhost:8080/api/flights?page=1&size=1' >/dev/null"]
       interval: 10s

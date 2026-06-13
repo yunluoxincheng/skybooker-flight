@@ -285,18 +285,18 @@ http://localhost:3000
 
 ## 邮件服务配置
 
-SkyBooker 注册和找回密码需要发送邮箱验证码。开发环境可以使用 Mock 邮件服务，部署环境可以使用 SMTP 邮件服务。
+当前版本尚未接入 SMTP 发送实现，注册和找回密码验证码由 `LogMailService` 输出到后端日志。以下 SMTP 配置为后续生产邮件能力预留。
 
-### 后端环境变量
+### 后端环境变量（预留）
 
 ```env
-MAIL_ENABLED=true
-MAIL_PROVIDER=smtp
-MAIL_HOST=smtp.example.com
-MAIL_PORT=587
-MAIL_USERNAME=your-email@example.com
-MAIL_PASSWORD=your-email-auth-code
-MAIL_FROM=SkyBooker <your-email@example.com>
+# MAIL_ENABLED=true
+# MAIL_PROVIDER=smtp
+# MAIL_HOST=smtp.example.com
+# MAIL_PORT=587
+# MAIL_USERNAME=your-email@example.com
+# MAIL_PASSWORD=<your-email-auth-code>
+# MAIL_FROM=SkyBooker <your-email@example.com>
 ```
 
 ### Spring Mail 配置示例
@@ -316,16 +316,20 @@ spring:
             enable: true
 ```
 
-### 开发环境 Mock 邮件
+### 开发环境日志输出（当前默认行为）
 
-如果没有邮件服务账号，可以启用 Mock 模式：
+当前版本默认使用 `LogMailService`，验证码直接输出到后端日志，不需要邮件服务账号。以下变量为未来 SMTP 接入预留，当前不生效：
 
 ```env
-MAIL_ENABLED=false
-MAIL_PROVIDER=mock
+# MAIL_ENABLED=false
+# MAIL_PROVIDER=mock
 ```
 
-Mock 模式下后端不发送真实邮件，而是在控制台日志打印验证码，方便本地开发和课堂演示。
+部署环境中查看验证码：
+
+```bash
+docker compose logs -f backend | grep -i "verification\|验证码"
+```
 
 ### 推荐邮件服务
 
@@ -334,3 +338,633 @@ Mock 模式下后端不发送真实邮件，而是在控制台日志打印验证
 - Resend：适合开发者 API 邮件发送。
 
 短信验证码、微信登录、支付宝登录不作为默认部署依赖。
+
+## 9. 服务器部署
+
+### 9.1 服务器前提条件
+
+#### 操作系统
+
+推荐使用以下 64 位 Linux 发行版：
+
+- Ubuntu 22.04 LTS / 24.04 LTS
+- Debian 12 (Bookworm)
+- CentOS Stream 9 / Rocky Linux 9
+
+其他能运行 Docker 的 Linux 发行版也可以使用，但以下命令以 `apt` 为例。
+
+#### Docker 和 Docker Compose
+
+```bash
+# 安装 Docker Engine（Ubuntu 示例）
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# 验证
+docker --version
+docker compose version
+```
+
+Docker Compose 版本需要支持 `docker compose`（V2 插件），不需要单独安装 `docker-compose`。
+
+#### 资源预期
+
+| 资源 | 最低要求 | 推荐配置 |
+|------|----------|----------|
+| CPU | 2 核 | 2 核 |
+| 内存 | 4 GB | 4 GB |
+| 磁盘 | 20 GB | 40 GB（含数据库和备份空间） |
+
+MySQL 8 容器通常占用 1-2 GB 内存，Spring Boot 后端约 512 MB-1 GB，Redis 和 Nginx 占用较小。
+
+#### 域名和 DNS（可选）
+
+如果需要通过域名和 HTTPS 访问：
+
+- 准备一个域名并将 A 记录指向服务器公网 IP；
+- DNS 生效后再配置 HTTPS 证书。
+
+纯 IP 访问不需要域名和 DNS 配置。
+
+#### 防火墙和端口
+
+| 端口 | 协议 | 用途 | 对外开放 |
+|------|------|------|----------|
+| 80 | TCP | HTTP / Certbot 验证 | 是（HTTPS 前置） |
+| 443 | TCP | HTTPS | 是（生产环境推荐） |
+| 8088 | TCP | HTTP API 网关（无域名时） | 按需 |
+| 22 | TCP | SSH 管理 | 是 |
+
+MySQL（3306）、Redis（6379）、后端（8080）默认绑定到 `127.0.0.1`，不对外开放。Nginx（8088）绑定到 `0.0.0.0`，是唯一的公共入口。
+
+MySQL（3306）、Redis（6379）、后端（8080）端口不需要对外开放，只通过 Nginx 反向代理访问。
+
+```bash
+# UFW 示例
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 8088/tcp   # 仅在无 Nginx 80/443 时需要
+sudo ufw enable
+```
+
+云服务器还需在安全组中放行对应端口。
+
+#### 仓库检出
+
+```bash
+# 安装 Git
+sudo apt-get install -y git
+
+# 克隆仓库
+git clone https://github.com/<your-org>/skybooker-flight.git
+cd skybooker-flight
+
+# 切换到目标分支
+git checkout main   # 或 dev、feature 分支
+```
+
+将 `<your-org>` 替换为实际的 GitHub 用户名或组织。
+
+### 9.2 首次部署流程
+
+#### 第一步：配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，填写所有占位值：
+
+```env
+MYSQL_PASSWORD=<strong-random-password>
+MYSQL_DB=flight_booking
+MYSQL_USER=root
+JWT_SECRET=<random-secret-at-least-256-bits>
+BACKEND_PORT=127.0.0.1:8080
+NGINX_PORT=8088
+OPENAPI_ENABLED=false
+AI_LLM_ENABLED=false
+```
+
+生成随机密码和 JWT 密钥的示例：
+
+```bash
+openssl rand -base64 32   # MySQL 密码
+openssl rand -base64 48   # JWT 密钥
+```
+
+#### 第二步：构建并启动服务
+
+```bash
+docker compose up -d --build
+```
+
+首次构建需要下载基础镜像和 Maven 依赖，可能需要 5-10 分钟。
+
+#### 第三步：检查服务状态
+
+```bash
+docker compose ps
+```
+
+确认所有服务状态为 `healthy` 或 `running`：
+
+```text
+skybooker-mysql    ... Up (healthy)
+skybooker-redis    ... Up (healthy)
+skybooker-backend  ... Up (healthy)
+skybooker-nginx    ... Up (healthy)
+```
+
+#### 第四步：验证 API 可达
+
+```bash
+# 通过 Nginx API 网关验证
+curl http://localhost:8088/healthz
+# 期望输出: ok
+
+curl http://localhost:8088/api/flights?page=1\&size=1
+# 期望返回标准 ApiResponse JSON
+```
+
+如果通过公网 IP 访问，将 `localhost` 替换为服务器公网 IP。
+
+#### 第五步：首次 Smoke 验证（使用默认密码）
+
+在修改管理员密码之前，先用默认凭据跑一次 smoke 确认部署正常：
+
+```bash
+SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
+```
+
+所有检查通过后，再修改管理员密码。
+
+#### 第六步：修改默认管理员密码
+
+使用默认管理员账号登录并通过管理后台修改密码：
+
+```text
+管理员用户名：admin
+默认密码：Admin@123456
+```
+
+修改密码后，后续 smoke 验证必须显式传入新密码：
+
+```bash
+SKYBOOKER_ADMIN_PASSWORD='<new-admin-password>' \
+SKYBOOKER_BASE_URL=http://localhost:8088 \
+scripts/smoke/backend-smoke.sh
+```
+
+### 9.3 当前部署边界和前端集成路径
+
+当前仓库部署以下服务：
+
+- **MySQL 8**：关系数据库，Flyway 自动初始化表结构和种子数据；
+- **Redis 7**：缓存和会话存储；
+- **Spring Boot 后端**：REST API，监听容器内 8080 端口；
+- **Nginx API 网关**：反向代理，转发 `/api/` 到后端，提供 `/healthz` 健康检查。
+
+当前 `frontend/` 目录只有 `DESIGN.md`，没有 Next.js 工程或构建输入。本仓库不打包前端容器。
+
+前端工程补齐后，预期集成方式：
+
+1. 在 `docker-compose.yml` 中新增 `frontend` 服务；
+2. 在 Nginx 配置中将 `/` 路由到前端服务；
+3. 前端通过 `NEXT_PUBLIC_API_BASE_URL` 指向 Nginx 的 `/api` 路径。
+
+### 9.4 演示数据刷新
+
+Flyway 种子数据中的航班日期是固定的。部署后如果航班日期已过期，需要手动刷新。
+
+以下命令需要读取 `.env` 中的 `MYSQL_PASSWORD`。执行前先加载环境变量：
+
+```bash
+set -a; source ./.env; set +a
+```
+
+然后执行刷新：
+
+```bash
+# 通过 Docker 执行 SQL
+docker exec -i skybooker-mysql mysql -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  < scripts/refresh-demo-flight-dates.sql
+```
+
+或者从宿主机执行（需要本地 mysql 客户端）：
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  < scripts/refresh-demo-flight-dates.sql
+```
+
+建议在以下时机执行刷新：
+
+- 首次部署后验证数据前；
+- 每次演示前一天；
+- 升级后如果涉及种子数据变更。
+
+## 10. 服务器运行配置和安全
+
+### 10.1 服务器环境变量参考
+
+服务器 `.env` 必须包含以下值，所有敏感值使用占位符：
+
+```env
+# === 必填 ===
+MYSQL_PASSWORD=<strong-random-password>
+MYSQL_DB=flight_booking
+MYSQL_USER=root
+JWT_SECRET=<random-secret-at-least-256-bits>
+
+# === 网络 ===
+# 端口变量支持 127.0.0.1:PORT 格式（仅本地访问）或纯 PORT 格式（所有接口）
+# MySQL、Redis、Backend 默认绑定 127.0.0.1，Nginx 默认绑定 0.0.0.0
+BACKEND_PORT=127.0.0.1:8080
+NGINX_PORT=8088
+
+# === 功能开关 ===
+OPENAPI_ENABLED=false
+
+# === AI 助手（可选） ===
+AI_LLM_ENABLED=false
+AI_LLM_BASE_URL=https://api.openai.com/v1
+AI_LLM_API_KEY=<your-llm-provider-key>
+AI_LLM_MODEL=gpt-4o-mini
+AI_LLM_TIMEOUT_MS=8000
+AI_LLM_MAX_RETRIES=1
+
+# === 邮件服务（当前预留，SMTP 实现接入后启用） ===
+# 当前后端使用 LogMailService 输出验证码到日志，以下变量暂不生效。
+# MAIL_ENABLED=true
+# MAIL_PROVIDER=smtp
+# MAIL_HOST=smtp.example.com
+# MAIL_PORT=587
+# MAIL_USERNAME=your-email@example.com
+# MAIL_PASSWORD=<your-email-auth-code>
+# MAIL_FROM=SkyBooker <your-email@example.com>
+
+# === Redis（Compose 内部通常不需要修改） ===
+REDIS_HOST=redis
+REDIS_PORT=6379
+```
+
+`MYSQL_HOST`、`MYSQL_PORT`、`REDIS_HOST`、`REDIS_PORT` 在 Compose 部署中由 `docker-compose.yml` 自动注入到后端容器，不需要在 `.env` 中设置。
+
+**端口绑定安全**：`docker-compose.yml` 默认将 MySQL、Redis、Backend 端口绑定到 `127.0.0.1`，不对外暴露。如果在 `.env` 中设置 `MYSQL_PORT`、`REDIS_PORT`、`BACKEND_PORT` 为纯数字（如 `MYSQL_PORT=3306`），会覆盖默认行为，改为绑定到所有网络接口（`0.0.0.0`）。公网服务器部署时：
+
+- 如果不需要从宿主机直接访问这些服务，**删除或注释** `.env` 中的 `MYSQL_PORT`、`REDIS_PORT`、`BACKEND_PORT` 行，让 Compose 使用默认的 `127.0.0.1` 绑定；
+- 如果需要本地访问（如手动执行 SQL），保持默认的 `127.0.0.1:PORT` 格式，例如：
+
+```env
+MYSQL_PORT=127.0.0.1:3306
+REDIS_PORT=127.0.0.1:6379
+BACKEND_PORT=127.0.0.1:8080
+```
+
+### 10.2 生产安全检查清单
+
+部署到公网前，逐项确认：
+
+- [ ] `JWT_SECRET` 已替换为足够长的随机密钥（至少 256 位，使用 `openssl rand -base64 48` 生成）；
+- [ ] `MYSQL_PASSWORD` 已替换为强密码，不使用 `123456` 或默认值；
+- [ ] 默认管理员密码 `Admin@123456` 已通过管理后台修改；
+- [ ] `OPENAPI_ENABLED=false`（Swagger/Knife4j 不对外暴露）；
+- [ ] 对外只开放必要端口（80/443 或 8088）；
+- [ ] MySQL（3306）、Redis（6379）、后端（8080）端口绑定到 `127.0.0.1`（Compose 默认行为）；
+- [ ] `.env` 文件在 `.gitignore` 中，不会被提交；
+- [ ] 没有真实密钥、密码、证书或 IP 出现在仓库文件中。
+
+### 10.3 敏感信息审查
+
+确认仓库中提交的文档和配置文件不包含以下内容：
+
+- 真实服务器 IP 地址或内网域名；
+- 数据库密码、JWT 密钥、邮件凭据、LLM API 密钥；
+- SSL/TLS 证书私钥文件或签发证书文件；
+- 本地 `.env` 文件；
+- 运行日志、报告输出、截图。
+
+所有示例值使用 `<placeholder>` 格式（如 `<strong-random-password>`、`<your-llm-provider-key>`），不含真实数据。
+
+## 11. 生产反向代理和 HTTPS
+
+### 11.1 域名方式 API 路由
+
+当服务器有域名时，使用独立的 Nginx 配置文件将公网请求代理到 Compose 的 Nginx 容器。
+
+以下示例假设 Compose 的 `nginx` 服务在宿主机上映射到 8088 端口（`NGINX_PORT=8088`），服务器上的独立 Nginx 监听公网 80/443 端口并代理到 `127.0.0.1:8088`。
+
+```nginx
+# /etc/nginx/sites-available/skybooker.conf
+server {
+    listen 80;
+    server_name skybooker.example.com;
+
+    location /healthz {
+        proxy_pass http://127.0.0.1:8088/healthz;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /api {
+        proxy_pass http://127.0.0.1:8088/api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8088/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 前端工程补齐后取消注释
+    # location / {
+    #     proxy_pass http://127.0.0.1:3000/;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    # }
+}
+```
+
+将 `skybooker.example.com` 替换为实际域名。启用配置：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/skybooker.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+验证：
+
+```bash
+curl http://skybooker.example.com/healthz
+curl http://skybooker.example.com/api/flights?page=1\&size=1
+```
+
+### 11.2 HTTPS 配置
+
+推荐使用 Certbot 自动获取 Let's Encrypt 证书：
+
+```bash
+# 安装 Certbot
+sudo apt-get install -y certbot python3-certbot-nginx
+
+# 获取证书（确保域名 DNS 已指向服务器且 Nginx 正在运行）
+sudo certbot --nginx -d skybooker.example.com
+```
+
+Certbot 会自动修改 Nginx 配置并设置自动续期。
+
+**注意事项：**
+
+- 证书私钥和签发证书文件保存在 `/etc/letsencrypt/` 下，属于服务器本地文件，不要复制到仓库；
+- 使用 `--nginx` 参数时 Certbot 会自动处理 HTTP 到 HTTPS 的重定向；
+- 续期测试：`sudo certbot renew --dry-run`。
+
+使用云服务商托管证书时，按照服务商文档配置 SSL/TLS 监听器，证书文件同样不应提交到仓库。
+
+### 11.3 纯 IP 的 HTTP 验证路径
+
+在域名和 HTTPS 就绪前，可以通过服务器 IP 和 Compose 暴露的端口验证部署：
+
+```bash
+# 确保 8088 端口对外开放
+curl http://<server-ip>:8088/healthz
+curl http://<server-ip>:8088/api/flights?page=1\&size=1
+```
+
+这是部署初期的临时验证方式。生产环境建议通过域名和 HTTPS 访问。
+
+### 11.4 可复用 Nginx 模板
+
+仓库提供了生产 Nginx 模板：
+
+```text
+deploy/nginx/server-block.conf.example
+```
+
+该模板包含域名占位符和 HTTPS 注释，不包含任何环境特定值。使用时复制到服务器并替换占位符。
+
+## 12. 服务器验证和证据采集
+
+### 12.1 服务器 Smoke 验证
+
+通过 Nginx 公网路由运行 smoke 脚本：
+
+```bash
+# 纯 IP 验证
+SKYBOOKER_BASE_URL=http://<server-ip>:8088 scripts/smoke/backend-smoke.sh
+
+# 域名验证（HTTP）
+SKYBOOKER_BASE_URL=http://skybooker.example.com scripts/smoke/backend-smoke.sh
+
+# 域名验证（HTTPS）
+SKYBOOKER_BASE_URL=https://skybooker.example.com scripts/smoke/backend-smoke.sh
+```
+
+首次部署时使用默认管理员密码（`Admin@123456`），smoke 可直接运行。修改管理员密码后，必须显式传入新密码：
+
+```bash
+SKYBOOKER_ADMIN_PASSWORD='<new-admin-password>' \
+SKYBOOKER_BASE_URL=https://skybooker.example.com \
+scripts/smoke/backend-smoke.sh
+```
+
+### 12.2 验证覆盖范围
+
+Smoke 脚本覆盖以下检查：
+
+| 检查项 | 端点 | 说明 |
+|--------|------|------|
+| 公共航班查询 | `GET /api/flights` | 无需登录，验证 Flyway 数据 |
+| 用户登录 | `POST /api/auth/login` | 普通用户邮箱密码登录 |
+| 用户身份 | `GET /api/auth/me` | 验证用户 Token 有效性 |
+| 管理员登录 | `POST /api/admin/auth/login` | 管理员用户名密码登录 |
+| 管理员身份 | `GET /api/admin/me` | 验证管理员 Token 有效性 |
+| 用户/管理员隔离 | 交叉访问 | 用户不能访问管理员接口，反之亦然 |
+| 用户订单 | `GET /api/orders` | 登录后查看订单列表 |
+| AI 助手 | `POST /api/ai/chat` | 匿名 AI 聊天响应 |
+| 管理员数据统计 | `GET /api/admin/dashboard/summary` | 管理后台数据摘要 |
+
+高级报表验证（`/api/admin/reports/**`）仅在报表端点已启用时覆盖。Smoke 脚本不将高级报表作为必要检查项，以避免对可选功能产生硬依赖。如需单独验证高级报表，可手动调用：
+
+```bash
+# 获取管理员 Token 后手动验证
+ADMIN_TOKEN=<token>
+curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$SKYBOOKER_BASE_URL/api/admin/reports/sales-trend?startDate=2025-01-01&endDate=2026-12-31&granularity=MONTH" \
+  | head -c 500
+```
+
+### 12.3 证据输出
+
+Smoke 脚本输出保存在：
+
+```text
+reports/smoke/
+```
+
+该目录默认不提交到 Git（已包含在 `.gitignore` 中）。
+
+PR 或演示中需要提交的证据：
+
+- 关键 smoke 命令及其返回结果摘要；
+- `docker compose ps` 输出（所有服务 healthy）；
+- `/healthz` 和 `/api/flights` 的 curl 输出；
+- 如有前端页面，浏览器截图。
+
+### 12.4 展示就绪检查
+
+服务器部署用于展示前，额外确认：
+
+- [ ] 所有服务 healthy（`docker compose ps`）；
+- [ ] Smoke 脚本通过（`scripts/smoke/backend-smoke.sh`）；
+- [ ] 演示数据日期未过期（`scripts/refresh-demo-flight-dates.sql`）；
+- [ ] 管理员密码已从默认值修改；
+- [ ] 前端可通过 Nginx 访问或由前端同学另行启动；
+- [ ] 服务器防火墙和安全组配置正确。
+
+## 13. 运维、升级、回滚和备份
+
+### 13.1 服务状态和日志
+
+```bash
+# 查看所有服务状态
+docker compose ps
+
+# 查看后端日志
+docker compose logs -f backend
+
+# 查看 Nginx 日志
+docker compose logs -f nginx
+
+# 查看 MySQL 日志
+docker compose logs -f mysql
+
+# 查看全部日志（最近 100 行）
+docker compose logs --tail=100
+
+# 重启单个服务
+docker compose restart backend
+
+# 重启全部服务
+docker compose restart
+
+# 完全重建并重启
+docker compose up -d --build --force-recreate
+```
+
+### 13.2 升级流程
+
+```bash
+# 0. 加载环境变量（备份和恢复需要 MYSQL_PASSWORD）
+set -a; source ./.env; set +a
+
+# 1. 备份数据库（必须）
+docker exec skybooker-mysql mysqldump -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  | gzip > /tmp/skybooker-backup-$(date +%Y%m%d%H%M%S).sql.gz
+
+# 2. 记录当前版本
+git log --oneline -1
+
+# 3. 拉取最新代码
+git pull origin main   # 或目标分支
+
+# 4. 重建并重启
+docker compose up -d --build
+
+# 5. 等待服务 healthy
+docker compose ps
+
+# 6. 运行 Smoke 验证
+SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
+
+# 7. 如有新的 Flyway 迁移，后端启动时自动执行
+#    确认迁移成功：
+docker compose logs backend | grep -i flyway
+```
+
+升级失败时，参照 13.3 回滚流程操作。
+
+### 13.3 回滚流程
+
+当升级后 Smoke 验证失败时：
+
+```bash
+# 0. 加载环境变量（恢复需要 MYSQL_PASSWORD）
+set -a; source ./.env; set +a
+
+# 1. 回退到上一个已知正常版本
+git checkout <previous-working-commit>
+
+# 2. 重建并重启
+docker compose up -d --build
+
+# 3. 等待服务 healthy
+docker compose ps
+
+# 4. 如果数据库已变更导致不兼容，恢复备份
+docker exec -i skybooker-mysql mysql -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  < <(gunzip -c /tmp/skybooker-backup-<timestamp>.sql.gz)
+
+# 5. 重启后端并验证
+docker compose restart backend
+SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
+```
+
+### 13.4 数据库备份和恢复
+
+#### 手动备份
+
+```bash
+# 加载环境变量
+set -a; source ./.env; set +a
+
+# 备份到 /tmp 目录
+docker exec skybooker-mysql mysqldump -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  | gzip > /tmp/skybooker-backup-$(date +%Y%m%d%H%M%S).sql.gz
+
+# 查看备份文件
+ls -lh /tmp/skybooker-backup-*.sql.gz
+```
+
+#### 手动恢复
+
+```bash
+# 加载环境变量
+set -a; source ./.env; set +a
+
+# 从备份文件恢复
+docker exec -i skybooker-mysql mysql -uroot -p"$MYSQL_PASSWORD" flight_booking \
+  < <(gunzip -c /tmp/skybooker-backup-<timestamp>.sql.gz)
+```
+
+备份文件默认保存在 `/tmp/` 目录，不提交到 Git。如需持久保存，将备份文件移到服务器上的专用备份目录（如 `/opt/skybooker/backups/`），并确保该目录在 `.gitignore` 中。
+
+#### 定时备份（可选）
+
+```bash
+# 添加 crontab 每天凌晨 3 点自动备份
+crontab -e
+# 添加以下行：
+# 0 3 * * * docker exec skybooker-mysql mysqldump -uroot -p<password> flight_booking | gzip > /opt/skybooker/backups/skybooker-backup-$(date +\%Y\%m\%d\%H\%M\%S).sql.gz
+```
+
+注意：crontab 中需要使用实际密码或环境变量，不要在仓库中记录真实密码。
