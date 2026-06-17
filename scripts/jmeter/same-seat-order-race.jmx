@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
-    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="SkyBooker same-seat order race">
-      <stringProp name="TestPlan.comments">Logs in multiple virtual users and synchronizes POST /api/orders requests against the same seatId. Verify exactly one success with scripts/concurrency/verify-same-seat-order-race.sh.</stringProp>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="SkyBooker 同座位并发下单">
+      <stringProp name="TestPlan.comments">多个虚拟用户登录后同步向同一个 seatId 发起 POST /api/orders 请求。运行后使用 scripts/concurrency/verify-same-seat-order-race.sh 校验只能有一个请求成功。</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
-      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="用户自定义变量">
         <collectionProp name="Arguments.arguments">
           <elementProp name="BASE_URL" elementType="Argument">
             <stringProp name="Argument.name">BASE_URL</stringProp>
@@ -20,22 +20,22 @@
           </elementProp>
           <elementProp name="USER_PASSWORD" elementType="Argument">
             <stringProp name="Argument.name">USER_PASSWORD</stringProp>
-            <stringProp name="Argument.value">${__P(USER_PASSWORD,User@123456)}</stringProp>
+            <stringProp name="Argument.value">${__P(USER_PASSWORD,)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="FLIGHT_ID" elementType="Argument">
             <stringProp name="Argument.name">FLIGHT_ID</stringProp>
-            <stringProp name="Argument.value">${__P(FLIGHT_ID,1)}</stringProp>
+            <stringProp name="Argument.value">${__P(FLIGHT_ID,)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="PASSENGER_ID" elementType="Argument">
             <stringProp name="Argument.name">PASSENGER_ID</stringProp>
-            <stringProp name="Argument.value">${__P(PASSENGER_ID,1)}</stringProp>
+            <stringProp name="Argument.value">${__P(PASSENGER_ID,)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="SEAT_ID" elementType="Argument">
             <stringProp name="Argument.name">SEAT_ID</stringProp>
-            <stringProp name="Argument.value">${__P(SEAT_ID,1)}</stringProp>
+            <stringProp name="Argument.value">${__P(SEAT_ID,)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="THREADS" elementType="Argument">
@@ -47,18 +47,18 @@
       </elementProp>
     </TestPlan>
     <hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Concurrent order creators">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="并发创建订单线程组">
         <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
         <intProp name="ThreadGroup.ramp_time">1</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="循环控制器">
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">1</stringProp>
         </elementProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="User login">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="用户登录">
           <stringProp name="HTTPSampler.domain"></stringProp>
           <stringProp name="HTTPSampler.path">${BASE_URL}/api/auth/login</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
@@ -76,7 +76,7 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="JSON headers">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="JSON 请求头">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Content-Type</stringProp>
@@ -85,7 +85,7 @@
             </collectionProp>
           </HeaderManager>
           <hashTree/>
-          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract access token">
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="提取访问令牌">
             <stringProp name="JSONPostProcessor.referenceNames">accessToken</stringProp>
             <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.accessToken</stringProp>
             <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
@@ -93,12 +93,12 @@
           </JSONPostProcessor>
           <hashTree/>
         </hashTree>
-        <SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="Synchronize order creation">
+        <SyncTimer guiclass="TestBeanGUI" testclass="SyncTimer" testname="同步创建订单">
           <stringProp name="groupSize">${THREADS}</stringProp>
           <longProp name="timeoutInMs">10000</longProp>
         </SyncTimer>
         <hashTree/>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Create order for same seat">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="同座位创建订单">
           <stringProp name="HTTPSampler.domain"></stringProp>
           <stringProp name="HTTPSampler.path">${BASE_URL}/api/orders</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
@@ -116,7 +116,7 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authenticated JSON headers">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="已认证 JSON 请求头">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Content-Type</stringProp>
@@ -130,7 +130,7 @@
           </HeaderManager>
           <hashTree/>
         </hashTree>
-        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="汇总报告">
           <boolProp name="ResultCollector.error_logging">false</boolProp>
           <objProp>
             <name>saveConfig</name>
@@ -164,7 +164,7 @@
               <connectTime>true</connectTime>
             </value>
           </objProp>
-          <stringProp name="filename">reports/jmeter/same-seat-order-race.jtl</stringProp>
+          <stringProp name="filename"></stringProp>
         </ResultCollector>
         <hashTree/>
       </hashTree>
