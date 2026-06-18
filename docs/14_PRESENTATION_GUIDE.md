@@ -65,7 +65,7 @@ AI 智能购票助手
 - 准备一个已出票订单用于退票和改签演示；
 - 管理后台数据统计接口可访问；
 - 管理后台高级报表接口可访问，并准备固定日期范围用于截图或接口演示；
-- JMeter 同座位并发测试已跑过，摘要和数据库校验结果可在 PPT 或答辩中展示。
+- JMeter 同座位并发报告工作流已跑过，`reports/jmeter/<timestamp>/summary.md`、HTML 报告截图和数据库校验结果可在 PPT 或答辩中展示。
 
 ### 服务器部署演示就绪
 
@@ -104,7 +104,9 @@ AI 智能购票助手
 - 使用数据库条件更新；
 - 防止多人同时购买同一座位；
 - 使用事务保证一致性。
-- 可展示 `scripts/jmeter/same-seat-order-race.jmx` 和 `scripts/concurrency/verify-same-seat-order-race.sh` 的运行结果，证明同一座位最终只绑定一个订单。
+- 可展示 `scripts/jmeter/same-seat-order-race.jmx`、`scripts/jmeter/run-same-seat-concurrency-report.sh` 和 `scripts/concurrency/verify-same-seat-order-race.sh` 的运行结果，证明同一座位最终只绑定一个订单。
+- 加分项 PPT 建议放 1 页“JMeter 同座位并发验证”：展示线程数、目标航班/座位、成功数 1、失败数 N-1、`database-verification.txt` 中目标座位绑定行数为 1，以及 `summary.md` 的最终结论。
+- 推荐证据包括 `reports/jmeter/<timestamp>/summary.md` 摘要截图、JMeter HTML 报告关键图表截图、数据库校验输出截图和证据目录结构截图。JMeter 自动生成的 HTML 页面可能包含工具自带英文界面文字；正式讲解和课程报告以中文摘要为准。
 
 ### Flyway
 

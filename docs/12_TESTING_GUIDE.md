@@ -111,52 +111,95 @@ LLM 意图解析测试：
 - flight_seat 中该座位状态为 LOCKED 或 SOLD；
 - 不存在多个订单绑定同一个座位。
 
-### 可复现 JMeter 资产
+### 可复现 JMeter 报告工作流
 
-仓库提供同座位并发下单测试计划：
+仓库提供同座位并发下单测试计划、中文报告模板和报告运行脚本：
 
 ```text
 scripts/jmeter/same-seat-order-race.jmx
+scripts/jmeter/run-same-seat-concurrency-report.sh
+scripts/jmeter/same-seat-concurrency-report-template.md
 ```
 
 运行前准备：
 
 1. 启动 MySQL、Redis 和后端；
-2. 如演示数据日期过期，执行 `scripts/refresh-demo-flight-dates.sql`；
-3. 选择一个属于 `user1@example.com` 的 `passenger.id`；
-4. 选择一个未来已发布航班的 `AVAILABLE` 座位，记录 `flight_id` 和 `seat_id`。
+2. 确认本机可执行 `jmeter`，或通过 `JMETER_BIN` 指向 JMeter 可执行文件；
+3. 如演示数据日期过期，执行 `scripts/refresh-demo-flight-dates.sql`；
+4. 选择一个属于普通测试用户的 `passenger.id`；
+5. 选择一个未来已发布航班的 `AVAILABLE` 座位，记录 `flight_id` 和 `seat_id`，并确认该座位没有既有 `order_passenger` 绑定；
+6. 准备数据库校验所需的 `MYSQL_PASSWORD`，必要时配置 `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DB`、`MYSQL_USER` 或 `MYSQL_CONTAINER`。
 
-运行示例：
+查询乘机人：
 
-```bash
-mkdir -p reports/jmeter
-jmeter -n \
-  -t scripts/jmeter/same-seat-order-race.jmx \
-  -l reports/jmeter/same-seat-order-race.jtl \
-  -e -o reports/jmeter/same-seat-order-race-html \
-  -JBASE_URL=http://localhost:8080 \
-  -JUSER_EMAIL=user1@example.com \
-  -JUSER_PASSWORD='User@123456' \
-  -JFLIGHT_ID=<flight_id> \
-  -JPASSENGER_ID=<passenger_id> \
-  -JSEAT_ID=<seat_id> \
-  -JTHREADS=20
+```sql
+SELECT p.id AS passenger_id
+FROM passenger p
+JOIN users u ON u.id = p.user_id
+WHERE u.email = '<user_email>'
+ORDER BY p.id
+LIMIT 1;
 ```
 
-数据库校验：
+查询可用座位：
 
-```bash
-SEAT_ID=<seat_id> MYSQL_PASSWORD=<password> scripts/concurrency/verify-same-seat-order-race.sh
+```sql
+SELECT s.flight_id, s.id AS seat_id, s.seat_no
+FROM flight_seat s
+JOIN flight f ON f.id = s.flight_id
+WHERE s.status = 'AVAILABLE'
+  AND f.publish_status = 'PUBLISHED'
+  AND f.departure_time > NOW()
+  AND NOT EXISTS (
+    SELECT 1
+    FROM order_passenger op
+    WHERE op.seat_id = s.id
+  )
+ORDER BY s.id
+LIMIT 1;
 ```
 
-如果宿主机没有 `mysql` 客户端，校验脚本会在 `skybooker-mysql` 容器运行时自动改用 `docker exec` 查询数据库。
+生成报告：
+
+```bash
+BASE_URL=http://localhost:8080 \
+USER_EMAIL=<user_email> \
+USER_PASSWORD='<user_password>' \
+FLIGHT_ID=<flight_id> \
+PASSENGER_ID=<passenger_id> \
+SEAT_ID=<seat_id> \
+THREADS=20 \
+MYSQL_PASSWORD='<mysql_password>' \
+scripts/jmeter/run-same-seat-concurrency-report.sh
+```
+
+每次运行会创建一个时间戳证据目录：
+
+```text
+reports/jmeter/<timestamp>/
+├── command-summary.md
+├── database-verification.txt
+├── html/
+├── jmeter-output.log
+├── runner.log
+├── same-seat-order-race.jtl
+├── summary-template.md
+└── summary.md
+```
+
+报告脚本会自动执行 `scripts/concurrency/verify-same-seat-order-race.sh`，并把数据库校验输出保存到同一证据目录。如果宿主机没有 `mysql` 客户端，校验脚本会在 `MYSQL_CONTAINER` 指定的容器运行时自动改用 `docker exec` 查询数据库，默认容器名为 `skybooker-mysql`。
 
 期望：
 
-- JMeter 中只有一个 `Create order for same seat` 请求业务成功；
+- JMeter 中只有一个“同座位创建订单”请求成功；
 - 其他请求返回座位占用或业务规则失败；
-- 校验脚本输出 `Order-passenger rows for target seat: 1` 和 `Distinct order bindings for target seat: 1`；
-- 生成的 `.jtl`、HTML 报告和日志保存在 `reports/`，默认不提交到 Git。
+- 校验脚本输出目标座位的订单乘机人绑定行数为 1，目标座位绑定的不同订单数为 1；
+- 中文 `summary.md` 的最终结论为通过；
+- 生成的 `.jtl`、HTML 报告、日志和本地摘要保存在 `reports/`，默认不提交到 Git。
+
+报告脚本会在缺少必要变量、找不到 JMeter、JMeter 中同座位创建订单成功数不是 1、数据库校验失败时退出失败。如果本地 JMeter、数据库或演示数据不可用，只记录明确的跳过原因，不要把该输出标记为成功并发报告。
+
+JMeter 自动生成的 HTML 页面可能包含工具自带英文界面文字；仓库提交的说明文档、脚本输出和正式中文摘要以中文为准。
 
 ## 3.1 部署烟测
 
