@@ -92,9 +92,10 @@ JWT_EXPIRATION=86400000
 
 OPENAPI_ENABLED=true
 
-MAIL_PROVIDER=resend
+MAIL_PROVIDER=log
 MAIL_FROM=SkyBooker <noreply@your-domain.com>
 RESEND_API_KEY=replace-with-resend-api-key
+RESEND_BASE_URL=https://api.resend.com
 
 AI_LLM_ENABLED=false
 AI_LLM_BASE_URL=https://api.openai.com/v1
@@ -107,7 +108,7 @@ BACKEND_PORT=8080
 NGINX_PORT=8088
 ```
 
-`MYSQL_PASSWORD`、`JWT_SECRET` 和 `RESEND_API_KEY` 应使用真实安全值，并只保存在本地 `.env`、服务器环境变量或部署平台密钥中。
+`MYSQL_PASSWORD`、`JWT_SECRET` 和 `RESEND_API_KEY` 应使用真实安全值，并只保存在本地 `.env`、服务器环境变量或部署平台密钥中。默认 `MAIL_PROVIDER=log` 不需要 Resend 凭据；生产发送邮件时再改为 `MAIL_PROVIDER=resend`。
 
 ### 2. 启动服务
 
@@ -173,9 +174,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
-      MAIL_PROVIDER: ${MAIL_PROVIDER:-resend}
-      MAIL_FROM: "${MAIL_FROM:-SkyBooker <noreply@your-domain.com>}"
-      RESEND_API_KEY: ${RESEND_API_KEY:?Set RESEND_API_KEY in .env}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
+      MAIL_FROM: ${MAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
       AI_LLM_ENABLED: ${AI_LLM_ENABLED:-false}
       AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-}
       AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}

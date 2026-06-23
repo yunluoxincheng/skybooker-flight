@@ -23,3 +23,6 @@ mybatis:
 jwt:
   secret: test-secret-key-that-is-at-least-32-characters-long-for-testing
   expiration: 86400000
+
+mail:
+  provider: log

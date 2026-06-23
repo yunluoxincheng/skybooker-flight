@@ -6,6 +6,7 @@ import com.skybooker.auth.dto.RegisterDTO;
 import com.skybooker.auth.dto.ResetPasswordDTO;
 import com.skybooker.auth.dto.UserLoginDTO;
 import com.skybooker.auth.entity.User;
+import com.skybooker.auth.mail.MailSendException;
 import com.skybooker.auth.mail.MailService;
 import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.auth.verification.VerificationCodeStore;
@@ -96,13 +97,19 @@ public class AuthService {
         }
 
         String code = generateCode();
+        try {
+            mailService.sendVerificationCode(email, code, scene);
+        } catch (MailSendException e) {
+            codeStore.incrementHourlyIpCount(clientIp);
+            authMapper.insertVerificationCodeLog(email, "EMAIL", scene, "FAILED", clientIp);
+            throw new BusinessException(ErrorCode.VERIFICATION_EMAIL_SEND_FAILED);
+        }
+
         codeStore.storeCode(email, scene, code);
         codeStore.setResendCooldown(email, scene);
         codeStore.incrementDailyEmailCount(email);
         codeStore.incrementHourlyIpCount(clientIp);
-
         authMapper.insertVerificationCodeLog(email, "EMAIL", scene, "SUCCESS", clientIp);
-        mailService.sendVerificationCode(email, code, scene);
     }
 
     public void register(RegisterDTO dto) {

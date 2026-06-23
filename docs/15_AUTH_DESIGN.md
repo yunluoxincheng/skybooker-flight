@@ -173,16 +173,16 @@ POST /api/admin/auth/login
 
 邮件服务抽象为 `MailService` 接口。
 
-实现建议：
+当前实现：
 
 ```text
-MockMailService   本地开发和课堂演示，控制台打印验证码
-SmtpMailService   使用 SMTP 真实发送邮件
-BrevoMailService  后续扩展，调用 Brevo API
-ResendMailService 后续扩展，调用 Resend API
+LogMailService    本地开发、课堂演示和自动化测试，控制台打印验证码
+ResendMailService 生产环境可选，通过 Resend HTTP API 发送真实邮件
 ```
 
-开发阶段推荐 Mock 模式，避免邮件服务配置影响开发进度。
+默认 `MAIL_PROVIDER=log`，不需要邮件服务账号。生产环境启用真实邮件时设置 `MAIL_PROVIDER=resend`、`MAIL_FROM` 和 `RESEND_API_KEY`；Resend 模式会要求发件域名或发件地址已在 Resend 侧验证。`test` profile 始终使用日志邮件实现，避免自动化测试依赖外部网络或真实凭据。
+
+验证码发送成功后才写入 Redis 并记录 `SUCCESS` 日志；如果邮件 provider 拒绝或超时，接口返回 `VERIFICATION_EMAIL_SEND_FAILED`，不留下可用验证码，不消耗邮箱每日成功发送额度，但仍计入 IP 小时限流。
 
 ## 9. 接口清单
 

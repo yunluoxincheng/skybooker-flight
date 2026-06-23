@@ -285,59 +285,56 @@ http://localhost:3000
 
 ## 邮件服务配置
 
-当前版本尚未接入 SMTP 发送实现，注册和找回密码验证码由 `LogMailService` 输出到后端日志。以下 SMTP 配置为后续生产邮件能力预留。
+后端通过 `MailService` 抽象发送注册和找回密码验证码。默认 `MAIL_PROVIDER=log`，验证码输出到后端日志，适合本地开发、演示和自动化测试；生产环境可显式切换到 Resend HTTP API。
 
-### 后端环境变量（预留）
+### 后端环境变量
 
 ```env
-# MAIL_ENABLED=true
-# MAIL_PROVIDER=smtp
-# MAIL_HOST=smtp.example.com
-# MAIL_PORT=587
-# MAIL_USERNAME=your-email@example.com
-# MAIL_PASSWORD=<your-email-auth-code>
-# MAIL_FROM=SkyBooker <your-email@example.com>
+MAIL_PROVIDER=log
+MAIL_FROM=SkyBooker <noreply@your-domain.com>
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_BASE_URL=https://api.resend.com
 ```
 
-### Spring Mail 配置示例
+`MAIL_PROVIDER=log` 或未设置时不需要 `RESEND_API_KEY`。启用真实邮件发送时设置：
+
+```env
+MAIL_PROVIDER=resend
+MAIL_FROM=SkyBooker <noreply@your-domain.com>
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_BASE_URL=https://api.resend.com
+```
+
+Resend 要求 API key 可用，并且 `MAIL_FROM` 使用已验证发送域名或已获批准的发件地址。`MAIL_PROVIDER=resend` 时，如果 `MAIL_FROM` 或 `RESEND_API_KEY` 为空，后端会在启动创建邮件 bean 时清晰失败，不会静默回退到日志模式。
+
+### Docker Compose 变量传递
+
+`docker-compose.yml` 将邮件变量透传给 backend，并保持本地默认可启动：
 
 ```yaml
-spring:
-  mail:
-    host: ${MAIL_HOST:smtp.example.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
+MAIL_FROM: ${MAIL_FROM:-}
+RESEND_API_KEY: ${RESEND_API_KEY:-}
+RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
 ```
 
-### 开发环境日志输出（当前默认行为）
+注意不要使用 `${RESEND_API_KEY:?...}` 这类强制校验形式。凭据校验由后端在 `MAIL_PROVIDER=resend` 时完成，默认 log 模式不应阻止 `docker compose up`。
 
-当前版本默认使用 `LogMailService`，验证码直接输出到后端日志，不需要邮件服务账号。以下变量为未来 SMTP 接入预留，当前不生效：
+### 日志模式和回滚
 
-```env
-# MAIL_ENABLED=false
-# MAIL_PROVIDER=mock
-```
-
-部署环境中查看验证码：
+日志模式下查看验证码：
 
 ```bash
 docker compose logs -f backend | grep -i "verification\|验证码"
 ```
 
-### 推荐邮件服务
+从 Resend 回滚到日志模式时，将 `.env` 中 `MAIL_PROVIDER` 改为 `log` 或删除该变量，然后重启后端：
 
-- 个人邮箱 SMTP：适合本地演示；
-- Brevo：适合免费事务邮件发送；
-- Resend：适合开发者 API 邮件发送。
+```bash
+docker compose up -d backend
+```
 
-短信验证码、微信登录、支付宝登录不作为默认部署依赖。
+短信验证码、微信登录、支付宝登录不作为默认部署依赖。SMTP、Brevo 和托管邮件模板可作为后续扩展。
 
 ## 9. 服务器部署
 
@@ -601,15 +598,11 @@ AI_LLM_MODEL=gpt-4o-mini
 AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
 
-# === 邮件服务（当前预留，SMTP 实现接入后启用） ===
-# 当前后端使用 LogMailService 输出验证码到日志，以下变量暂不生效。
-# MAIL_ENABLED=true
-# MAIL_PROVIDER=smtp
-# MAIL_HOST=smtp.example.com
-# MAIL_PORT=587
-# MAIL_USERNAME=your-email@example.com
-# MAIL_PASSWORD=<your-email-auth-code>
-# MAIL_FROM=SkyBooker <your-email@example.com>
+# === 邮件服务 ===
+MAIL_PROVIDER=log
+MAIL_FROM=SkyBooker <noreply@your-domain.com>
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_BASE_URL=https://api.resend.com
 
 # === Redis（Compose 内部通常不需要修改） ===
 REDIS_HOST=redis

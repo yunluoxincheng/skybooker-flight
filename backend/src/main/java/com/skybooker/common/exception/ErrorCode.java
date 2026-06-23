@@ -45,6 +45,7 @@ public enum ErrorCode {
     IP_CODE_LIMIT_EXCEEDED(10013, "IP验证码请求次数已达上限"),
     VERIFICATION_CODE_MAX_ATTEMPTS(10014, "验证码错误次数过多，请重新获取"),
     SCENE_NOT_SUPPORTED(10015, "不支持的场景类型"),
+    VERIFICATION_EMAIL_SEND_FAILED(10016, "验证码邮件发送失败，请稍后重试"),
     FLIGHT_HAS_INVENTORY(40008, "航班已有座位或订单，不允许修改"),
     ADMIN_ACCOUNT_PROTECTED(40009, "不允许操作管理员账号"),
     REFUND_WINDOW_CLOSED(50001, "退款窗口已关闭，距起飞不足2小时"),
