@@ -16,7 +16,7 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(10007, "邮箱或密码错误"),
     ACCOUNT_DISABLED(10008, "账号已被禁用"),
     ACCOUNT_TYPE_MISMATCH(10012, "账号类型不允许登录当前入口"),
-    TOKEN_INVALID(10001, "Token 无效"),
+    TOKEN_INVALID(10018, "Token 无效"),
     TOKEN_EXPIRED(10011, "Token 已失效"),
     VERIFICATION_CODE_INVALID(10004, "验证码无效或已过期"),
     VERIFICATION_CODE_SEND_TOO_FREQUENT(10005, "验证码发送过于频繁"),
@@ -28,7 +28,7 @@ public enum ErrorCode {
     VALIDATION_ERROR(10003, "参数校验失败"),
 
     // Admin
-    ADMIN_PROFILE_DISABLED(10008, "管理员账号已被禁用"),
+    ADMIN_PROFILE_DISABLED(10019, "管理员账号已被禁用"),
 
     // Business
     RESOURCE_NOT_FOUND(20001, "资源不存在"),
