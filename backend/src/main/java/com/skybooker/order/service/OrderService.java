@@ -117,15 +117,17 @@ public class OrderService {
             throw new BusinessException(ErrorCode.ORDER_EXPIRED);
         }
 
+        int cas = orderMapper.updateOrderStatusCAS(orderId, "PENDING_PAYMENT", "ISSUED");
+        if (cas == 0) {
+            return getOrderDetailForUser(orderId, userId);
+        }
         int passengerCount = countOrderPassengers(orderId);
         int sold = flightMapper.updateSeatStatusToSold(orderId);
         if (sold != passengerCount) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        orderMapper.updateOrderStatus(orderId, "ISSUED");
-        orderMapper.updatePayTime(orderId, now);
+        orderMapper.updatePayTime(orderId, LocalDateTime.now());
 
         return getOrderDetailForUser(orderId, userId);
     }
@@ -160,10 +162,15 @@ public class OrderService {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
+        int cas = orderMapper.updateOrderStatusCAS(orderId, "PENDING_PAYMENT", "CANCELLED");
+        if (cas == 0) {
+            return getOrderDetailForUser(orderId, userId);
+        }
         int passengerCount = countOrderPassengers(orderId);
-        orderMapper.updateOrderStatus(orderId, "CANCELLED");
-        flightMapper.releaseSeatsByOrderId(orderId);
-        flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
+        int released = flightMapper.releaseSeatsByOrderId(orderId);
+        if (released == passengerCount) {
+            flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
+        }
 
         return getOrderDetailForUser(orderId, userId);
     }

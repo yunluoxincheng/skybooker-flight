@@ -9,6 +9,7 @@ import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mail.MailSendException;
 import com.skybooker.auth.mail.MailService;
 import com.skybooker.auth.mapper.AuthMapper;
+import com.skybooker.auth.ratelimit.LoginRateLimiter;
 import com.skybooker.auth.verification.VerificationCodeStore;
 import com.skybooker.auth.vo.LoginVO;
 import com.skybooker.auth.vo.UserVO;
@@ -32,12 +33,17 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final VerificationCodeStore codeStore;
     private final MailService mailService;
+    private final LoginRateLimiter loginRateLimiter;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    public LoginVO userLogin(UserLoginDTO dto) {
+    public LoginVO userLogin(UserLoginDTO dto, String ip) {
+        if (loginRateLimiter.isLimited(dto.getEmail(), ip)) {
+            throw new BusinessException(ErrorCode.LOGIN_RATE_LIMITED);
+        }
         User user = authMapper.findByEmail(dto.getEmail());
         if (user == null) {
+            loginRateLimiter.recordFailure(dto.getEmail(), ip);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
         if (!"USER".equals(user.getRole())) {
@@ -47,9 +53,11 @@ public class AuthService {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
         if (!passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
+            loginRateLimiter.recordFailure(dto.getEmail(), ip);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
+        loginRateLimiter.clear(dto.getEmail(), ip);
         String token = jwtTokenProvider.generateToken(
                 user.getId(), user.getEmail(), user.getRole(), "USER");
 

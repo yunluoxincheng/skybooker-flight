@@ -60,6 +60,12 @@ public class WaitlistFulfillmentService {
                 continue;
             }
 
+            // CAS 前置:先抢状态再做事,失败(已被并发兑现/取消)则跳过;后续失败由事务回滚回到 WAITING
+            int cas = waitlistMapper.updateStatusCAS(wl.getId(), "WAITING", "SUCCESS");
+            if (cas == 0) {
+                continue;
+            }
+
             List<Long> seatIds = seats.stream().map(FlightSeat::getId).toList();
             TicketOrder ticketOrder = new TicketOrder();
             ticketOrder.setOrderNo(generateOrderNo());
@@ -113,16 +119,11 @@ public class WaitlistFulfillmentService {
             }
 
             waitlistMapper.updateTicketOrderId(wl.getId(), ticketOrder.getId());
-            int cas = waitlistMapper.updateStatusCAS(wl.getId(), "WAITING", "SUCCESS");
-            if (cas == 0) {
-                throw new RuntimeException("Waitlist " + wl.getId() + " state changed during fulfillment, expected WAITING");
-            }
+
+            // 即时扣余票(取代循环末尾统一扣),保证 remaining_seats 与 SOLD 座位在事务内一致
+            flightMapper.decrementRemainingSeats(flightId, needed);
 
             consumedByFulfillment += needed;
-        }
-
-        if (consumedByFulfillment > 0) {
-            flightMapper.decrementRemainingSeats(flightId, consumedByFulfillment);
         }
 
         return consumedByFulfillment;

@@ -51,7 +51,7 @@ class UserLoginIntegrationTest extends AbstractIntegrationTest {
     void userLogin_rejectsAdminAccount() throws Exception {
         UserLoginDTO dto = new UserLoginDTO();
         dto.setEmail("admin@skybooker.local");
-        dto.setPassword("Admin@123456");
+        dto.setPassword("SkyBooker@Init2026!");
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

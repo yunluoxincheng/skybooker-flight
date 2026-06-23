@@ -12,8 +12,11 @@ import com.skybooker.refund.mapper.RefundMapper;
 import com.skybooker.refund.vo.RefundVO;
 import com.skybooker.waitlist.service.WaitlistFulfillmentService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -23,6 +26,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RefundService {
 
     private final OrderMapper orderMapper;
@@ -31,7 +35,7 @@ public class RefundService {
     private final WaitlistFulfillmentService waitlistFulfillmentService;
 
     @Transactional
-    public RefundVO refundOrder(Long orderId) {
+    public RefundVO refundOrder(Long orderId, String reason) {
         Long userId = SecurityUtil.getCurrentUserId();
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
@@ -63,7 +67,7 @@ public class RefundService {
         RefundRecord record = new RefundRecord();
         record.setOrderId(orderId);
         record.setUserId(userId);
-        record.setReason("用户主动退款");
+        record.setReason(reason);
         record.setRefundAmount(refundAmount);
         record.setFeeAmount(feeAmount);
         record.setStatus("SUCCESS");
@@ -75,10 +79,20 @@ public class RefundService {
         flightMapper.releaseSoldSeatsByOrderId(orderId);
         flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
 
-        for (String cabinClass : cabinClasses) {
-            waitlistFulfillmentService.tryFulfillWaitlists(
-                    order.getFlightId(), cabinClass, passengerCount);
-        }
+        final Long flightId = order.getFlightId();
+        final int pCount = passengerCount;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                for (String cabinClass : cabinClasses) {
+                    try {
+                        waitlistFulfillmentService.tryFulfillWaitlists(flightId, cabinClass, pCount);
+                    } catch (Exception e) {
+                        log.warn("候补兑现失败(退款已提交)order={}, cabin={}", orderId, cabinClass, e);
+                    }
+                }
+            }
+        });
 
         return refundMapper.findByOrderId(orderId);
     }

@@ -110,7 +110,7 @@ public interface FlightMapper {
 
     int updateSeatStatusToSold(@Param("orderId") Long orderId);
 
-    void releaseSeatsByOrderId(@Param("orderId") Long orderId);
+    int releaseSeatsByOrderId(@Param("orderId") Long orderId);
 
     int countSeatsByFlightId(@Param("flightId") Long flightId);
 

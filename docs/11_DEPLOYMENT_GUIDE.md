@@ -242,7 +242,7 @@ server {
 ```text
 后台入口：/admin
 管理员用户名：admin
-管理员密码：Admin@123456
+管理员密码：SkyBooker@Init2026!
 ```
 
 ## 8. 常见问题
@@ -509,7 +509,7 @@ SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 
 ```text
 管理员用户名：admin
-默认密码：Admin@123456
+默认密码：SkyBooker@Init2026!
 ```
 
 修改密码后，后续 smoke 验证必须显式传入新密码：
@@ -628,7 +628,7 @@ BACKEND_PORT=127.0.0.1:8080
 
 - [ ] `JWT_SECRET` 已替换为足够长的随机密钥（至少 256 位，使用 `openssl rand -base64 48` 生成）；
 - [ ] `MYSQL_PASSWORD` 已替换为强密码，不使用 `123456` 或默认值；
-- [ ] 默认管理员密码 `Admin@123456` 已通过管理后台修改；
+- [ ] 默认管理员密码 `SkyBooker@Init2026!` 已通过管理后台修改；
 - [ ] `OPENAPI_ENABLED=false`（Swagger/Knife4j 不对外暴露）；
 - [ ] 对外只开放必要端口（80/443 或 8088）；
 - [ ] MySQL（3306）、Redis（6379）、后端（8080）端口绑定到 `127.0.0.1`（Compose 默认行为）；
@@ -772,7 +772,7 @@ SKYBOOKER_BASE_URL=http://skybooker.example.com scripts/smoke/backend-smoke.sh
 SKYBOOKER_BASE_URL=https://skybooker.example.com scripts/smoke/backend-smoke.sh
 ```
 
-首次部署时使用默认管理员密码（`Admin@123456`），smoke 可直接运行。修改管理员密码后，必须显式传入新密码：
+首次部署时使用默认管理员密码（`SkyBooker@Init2026!`），smoke 可直接运行。修改管理员密码后，必须显式传入新密码：
 
 ```bash
 SKYBOOKER_ADMIN_PASSWORD='<new-admin-password>' \

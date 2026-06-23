@@ -3,6 +3,7 @@ package com.skybooker.order.controller;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.order.dto.CreateOrderDTO;
+import com.skybooker.order.dto.RefundDTO;
 import com.skybooker.order.service.OrderService;
 import com.skybooker.order.vo.OrderVO;
 import com.skybooker.refund.service.RefundService;
@@ -47,7 +48,8 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/refund")
-    public ApiResponse<RefundVO> refundOrder(@PathVariable Long id) {
-        return ApiResponse.success(refundService.refundOrder(id));
+    public ApiResponse<RefundVO> refundOrder(@PathVariable Long id,
+                                             @Valid @RequestBody RefundDTO dto) {
+        return ApiResponse.success(refundService.refundOrder(id, dto.getReason()));
     }
 }

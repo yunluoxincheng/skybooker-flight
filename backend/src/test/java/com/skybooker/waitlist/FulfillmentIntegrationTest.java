@@ -57,7 +57,9 @@ class FulfillmentIntegrationTest {
         Long wlId = createAndWaitlist(flightId, "ECONOMY", List.of(1L));
 
         mockMvc.perform(post("/api/orders/" + orderIds.get(0) + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"行程变更\"}"))
                 .andExpect(status().isOk());
 
         String wlStatus = jdbcTemplate.queryForObject(
@@ -86,7 +88,9 @@ class FulfillmentIntegrationTest {
         Long smallWlId = createAndWaitlist(flightId, "ECONOMY", List.of(passenger4));
 
         mockMvc.perform(post("/api/orders/" + orderIds.get(0) + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"行程变更\"}"))
                 .andExpect(status().isOk());
 
         String largeStatus = jdbcTemplate.queryForObject(
@@ -111,7 +115,9 @@ class FulfillmentIntegrationTest {
         Long wlId = createAndWaitlist(flightId, "ECONOMY", List.of(passenger2));
 
         mockMvc.perform(post("/api/orders/" + orderIds.get(0) + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"行程变更\"}"))
                 .andExpect(status().isOk());
 
         int available = jdbcTemplate.queryForObject(
@@ -134,7 +140,9 @@ class FulfillmentIntegrationTest {
         List<Long> orderIds = bookAllSeats(flightId, 3);
 
         mockMvc.perform(post("/api/orders/" + orderIds.get(0) + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"行程变更\"}"))
                 .andExpect(status().isOk());
 
         int available = jdbcTemplate.queryForObject(
@@ -163,7 +171,9 @@ class FulfillmentIntegrationTest {
                 .get("data").get("payAmount").asDouble();
 
         mockMvc.perform(post("/api/orders/" + orderIds.get(0) + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"行程变更\"}"))
                 .andExpect(status().isOk());
 
         Long ticketOrderId = jdbcTemplate.queryForObject(
@@ -197,7 +207,7 @@ class FulfillmentIntegrationTest {
     private String loginAsAdmin() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Admin@123456\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"SkyBooker@Init2026!\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())

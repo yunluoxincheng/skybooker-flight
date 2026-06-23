@@ -245,7 +245,7 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
     private String obtainAdminToken() throws Exception {
         AdminLoginDTO dto = new AdminLoginDTO();
         dto.setUsername("admin");
-        dto.setPassword("Admin@123456");
+        dto.setPassword("SkyBooker@Init2026!");
 
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

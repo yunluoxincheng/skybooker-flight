@@ -722,7 +722,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     private String obtainAdminToken() throws Exception {
         com.skybooker.admin.dto.AdminLoginDTO dto = new com.skybooker.admin.dto.AdminLoginDTO();
         dto.setUsername("admin");
-        dto.setPassword("Admin@123456");
+        dto.setPassword("SkyBooker@Init2026!");
 
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

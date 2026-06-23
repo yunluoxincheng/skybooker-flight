@@ -7,6 +7,7 @@ import com.skybooker.admin.vo.AdminLoginVO;
 import com.skybooker.admin.vo.AdminVO;
 import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mapper.AuthMapper;
+import com.skybooker.auth.ratelimit.LoginRateLimiter;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.security.JwtTokenProvider;
@@ -24,15 +25,21 @@ public class AdminAuthService {
     private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final LoginRateLimiter loginRateLimiter;
 
-    public AdminLoginVO adminLogin(AdminLoginDTO dto) {
+    public AdminLoginVO adminLogin(AdminLoginDTO dto, String ip) {
+        if (loginRateLimiter.isLimited(dto.getUsername(), ip)) {
+            throw new BusinessException(ErrorCode.LOGIN_RATE_LIMITED);
+        }
         AdminUser adminUser = adminMapper.findByUsername(dto.getUsername());
         if (adminUser == null) {
+            loginRateLimiter.recordFailure(dto.getUsername(), ip);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         User user = authMapper.findById(adminUser.getUserId());
         if (user == null) {
+            loginRateLimiter.recordFailure(dto.getUsername(), ip);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
@@ -46,9 +53,11 @@ public class AdminAuthService {
             throw new BusinessException(ErrorCode.ADMIN_PROFILE_DISABLED);
         }
         if (!passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
+            loginRateLimiter.recordFailure(dto.getUsername(), ip);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
+        loginRateLimiter.clear(dto.getUsername(), ip);
         String token = jwtTokenProvider.generateToken(
                 user.getId(), user.getEmail(), user.getRole(), "ADMIN");
 

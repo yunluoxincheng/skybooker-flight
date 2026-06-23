@@ -18,8 +18,9 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ApiResponse<LoginVO> login(@Valid @RequestBody UserLoginDTO dto) {
-        return ApiResponse.success(authService.userLogin(dto));
+    public ApiResponse<LoginVO> login(@Valid @RequestBody UserLoginDTO dto,
+                                      HttpServletRequest request) {
+        return ApiResponse.success(authService.userLogin(dto, request.getRemoteAddr()));
     }
 
     @PostMapping("/email-code")

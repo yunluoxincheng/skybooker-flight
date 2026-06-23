@@ -15,6 +15,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -58,8 +59,7 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.orderId").value(orderId))
@@ -77,8 +77,7 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusHours(5));
         Long orderId = createAndPayOrder(flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(174.00))
                 .andExpect(jsonPath("$.data.refundAmount").value(406.00));
@@ -105,8 +104,7 @@ class RefundIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CHANGED"));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.orderId").value(orderId))
@@ -146,8 +144,7 @@ class RefundIntegrationTest {
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
                 LocalDateTime.now().plusHours(24).plusSeconds(30), flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(58.00))
                 .andExpect(jsonPath("$.data.refundAmount").value(522.00));
@@ -160,8 +157,7 @@ class RefundIntegrationTest {
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
                 LocalDateTime.now().plusHours(24).minusSeconds(30), flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(174.00))
                 .andExpect(jsonPath("$.data.refundAmount").value(406.00));
@@ -174,8 +170,7 @@ class RefundIntegrationTest {
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
                 LocalDateTime.now().plusHours(2).plusSeconds(30), flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(174.00))
                 .andExpect(jsonPath("$.data.refundAmount").value(406.00));
@@ -188,8 +183,7 @@ class RefundIntegrationTest {
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
                 LocalDateTime.now().plusHours(2).minusMinutes(1), flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(50001));
     }
@@ -201,8 +195,7 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusHours(1));
         Long orderId = createAndPayOrder(flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(50001));
     }
@@ -212,8 +205,7 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + adminToken))
+        mockMvc.perform(refund(orderId, adminToken))
                 .andExpect(status().isForbidden());
     }
 
@@ -222,14 +214,12 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusDays(3));
         Long orderId = createIssuedOrderViaDb(flightId, "PENDING_PAYMENT");
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
 
         Long orderId2 = createIssuedOrderViaDb(flightId, "CANCELLED");
-        mockMvc.perform(post("/api/orders/" + orderId2 + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId2, userToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
     }
@@ -241,13 +231,11 @@ class RefundIntegrationTest {
         Long flightId = createFlight(LocalDateTime.now().plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SUCCESS"));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SUCCESS"));
 
@@ -268,8 +256,7 @@ class RefundIntegrationTest {
                 Integer.class, flightId);
         assertThat(soldBefore).isEqualTo(1);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
-                        .header("Authorization", "Bearer " + userToken))
+        mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk());
 
         Integer soldAfter = jdbcTemplate.queryForObject(
@@ -283,7 +270,41 @@ class RefundIntegrationTest {
         assertThat(available).isEqualTo(12);
     }
 
+    // ---- Reason validation ----
+
+    @Test
+    void refund_rejectsMissingReason() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void refund_persistsReason() throws Exception {
+        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long orderId = createAndPayOrder(flightId);
+
+        mockMvc.perform(refund(orderId, userToken))
+                .andExpect(status().isOk());
+
+        String reason = jdbcTemplate.queryForObject(
+                "SELECT reason FROM refund_record WHERE order_id = ?", String.class, orderId);
+        assertThat(reason).isEqualTo("行程变更");
+    }
+
     // ---- Helpers ----
+
+    private MockHttpServletRequestBuilder refund(Long orderId, String token) {
+        return post("/api/orders/" + orderId + "/refund")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"行程变更\"}");
+    }
 
     private String loginAsUser() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
@@ -298,7 +319,7 @@ class RefundIntegrationTest {
     private String loginAsAdmin() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Admin@123456\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"SkyBooker@Init2026!\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())

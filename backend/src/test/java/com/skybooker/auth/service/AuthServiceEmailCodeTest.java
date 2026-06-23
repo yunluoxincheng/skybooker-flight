@@ -3,6 +3,7 @@ package com.skybooker.auth.service;
 import com.skybooker.auth.mail.MailSendException;
 import com.skybooker.auth.mail.MailService;
 import com.skybooker.auth.mapper.AuthMapper;
+import com.skybooker.auth.ratelimit.InMemoryLoginRateLimiter;
 import com.skybooker.auth.verification.InMemoryVerificationCodeStore;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
@@ -38,7 +39,7 @@ class AuthServiceEmailCodeTest {
     @BeforeEach
     void setUp() {
         codeStore = new InMemoryVerificationCodeStore();
-        authService = new AuthService(authMapper, null, null, codeStore, mailService);
+        authService = new AuthService(authMapper, null, null, codeStore, mailService, new InMemoryLoginRateLimiter());
     }
 
     @Test

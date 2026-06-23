@@ -339,7 +339,7 @@ class AdminReportIntegrationTest {
     private String loginAsAdmin() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Admin@123456\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"SkyBooker@Init2026!\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
