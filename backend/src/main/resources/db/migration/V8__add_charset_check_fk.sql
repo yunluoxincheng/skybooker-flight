@@ -22,6 +22,9 @@ ALTER TABLE refund_record CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unico
 ALTER TABLE change_record CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ALTER TABLE waitlist_order CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ALTER TABLE waitlist_passenger CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE ai_chat_session CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE ai_chat_message CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE ai_recommendation_record CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- H13b: CHECK constraints
 ALTER TABLE users ADD CONSTRAINT chk_users_role CHECK (role IN ('USER','ADMIN'));
@@ -35,6 +38,9 @@ ALTER TABLE flight_seat ADD CONSTRAINT chk_flight_seat_status CHECK (status IN (
 ALTER TABLE ticket_order ADD CONSTRAINT chk_ticket_order_status CHECK (status IN ('PENDING_PAYMENT','ISSUED','CANCELLED','REFUNDED','CHANGED','CHANGE_PENDING'));
 ALTER TABLE waitlist_order ADD CONSTRAINT chk_waitlist_order_status CHECK (status IN ('PENDING_PAYMENT','WAITING','SUCCESS','EXPIRED','FAILED','CANCELLED','REFUNDED'));
 ALTER TABLE auth_verification_code_log ADD CONSTRAINT chk_auth_log_send_status CHECK (send_status IN ('SUCCESS','FAILED'));
+ALTER TABLE ai_chat_session ADD CONSTRAINT chk_ai_chat_session_status CHECK (status IN ('ACTIVE','DELETED'));
+ALTER TABLE ai_chat_message ADD CONSTRAINT chk_ai_chat_message_role CHECK (role IN ('USER','ASSISTANT','SYSTEM'));
+ALTER TABLE ai_chat_message ADD CONSTRAINT chk_ai_chat_message_type CHECK (message_type IN ('TEXT','RECOMMENDATION'));
 
 -- H13c: FK ON DELETE
 -- order_passenger 是订单专属乘客快照,删订单应级联删快照(其余 FK 保持默认 RESTRICT 防误删;flight_seat.locked_by_order 已是 SET NULL)
