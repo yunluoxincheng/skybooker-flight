@@ -186,7 +186,7 @@ public class ChangeService {
     private void validateChangeCutoff(Flight flight) {
         Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
         if (remaining.compareTo(Duration.ofHours(2)) < 0) {
-            throw new BusinessException(ErrorCode.REFUND_WINDOW_CLOSED);
+            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
     }
 

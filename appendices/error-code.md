@@ -56,6 +56,7 @@
 | 50003 | WAITLIST_STATE_INVALID | 候补订单状态不允许此操作 | 400 |
 | 50004 | WAITLIST_NOT_NEEDED | 当前舱位余票充足，无需候补 | 400 |
 | 50005 | DUPLICATE_WAITLIST_PASSENGER | 候补订单中存在重复乘机人 | 400 |
+| 50006 | CHANGE_WINDOW_CLOSED | 改签窗口已关闭，距起飞不足 2 小时 | 400 |
 | 90000 | SYSTEM_ERROR | 系统异常 | 500 |
 
 ## 码段划分
