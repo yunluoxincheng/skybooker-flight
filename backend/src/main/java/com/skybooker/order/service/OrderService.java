@@ -44,7 +44,6 @@ public class OrderService {
         int passengerCount = items.size();
 
         validateItems(items);
-        cleanupService.cleanupAllExpiredOrders();
 
         List<Passenger> passengers = validatePassengerOwnership(items, userId);
         Flight flight = validateFlightSellability(dto.getFlightId(), passengerCount);

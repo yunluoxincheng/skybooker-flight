@@ -6,6 +6,7 @@ import com.skybooker.order.mapper.OrderMapper;
 import com.skybooker.order.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ public class OrderCleanupService {
     }
 
     @Transactional
+    @Scheduled(fixedRate = 60_000)
     public void cleanupAllExpiredOrders() {
         List<TicketOrder> expired = orderMapper.findExpiredPendingOrders();
         for (TicketOrder order : expired) {
