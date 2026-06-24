@@ -206,7 +206,7 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
                             .header("Authorization", "Bearer " + userToken))
                     .andExpect(status().isUnauthorized());
         } finally {
-            jdbcTemplate.update("UPDATE users SET status = 'ACTIVE' WHERE email = ?", "user1@example.com");
+            jdbcTemplate.update("UPDATE users SET status = 'NORMAL' WHERE email = ?", "user1@example.com");
         }
     }
 
@@ -219,7 +219,7 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
                             .header("Authorization", "Bearer " + adminToken))
                     .andExpect(status().isUnauthorized());
         } finally {
-            jdbcTemplate.update("UPDATE admin_user SET status = 'ACTIVE' WHERE username = ?", "admin");
+            jdbcTemplate.update("UPDATE admin_user SET status = 'ENABLED' WHERE username = ?", "admin");
         }
     }
 
