@@ -107,8 +107,9 @@ public class AuthService {
         }
 
         if (resetUnknownEmail) {
-            // 不存在邮箱:设冷却 + IP 计数(与存在一致),但不发码、不存码
+            // 不存在邮箱:设冷却 + 每日邮箱计数 + IP 计数(与存在一致),但不发码、不存码
             codeStore.setResendCooldown(email, scene);
+            codeStore.incrementDailyEmailCount(email);
             codeStore.incrementHourlyIpCount(clientIp);
             return;
         }

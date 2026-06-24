@@ -117,4 +117,22 @@ class AuthServiceEmailCodeTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.IP_CODE_LIMIT_EXCEEDED));
         verifyNoInteractions(mailService);
     }
+
+    @Test
+    void resetPasswordUnknownEmail_appliesFullRateLimitsIncludingDaily() {
+        AuthMapper mockMapper = org.mockito.Mockito.mock(AuthMapper.class);
+        com.skybooker.auth.verification.VerificationCodeStore mockStore =
+                org.mockito.Mockito.mock(com.skybooker.auth.verification.VerificationCodeStore.class);
+        org.mockito.Mockito.when(mockMapper.findByEmail("unknown@example.com")).thenReturn(null);
+        org.mockito.Mockito.when(mockStore.checkResendCooldown("unknown@example.com", "RESET_PASSWORD")).thenReturn(false);
+        org.mockito.Mockito.when(mockStore.checkDailyEmailLimit("unknown@example.com")).thenReturn(false);
+        org.mockito.Mockito.when(mockStore.checkHourlyIpLimit("1.2.3.4")).thenReturn(false);
+
+        AuthService service = new AuthService(mockMapper, null, null, mockStore, null, new InMemoryLoginRateLimiter());
+        service.sendEmailCode("unknown@example.com", "RESET_PASSWORD", "1.2.3.4");
+
+        org.mockito.Mockito.verify(mockStore).setResendCooldown("unknown@example.com", "RESET_PASSWORD");
+        org.mockito.Mockito.verify(mockStore).incrementDailyEmailCount("unknown@example.com");
+        org.mockito.Mockito.verify(mockStore).incrementHourlyIpCount("1.2.3.4");
+    }
 }
