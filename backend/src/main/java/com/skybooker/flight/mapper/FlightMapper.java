@@ -131,15 +131,11 @@ public interface FlightMapper {
                                                          @Param("cabinClass") String cabinClass,
                                                          @Param("limit") int limit);
 
-    int releaseSoldSeatsByOrderId(@Param("orderId") Long orderId);
-
     int lockAvailableSeatsForWaitlist(@Param("seatIds") List<Long> seatIds,
                                       @Param("orderId") Long orderId);
 
     java.math.BigDecimal findMinPriceByFlightAndCabin(@Param("flightId") Long flightId,
                                                        @Param("cabinClass") String cabinClass);
-
-    List<String> findCabinClassesByOrderId(@Param("orderId") Long orderId);
 
     List<String> findCabinClassesBySeatIds(@Param("seatIds") List<Long> seatIds);
 

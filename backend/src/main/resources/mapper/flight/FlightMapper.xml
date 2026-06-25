@@ -350,12 +350,6 @@
         LIMIT #{limit}
     </select>
 
-    <update id="releaseSoldSeatsByOrderId">
-        UPDATE flight_seat
-        SET status = 'AVAILABLE', locked_by_order_id = NULL, lock_expire_time = NULL, version = version + 1
-        WHERE locked_by_order_id = #{orderId} AND status = 'SOLD'
-    </update>
-
     <update id="lockAvailableSeatsForWaitlist">
         UPDATE flight_seat
         SET status = 'SOLD', locked_by_order_id = #{orderId}, version = version + 1
@@ -372,12 +366,6 @@
         WHERE flight_id = #{flightId}
           AND cabin_class = #{cabinClass}
           AND status != 'DISABLED'
-    </select>
-
-    <select id="findCabinClassesByOrderId" resultType="java.lang.String">
-        SELECT DISTINCT fs.cabin_class
-        FROM flight_seat fs
-        WHERE fs.locked_by_order_id = #{orderId} AND fs.status = 'SOLD'
     </select>
 
     <select id="findCabinClassesBySeatIds" resultType="java.lang.String">
