@@ -76,11 +76,6 @@ public class AuthService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        Long storedUserId = refreshTokenStore.findUserId(claims.portal(), claims.jti());
-        if (storedUserId == null || !storedUserId.equals(claims.userId())) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
         // 全设备登出后版本号被递增，旧 token 的 tokenVer 不再匹配
         long currentVer = refreshTokenStore.currentVersion(claims.portal(), claims.userId());
         if (claims.tokenVer() != currentVer) {
@@ -93,8 +88,11 @@ public class AuthService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        // rotation：作废旧 refresh 后重新签发
-        refreshTokenStore.revoke(claims.portal(), claims.jti());
+        // 原子消费旧 jti：并发下同一 jti 最多被消费一次，防止双签发
+        if (!refreshTokenStore.consume(claims.portal(), claims.jti(), claims.userId())) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
         return issueLoginVO(user);
     }
 

@@ -88,11 +88,6 @@ public class AdminAuthService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        Long storedUserId = refreshTokenStore.findUserId(portal, jti);
-        if (storedUserId == null || !storedUserId.equals(userId)) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
         Long tokenVer = claims.get("tokenVer", Long.class);
         if (tokenVer == null || tokenVer != refreshTokenStore.currentVersion(portal, userId)) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
@@ -107,8 +102,11 @@ public class AdminAuthService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        // rotation：作废旧 refresh 后重新签发
-        refreshTokenStore.revoke(portal, jti);
+        // 原子消费旧 jti：并发下同一 jti 最多被消费一次，防止双签发
+        if (!refreshTokenStore.consume(portal, jti, userId)) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
         return issueAdminLoginVO(user, adminUser);
     }
 

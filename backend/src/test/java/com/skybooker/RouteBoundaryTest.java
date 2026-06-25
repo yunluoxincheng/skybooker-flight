@@ -5,6 +5,7 @@ import com.skybooker.admin.dto.AdminLoginDTO;
 import com.skybooker.auth.dto.UserLoginDTO;
 import com.skybooker.common.AbstractIntegrationTest;
 import com.skybooker.common.response.ApiResponse;
+import com.skybooker.common.security.RefreshTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,9 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RefreshTokenStore refreshTokenStore;
 
     private String userToken;
     private String adminToken;
@@ -194,6 +198,18 @@ class RouteBoundaryTest extends AbstractIntegrationTest {
         } finally {
             jdbcTemplate.update("UPDATE users SET status = 'NORMAL' WHERE email = ?", "user1@example.com");
         }
+    }
+
+    @Test
+    void issuedUserToken_rejectedAfterTokenVersionBumped() throws Exception {
+        // 改密码/全设备登出递增版本号后，旧 access token 也立即失效（Filter 校验 tokenVer）
+        Long userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email = 'user1@example.com'", Long.class);
+        refreshTokenStore.revokeAllByUser("USER", userId);
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

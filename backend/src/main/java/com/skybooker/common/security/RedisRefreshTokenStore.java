@@ -22,12 +22,6 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
-    public Long findUserId(String portal, String jti) {
-        String val = redisTemplate.opsForValue().get(key(portal, jti));
-        return val == null ? null : Long.valueOf(val);
-    }
-
-    @Override
     public void revoke(String portal, String jti) {
         redisTemplate.delete(key(portal, jti));
     }
@@ -43,6 +37,20 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         // INCR 对不存在的 key 会新建并置 1，且不设 TTL —— 版本号需随用户长期保留，
         // 不能因过期回退导致旧 token 复活。
         redisTemplate.opsForValue().increment(versionKey(portal, userId));
+    }
+
+    @Override
+    public boolean consume(String portal, String jti, Long expectedUserId) {
+        // GETDEL 原子返回旧值并删除：并发下只有一个调用拿到非 null，从而保证旋转只成功一次。
+        String val = redisTemplate.opsForValue().getAndDelete(key(portal, jti));
+        if (val == null) {
+            return false;
+        }
+        try {
+            return expectedUserId.equals(Long.valueOf(val));
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private String key(String portal, String jti) {

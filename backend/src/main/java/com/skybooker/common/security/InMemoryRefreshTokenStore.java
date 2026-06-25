@@ -27,19 +27,6 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
-    public Long findUserId(String portal, String jti) {
-        Entry entry = store.get(key(portal, jti));
-        if (entry == null) {
-            return null;
-        }
-        if (System.currentTimeMillis() > entry.expireAt()) {
-            store.remove(key(portal, jti));
-            return null;
-        }
-        return entry.userId();
-    }
-
-    @Override
     public void revoke(String portal, String jti) {
         store.remove(key(portal, jti));
     }
@@ -52,6 +39,16 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
     @Override
     public void revokeAllByUser(String portal, Long userId) {
         versions.merge(versionKey(portal, userId), 1L, Long::sum);
+    }
+
+    @Override
+    public boolean consume(String portal, String jti, Long expectedUserId) {
+        // ConcurrentHashMap.remove 原子返回旧值：并发下只有一个调用拿到非 null。
+        Entry entry = store.remove(key(portal, jti));
+        if (entry == null || System.currentTimeMillis() > entry.expireAt()) {
+            return false;
+        }
+        return expectedUserId.equals(entry.userId());
     }
 
     private String key(String portal, String jti) {

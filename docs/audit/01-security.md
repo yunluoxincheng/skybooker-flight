@@ -70,7 +70,7 @@
 - **文件**:`auth/controller/AuthController.java:50-53`、`admin/controller/AdminAuthController.java:29-32`
 - **证据**:logout 仅返回 success,无黑名单/吊销。
 - **建议**:Redis 维护 JWT 黑名单(logout 写入 jti + 剩余 TTL),`JwtAuthenticationFilter` 校验时检查。
-- **处置**:改用 access(1h) + refresh(14d) 双 token,refresh 的 jti 写入 Redis;logout 删除对应 jti 完成作废,refresh 接口校验 Redis 存在性并旋转(rotation)。改密码时递增该用户的 token 版本号,使所有已签发 refresh 立即失效(全设备登出)。未采纳 access 黑名单——access 靠短 TTL + `JwtAuthenticationFilter` 每请求查 DB 账号状态作准实时吊销,维护黑名单收益不足。
+- **处置**:改用 access(1h) + refresh(14d) 双 token,refresh 的 jti 写入 Redis;logout 删除对应 jti 完成作废。refresh 接口用原子 consume(`GETDEL`)消费 jti 实现旋转,保证并发下同一 jti 最多签发一次,杜绝双签发。改密码时递增该用户的 token 版本号,`JwtAuthenticationFilter` 每请求校验 access 的 tokenVer、refresh 接口校验 refresh 的 tokenVer,版本不符即拒 → access/refresh 全设备**立即**登出(不只靠短 TTL)。未采纳 access 黑名单——token 版本号已覆盖全设备登出需求,黑名单维护收益不足。
 
 ### M-5 JWT 默认 24h 偏长,无 Refresh Token ✅ 已修(feature/jwt-refresh-token)
 - **文件**:`application.yml:29`

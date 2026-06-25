@@ -15,10 +15,7 @@ public interface RefreshTokenStore {
     /** 记录一条 refresh token，TTL 到期后由底层自动清除。 */
     void store(String portal, String jti, Long userId, Duration ttl);
 
-    /** 返回该 jti 对应的 userId；不存在或已过期返回 null。 */
-    Long findUserId(String portal, String jti);
-
-    /** 删除一条 refresh token（logout / 旋转）。 */
+    /** 删除一条 refresh token（logout）。 */
     void revoke(String portal, String jti);
 
     /**
@@ -32,4 +29,10 @@ public interface RefreshTokenStore {
      * 用于改密码、安全事件等需要踢掉全部会话的场景。
      */
     void revokeAllByUser(String portal, Long userId);
+
+    /**
+     * 原子消费一条 refresh token：仅当 jti 存在且 userId 匹配时删除并返回 true。
+     * 用于 refresh 旋转，保证并发下同一 jti 最多被消费一次（防止两个并发 /refresh 都签发成功）。
+     */
+    boolean consume(String portal, String jti, Long expectedUserId);
 }

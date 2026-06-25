@@ -3,6 +3,8 @@ package com.skybooker.auth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.admin.dto.AdminLoginDTO;
 import com.skybooker.auth.dto.UserLoginDTO;
+import com.skybooker.auth.service.AuthService;
+import com.skybooker.auth.vo.LoginVO;
 import com.skybooker.common.AbstractIntegrationTest;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.security.RefreshTokenStore;
@@ -13,7 +15,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,6 +40,9 @@ class AuthRefreshIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private RefreshTokenStore refreshTokenStore;
+
+    @Autowired
+    private AuthService authService;
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> userLogin() throws Exception {
@@ -135,5 +146,33 @@ class AuthRefreshIntegrationTest extends AbstractIntegrationTest {
         refreshTokenStore.revokeAllByUser("USER", userId);
 
         refreshExpect("/api/auth/refresh", refreshToken, 401);
+    }
+
+    @Test
+    void concurrentRefreshWithSameTokenAllowsAtMostOneSuccess() throws Exception {
+        String refreshToken = (String) userLogin().get("refreshToken");
+
+        // 同一 refresh 并发刷新：原子 consume 保证最多一个成功，杜绝双签发
+        ExecutorService exec = Executors.newFixedThreadPool(2);
+        Callable<LoginVO> task = () -> authService.refreshAccessToken(refreshToken);
+        Future<LoginVO> f1 = exec.submit(task);
+        Future<LoginVO> f2 = exec.submit(task);
+
+        int successes = 0;
+        try {
+            f1.get();
+            successes++;
+        } catch (ExecutionException ignored) {
+            // 另一个并发请求已消费该 jti
+        }
+        try {
+            f2.get();
+            successes++;
+        } catch (ExecutionException ignored) {
+            // 同上
+        }
+        exec.shutdown();
+
+        assertThat(successes).isLessThanOrEqualTo(1);
     }
 }

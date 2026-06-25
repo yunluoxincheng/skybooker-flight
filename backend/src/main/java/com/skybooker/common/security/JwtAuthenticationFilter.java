@@ -27,6 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthMapper authMapper;
     private final AdminMapper adminMapper;
+    private final RefreshTokenStore refreshTokenStore;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -43,6 +44,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String loginPortal = claims.get("loginPortal", String.class);
 
             if (!isAccountActive(userId, email, role, loginPortal)) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // 校验 token 版本：改密码 / 全设备登出递增版本号后，旧 access token 立即失效
+            Long tokenVer = claims.get("tokenVer", Long.class);
+            if (tokenVer == null
+                    || tokenVer != refreshTokenStore.currentVersion(loginPortal, userId)) {
                 SecurityContextHolder.clearContext();
                 filterChain.doFilter(request, response);
                 return;
