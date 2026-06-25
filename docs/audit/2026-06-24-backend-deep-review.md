@@ -1,5 +1,7 @@
 # 后端深度审查 · 汇总报告
 
+> **📌 状态(2026-06-25):CRITICAL + HIGH 已全部处理**(修复或评估关闭)。详见下方 [修复状态总览](#修复状态总览)。以下原始结论("BLOCK")为审查时点(2026-06-24)记录,保留作回溯。
+
 - **日期**:2026-06-24
 - **审查方**:security-reviewer / java-reviewer(并发事务) / database-reviewer / code-reviewer(文档符合性),4 路并行
 - **范围**:backend 全 11 模块 + mapper XML + Flyway 迁移 + 测试
@@ -111,3 +113,34 @@
 按"审查没问题就启动测试"标准,**当前不能启动**——5 个 CRITICAL 会让测试在"有缺陷的代码"上运行。建议:
 1. 先修 P0 → 重跑 `mvn test` 绿 → 再启动完整测试流程(此时测试能验证修复而非绕过缺陷)。
 2. 若选择"先广度测试暴露问题",须让测试团队明确知晓上述 5 个 CRITICAL,避免重复报告。
+
+## 修复状态总览
+
+> 更新于 2026-06-25。CRITICAL + HIGH 已全部处理(修复或评估关闭)。以代码与 git history 为准。
+
+| 编号 | 维度 | 状态 | 闭环方式 |
+| --- | --- | --- | --- |
+| C1 | 订单状态机 CAS(`payOrder`/`cancelOrder`) | ✅ 已修 | PR#28 |
+| C2 | 候补兑现事务隔离(AFTER_COMMIT + CAS 前置 + 即时扣余票) | ✅ 已修 | PR#28 |
+| C3 | 默认弱口令清除 + 登录限流 | ✅ 已修 | PR#28 |
+| C4 | 错误码体系对齐 `error-code.md` | ✅ 已修 | PR#28 |
+| C5 | 退票 `reason` 必填 | ✅ 已修 | PR#28 |
+| H1 | `lockSeats` SQL 缺 version | ⚠️ 未单独修 | 并发由 `status='AVAILABLE'`→`LOCKED` CAS + C1 兜底覆盖;`version` 冗余未入 WHERE,可后续优化 |
+| H2 | `cancelOrder` 释放校验影响行数 | ✅ 已修 | PR#28(C1 配套) |
+| H3 | 退款按 `seatId` 快照释放(含 cabinClasses) | ✅ 已修 | PR#33 |
+| H4 | 改签"先占新座再放旧座" | ✅ 已修 | PR#33 |
+| H5 | 候补兑现即时扣余票 | ✅ 已修 | PR#28(C2/C4 配套) |
+| H6 | 清理任务拆独立短事务、下单路径去同步清理 | ✅ 已修 | PR#30 |
+| H7 | 管理员禁用自身 | ✅ 已闭环 | ADMIN 角色整体保护(`ADMIN_ACCOUNT_PROTECTED`),强于"仅禁自身" |
+| H8 | AI 接口限流 | ✅ 已修 | PR#32 |
+| H9 | 防邮箱存在性枚举 | ✅ 已修 | PR#30 |
+| H10 | JWT TTL 24h→2h | ✅ 已修 | PR#32 |
+| H11 | 验证码明文日志降级 DEBUG | ✅ 已修 | PR#30 |
+| H12 | DB `useSSL` 可配置 | ✅ 已修 | PR#32 |
+| H13a/b/c | utf8mb4 + CHECK + FK ON DELETE | ✅ 已修 | PR#31(V8 迁移) |
+| H14 | 新增 `CHANGE_WINDOW_CLOSED`(50006) | ✅ 已修 | PR#30 |
+| H15 | 全局异常处理器补日志 | ✅ 已修 | PR#30 |
+
+附:PR#34 清理修复后遗留的无调用方 mapper(`releaseSoldSeatsByOrderId`、`findCabinClassesByOrderId`)。
+
+**MEDIUM / LOW**:维持原始审查记录(P2),本轮未处理。
