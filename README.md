@@ -87,6 +87,7 @@ MYSQL_PASSWORD=replace-with-local-password
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
+# JWT 签名密钥（至少 256 位）。生成：openssl rand -base64 48 。务必妥善保管，轮换或丢失后所有已签发 token 失效、用户需重新登录。
 JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
 JWT_ACCESS_MS=3600000
 JWT_REFRESH_MS=1209600000
@@ -104,12 +105,14 @@ AI_LLM_API_KEY=replace-with-llm-provider-key
 AI_LLM_MODEL=gpt-4o-mini
 AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
+# 后台写入 LLM 配置时必需：apiKey 加密密钥（openssl rand -base64 32）。缺失或格式非法时应用仍可启动并回退 AI_LLM_* 环境变量默认值，但管理员 PUT /api/admin/ai/llm-config 会失败
+AI_CONFIG_ENC_KEY=
 
 BACKEND_PORT=8080
 NGINX_PORT=8088
 ```
 
-`MYSQL_PASSWORD`、`JWT_SECRET` 和 `RESEND_API_KEY` 应使用真实安全值，并只保存在本地 `.env`、服务器环境变量或部署平台密钥中。默认 `MAIL_PROVIDER=log` 不需要 Resend 凭据；生产发送邮件时再改为 `MAIL_PROVIDER=resend`。
+`MYSQL_PASSWORD`、`JWT_SECRET`、`RESEND_API_KEY` 和 `AI_CONFIG_ENC_KEY`（后台写入 LLM 配置时必需）应使用真实安全值，并只保存在本地 `.env`、服务器环境变量或部署平台密钥中。默认 `MAIL_PROVIDER=log` 不需要 Resend 凭据；生产发送邮件时再改为 `MAIL_PROVIDER=resend`。
 
 ### 2. 启动服务
 
@@ -186,6 +189,7 @@ services:
       AI_LLM_MODEL: ${AI_LLM_MODEL:-}
       AI_LLM_TIMEOUT_MS: ${AI_LLM_TIMEOUT_MS:-8000}
       AI_LLM_MAX_RETRIES: ${AI_LLM_MAX_RETRIES:-1}
+      AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:-}
     ports:
       - "${BACKEND_PORT:-127.0.0.1:8080}:8080"
 ```

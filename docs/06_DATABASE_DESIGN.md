@@ -34,6 +34,7 @@
 | ai_chat_session | AI 会话表 |
 | ai_chat_message | AI 消息表 |
 | ai_recommendation_record | AI 推荐记录表 |
+| ai_llm_config | AI LLM 配置表 |
 
 ## 2.1 约束策略
 
@@ -180,6 +181,10 @@ EXPIRED         支付超时
 ### ai_recommendation_record
 
 保存一次 AI 推荐的解析条件和推荐航班 ID，便于后续统计。
+
+### ai_llm_config
+
+保存 AI 助手 LLM provider 的运行时配置（单行表，应用层通过固定 `id = 1` 的 upsert 语义写入）。`api_key_cipher` 存 AES-GCM 加密后的 apiKey 密文，加密密钥来自环境变量 `AI_CONFIG_ENC_KEY`，明文 apiKey 不落库。表中无记录时，AI 助手回退到环境变量 `AI_LLM_*` 默认配置。三条 CHECK 约束：`enabled IN (0,1)`、`timeout_ms > 0`、`max_retries >= 0`；`updated_by` 记录最近一次修改该配置的管理员。
 
 ## 8. ER 关系概览
 

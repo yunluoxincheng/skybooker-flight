@@ -496,7 +496,7 @@ POST /api/waitlist/{id}/cancel
 
 ## 9. AI 智能购票助手接口
 
-AI 智能购票助手属于用户端购票流程，允许匿名访问或 `role = USER` 的用户访问。管理员 Token 不作为用户端身份使用，不能访问 `/api/ai/**`；如后续需要后台 AI 统计，另行设计 `/api/admin/ai/**`。
+AI 智能购票助手属于用户端购票流程，允许匿名访问或 `role = USER` 的用户访问。管理员 Token 不作为用户端身份使用，不能访问 `/api/ai/**`。`/api/admin/ai/**` 前缀收敛为 ADMIN portal，目前承载 LLM 运行时配置管理接口（见下文 [§10 管理后台接口](#10-管理后台接口) 的"AI LLM 配置管理"）；后台 AI 统计接口如需要仍另行设计。
 
 AI 会话对外使用 `sessionId`，对应数据库中的 `ai_chat_session.public_session_id`，不是数据库自增主键。服务端生成该值时必须使用 UUID、ULID 或同等级不可猜测随机值。
 
@@ -619,6 +619,52 @@ POST /api/admin/users/{id}/enable
 ```
 
 普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口禁用 `role = ADMIN` 的管理员账号，也不能禁用当前登录管理员自身。管理员启停应通过单独的管理员管理能力扩展。
+
+### AI LLM 配置管理
+
+```http
+GET /api/admin/ai/llm-config
+PUT /api/admin/ai/llm-config
+```
+
+管理员在运行时查看（脱敏）和修改 AI 助手的 LLM provider 配置，写入后下一个 AI 请求即生效，无需重启后端。`/api/admin/ai/**` 由 `/api/admin/**` 通配规则收敛为仅 ADMIN portal 可访问。配置优先级：数据库 `ai_llm_config` 记录 > 环境变量 `AI_LLM_*` fallback；apiKey 以 AES-GCM 加密入库（密钥为环境变量 `AI_CONFIG_ENC_KEY`），响应中始终脱敏，形如 `sk****wxyz`。
+
+`GET` 响应：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "enabled": true,
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "sk****wxyz",
+    "model": "gpt-4o-mini",
+    "timeoutMs": 8000,
+    "maxRetries": 1,
+    "source": "db",
+    "updatedBy": 1,
+    "updatedAt": "2026-06-26T12:00:00"
+  }
+}
+```
+
+`source` 标识配置来源：`db`（后台管理记录）或 `env-default`（环境变量 fallback）。`updatedBy`/`updatedAt` 反映数据库 `ai_llm_config` 记录的最近修改信息：仅当数据库无该记录时为空；若记录存在但因 `AI_CONFIG_ENC_KEY` 缺失/非法或解密失败而 fallback 到环境变量（`source=env-default`），仍会返回该记录的修改信息。
+
+`PUT` 请求：
+
+```json
+{
+  "enabled": true,
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKey": "sk-new-key",
+  "model": "gpt-4o-mini",
+  "timeoutMs": 8000,
+  "maxRetries": 1
+}
+```
+
+`apiKey` 可选：省略或传 `null` = 保留现有密钥；传非空 = 覆写；传纯空白 = 校验失败。启用（`enabled = true`）时 `baseUrl`、`model`、可用 apiKey 不可为空；`timeoutMs` 必须 > 0、`maxRetries` 必须 >= 0，否则返回 `AI_LLM_CONFIG_INVALID`（10022，HTTP 400）。响应与 `GET` 一致（脱敏）。
 
 ### 数据统计
 
