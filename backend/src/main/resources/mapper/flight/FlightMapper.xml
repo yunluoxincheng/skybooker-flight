@@ -380,6 +380,15 @@
         WHERE fs.locked_by_order_id = #{orderId} AND fs.status = 'SOLD'
     </select>
 
+    <select id="findCabinClassesBySeatIds" resultType="java.lang.String">
+        SELECT DISTINCT cabin_class
+        FROM flight_seat
+        WHERE id IN
+        <foreach collection="seatIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <select id="findAirlineIdByCodeOrName" resultType="java.lang.Long">
         SELECT id FROM airline
         WHERE code = #{code} OR name = #{name}

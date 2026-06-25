@@ -127,23 +127,25 @@ public class ChangeService {
 
         List<Long> oldSeatIds = currentPassengers.stream()
                 .map(OrderPassenger::getSeatId).toList();
+        int passengerCount = currentPassengers.size();
 
-        int released = flightMapper.releaseSoldSeatsBySeatIds(oldSeatIds);
-        if (released != oldSeatIds.size()) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-
+        // H4: 先占新座再放旧座。占新座或扣新余票任一失败时,旧座/订单状态/乘客完全未动,
+        // 事务回滚后用户可干净重试;避免"先放旧再占新"在失败路径上对旧座的扰动。
         int sold = flightMapper.sellAvailableSeatsByIds(newSeatIds, orderId);
         if (sold != newSeatIds.size()) {
             throw new BusinessException(ErrorCode.SEAT_NOT_AVAILABLE);
         }
 
-        int passengerCount = currentPassengers.size();
-        flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
         int decremented = flightMapper.decrementRemainingSeats(dto.getNewFlightId(), passengerCount);
         if (decremented == 0) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
+
+        int released = flightMapper.releaseSoldSeatsBySeatIds(oldSeatIds);
+        if (released != oldSeatIds.size()) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+        }
+        flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
 
         BigDecimal newTicketAmount = newSeats.stream()
                 .map(FlightSeat::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add);

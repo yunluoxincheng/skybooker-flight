@@ -141,6 +141,8 @@ public interface FlightMapper {
 
     List<String> findCabinClassesByOrderId(@Param("orderId") Long orderId);
 
+    List<String> findCabinClassesBySeatIds(@Param("seatIds") List<Long> seatIds);
+
     Long findAirlineIdByCodeOrName(@Param("code") String code, @Param("name") String name);
 
     int releaseSoldSeatsBySeatIds(@Param("seatIds") List<Long> seatIds);
