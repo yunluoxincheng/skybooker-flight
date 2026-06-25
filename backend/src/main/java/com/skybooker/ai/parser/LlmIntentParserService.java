@@ -2,6 +2,7 @@ package com.skybooker.ai.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skybooker.ai.config.LlmEffectiveConfig;
 import com.skybooker.flight.enums.FlightSort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,12 +32,12 @@ public class LlmIntentParserService {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    public ParsedCondition parse(String message) {
+    public ParsedCondition parse(String message, LlmEffectiveConfig cfg) {
         if (message == null || message.isBlank()) {
             throw new LlmIntentParseException("Blank message is handled by rule parser");
         }
 
-        String content = llmChatClient.complete(systemPrompt(), message.trim());
+        String content = llmChatClient.complete(systemPrompt(), message.trim(), cfg);
         JsonNode root = parseJson(content);
 
         String departureCity = text(root, "departureCity");

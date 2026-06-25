@@ -164,7 +164,14 @@ PUNCTUAL_DESC 准点率高优先
 
 ## 8. 增强实现：LLM 解析版
 
-LLM 解析是可选增强能力。默认情况下系统继续使用规则解析；只有配置 `AI_LLM_ENABLED=true` 且 `AI_LLM_BASE_URL`、`AI_LLM_API_KEY`、`AI_LLM_MODEL` 都有效时，后端才会优先调用 OpenAI-compatible 接口。
+LLM 解析是可选增强能力。默认情况下系统继续使用规则解析。
+
+provider 配置有两个来源，优先级为 **管理后台数据库配置（`ai_llm_config` 表）优先 > 环境变量 fallback**：
+
+- 管理员可通过 `GET / PUT /api/admin/ai/llm-config`（仅 ADMIN portal）在运行时查看（apiKey 脱敏，形如 `sk****wxyz`）和修改 provider 配置；apiKey 以 AES-GCM 加密入库、脱敏返回、修改留审计，写入后下一个 AI 请求即生效，无需重启后端。
+- 数据库无配置时，回退环境变量 `AI_LLM_ENABLED` / `AI_LLM_BASE_URL` / `AI_LLM_API_KEY` / `AI_LLM_MODEL` / `AI_LLM_TIMEOUT_MS` / `AI_LLM_MAX_RETRIES`（即 `.env` / `application.yml` 默认值）。
+
+无论来源，只有当生效配置 `enabled=true` 且 `baseUrl`、`apiKey`、`model` 均非空时，后端才会优先调用 OpenAI-compatible 接口；否则继续使用规则解析。LLM 调用失败（超时、HTTP 错误、JSON 非法、密钥无法解密等）也会自动降级到规则解析。
 
 LLM 提示词核心要求：
 

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -60,7 +61,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_llmSuccess_returnsDatabaseBackedRecommendationAndIgnoresFabricatedFields() throws Exception {
-        when(llmChatClient.complete(anyString(), anyString())).thenReturn("""
+        when(llmChatClient.complete(anyString(), anyString(), any())).thenReturn("""
                 {
                   "departureCity": "上海",
                   "arrivalCity": "北京",
@@ -105,7 +106,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_llmFailure_fallsBackToRuleParser() throws Exception {
-        when(llmChatClient.complete(anyString(), anyString()))
+        when(llmChatClient.complete(anyString(), anyString(), any()))
                 .thenThrow(new com.skybooker.ai.parser.LlmIntentParseException("timeout"));
 
         AiChatRequest request = new AiChatRequest();
@@ -122,7 +123,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_llmMultiTurnContextMerge_doesNotCallLlmForInternalBlankFollowUp() throws Exception {
-        when(llmChatClient.complete(anyString(), anyString()))
+        when(llmChatClient.complete(anyString(), anyString(), any()))
                 .thenReturn("""
                         {
                           "departureCity": "上海",
@@ -163,14 +164,14 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
 
-        verify(llmChatClient, times(2)).complete(anyString(), anyString());
+        verify(llmChatClient, times(2)).complete(anyString(), anyString(), any());
     }
 
     @Test
     void chat_llmRecommendationPersistence_usesNormalizedParsedCondition() throws Exception {
         jdbcTemplate.update("UPDATE flight SET remaining_seats = 0 WHERE id = 2");
 
-        when(llmChatClient.complete(anyString(), anyString())).thenReturn("""
+        when(llmChatClient.complete(anyString(), anyString(), any())).thenReturn("""
                 {
                   "departureCity": "上海",
                   "arrivalCity": "北京",

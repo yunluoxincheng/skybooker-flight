@@ -2,9 +2,14 @@ package com.skybooker.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.ai.config.AiLlmProperties;
+import com.skybooker.ai.config.DynamicLlmConfigProvider;
+import com.skybooker.ai.config.LlmConfigCrypto;
+import com.skybooker.ai.config.LlmEffectiveConfig;
+import com.skybooker.ai.mapper.AiLlmConfigMapper;
 import com.skybooker.ai.parser.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -57,7 +62,7 @@ class LlmIntentParserServiceTest {
                 }
                 """);
 
-        var result = parser.parse("帮我查机票");
+        var result = parser.parse("帮我查机票", cfg());
 
         assertThat(result.getDepartureCity()).isEqualTo("上海");
         assertThat(result.getArrivalCity()).isEqualTo("北京");
@@ -86,7 +91,7 @@ class LlmIntentParserServiceTest {
                 }
                 """);
 
-        var result = parser.parse("上海出发");
+        var result = parser.parse("上海出发", cfg());
 
         assertThat(result.isComplete()).isFalse();
         assertThat(result.getMissingFields()).containsExactly("arrivalCity", "departureDate");
@@ -103,7 +108,7 @@ class LlmIntentParserServiceTest {
                 }
                 """);
 
-        var result = parser.parse("上海到北京机票");
+        var result = parser.parse("上海到北京机票", cfg());
 
         assertThat(result.getPassengerCount()).isEqualTo(1);
     }
@@ -111,7 +116,7 @@ class LlmIntentParserServiceTest {
     @Test
     void parse_systemPromptIncludesCurrentDateForRelativeDateResolution() {
         AtomicReference<String> capturedSystemPrompt = new AtomicReference<>();
-        LlmIntentParserService parser = new LlmIntentParserService((system, user) -> {
+        LlmIntentParserService parser = new LlmIntentParserService((system, user, cfg) -> {
             capturedSystemPrompt.set(system);
             return """
                     {
@@ -124,7 +129,7 @@ class LlmIntentParserServiceTest {
         ZoneId zone = ZoneId.of("Asia/Shanghai");
         parser.setClock(Clock.fixed(LocalDate.of(2026, 6, 12).atStartOfDay(zone).toInstant(), zone));
 
-        parser.parse("明天从上海到北京");
+        parser.parse("明天从上海到北京", cfg());
 
         assertThat(capturedSystemPrompt.get())
                 .contains("当前日期是 2026-06-12")
@@ -136,11 +141,11 @@ class LlmIntentParserServiceTest {
     void composite_disabledConfiguration_usesRuleParserWithoutCallingLlm() {
         properties.setEnabled(false);
         AtomicInteger calls = new AtomicInteger();
-        LlmIntentParserService llmParser = new LlmIntentParserService((system, user) -> {
+        LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             calls.incrementAndGet();
             return "{}";
         }, objectMapper);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
 
@@ -153,11 +158,11 @@ class LlmIntentParserServiceTest {
     void composite_missingConfiguration_usesRuleParserWithoutCallingLlm() {
         properties.setApiKey("");
         AtomicInteger calls = new AtomicInteger();
-        LlmIntentParserService llmParser = new LlmIntentParserService((system, user) -> {
+        LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             calls.incrementAndGet();
             return "{}";
         }, objectMapper);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
 
@@ -168,10 +173,10 @@ class LlmIntentParserServiceTest {
 
     @Test
     void composite_providerFailure_fallsBackToRuleParser() {
-        LlmIntentParserService llmParser = new LlmIntentParserService((system, user) -> {
+        LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             throw new LlmIntentParseException("timeout");
         }, objectMapper);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
 
@@ -183,7 +188,7 @@ class LlmIntentParserServiceTest {
     @Test
     void composite_malformedJson_fallsBackToRuleParser() {
         LlmIntentParserService llmParser = parserReturning("not json");
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
 
@@ -201,7 +206,7 @@ class LlmIntentParserServiceTest {
                   "sort": "MAGIC"
                 }
                 """);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天便宜");
 
@@ -217,7 +222,7 @@ class LlmIntentParserServiceTest {
                   "departureDate": "2026-02-30"
                 }
                 """);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
 
@@ -234,7 +239,7 @@ class LlmIntentParserServiceTest {
                   "passengerCount": 99
                 }
                 """);
-        CompositeIntentParser composite = new CompositeIntentParser(properties, llmParser, ruleParser);
+        CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天 2人");
 
@@ -242,6 +247,19 @@ class LlmIntentParserServiceTest {
     }
 
     private LlmIntentParserService parserReturning(String content) {
-        return new LlmIntentParserService((system, user) -> content, objectMapper);
+        return new LlmIntentParserService((system, user, cfg) -> content, objectMapper);
+    }
+
+    /** 单测用配置快照（字段值不影响 parse 的 JSON 解析逻辑，仅用于满足方法签名）。 */
+    private LlmEffectiveConfig cfg() {
+        return new LlmEffectiveConfig(true, "https://example.test/v1", "test-key", "test-model", 8000, 1, "test");
+    }
+
+    /** 构造一个 DB 无记录、直接 fallback 到给定 properties 的 provider（用于单测 CompositeIntentParser）。 */
+    private DynamicLlmConfigProvider providerFromProperties(AiLlmProperties props) {
+        AiLlmConfigMapper mapper = Mockito.mock(AiLlmConfigMapper.class);
+        Mockito.when(mapper.findActive()).thenReturn(null);
+        LlmConfigCrypto crypto = new LlmConfigCrypto("");
+        return new DynamicLlmConfigProvider(mapper, props, crypto);
     }
 }

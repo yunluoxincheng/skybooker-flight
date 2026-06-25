@@ -40,6 +40,7 @@
 | 10019 | ADMIN_PROFILE_DISABLED | 管理员账号已被禁用 | 403 |
 | 10020 | AI_RATE_LIMITED | 请求过于频繁，请稍后再试 | 429 |
 | 10021 | REFRESH_TOKEN_INVALID | 刷新令牌无效或已过期 | 401 |
+| 10022 | AI_LLM_CONFIG_INVALID | LLM 配置校验失败 | 400 |
 | 20001 | RESOURCE_NOT_FOUND | 资源不存在 | 404 |
 | 30001 | FLIGHT_NOT_SELLABLE | 航班不可预订 | 400 |
 | 30002 | SEAT_NOT_AVAILABLE | 座位不可用 | 400 |
@@ -63,7 +64,7 @@
 
 ## 码段划分
 
-- `10001-10021`:认证 / 验证码 / 限流 / Token
+- `10001-10022`:认证 / 验证码 / 限流 / Token / AI 配置校验
 - `20001`:通用资源
 - `30001-30003`:航班 / 座位
 - `40001-40009`:订单 / 乘机人 / 座位业务

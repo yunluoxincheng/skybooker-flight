@@ -87,6 +87,8 @@ AI_LLM_API_KEY=replace-with-llm-provider-key
 AI_LLM_MODEL=gpt-4o-mini
 AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
+# 后台管理 LLM apiKey 的 AES-256 加密密钥（base64 32 字节，openssl rand -base64 32）。缺失则后台无法写入配置。
+AI_CONFIG_ENC_KEY=
 BACKEND_PORT=8080
 NGINX_PORT=8088
 ```
@@ -94,6 +96,11 @@ NGINX_PORT=8088
 `MYSQL_PASSWORD` 和 `JWT_SECRET` 没有应用内默认值，部署环境必须显式提供。Swagger / Knife4j 文档默认关闭，需要在开发或测试环境将 `OPENAPI_ENABLED=true` 后才开放。
 
 AI 助手默认使用规则解析，不需要 LLM 密钥。启用 LLM 意图解析时，将 `AI_LLM_ENABLED=true`，并配置兼容 OpenAI Chat Completions 的 `AI_LLM_BASE_URL`、`AI_LLM_API_KEY` 和 `AI_LLM_MODEL`。旧变量名 `AI_API_KEY` 不再使用，避免和 LLM 专用配置混淆。`AI_LLM_API_KEY` 只能写在本地 `.env` 或服务器环境变量中，不得提交真实值。
+
+上述环境变量是 **fallback 默认值**：管理员还可通过 `GET / PUT /api/admin/ai/llm-config`（仅 ADMIN portal）在运行时查看（脱敏）和修改 provider 配置，数据库 `ai_llm_config` 记录优先于环境变量，写入后下一个 AI 请求即生效，无需重启。后台写入的 apiKey 加密入库需要独立的 `AI_CONFIG_ENC_KEY`（base64 编码 32 字节，`openssl rand -base64 32` 生成）：
+
+- 该密钥缺失或格式非法时，应用仍可正常启动并走环境变量 fallback；仅当管理员尝试写入后台配置时返回 `AI_LLM_CONFIG_INVALID(10022)`，不落库。
+- **务必妥善备份**：丢失 `AI_CONFIG_ENC_KEY` 后已加密入库的 apiKey 无法解密，系统会自动 fallback 环境变量默认值。该密钥不复用 `JWT_SECRET`，职责隔离。
 
 ## 4. Docker Compose 部署
 
@@ -129,6 +136,7 @@ AI_LLM_API_KEY=replace-with-llm-provider-key
 AI_LLM_MODEL=gpt-4o-mini
 AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
+AI_CONFIG_ENC_KEY=
 ```
 
 `docker-compose.yml` 不再为 MySQL 密码和 JWT 密钥提供 `123456` 这类明文默认值。缺少 `MYSQL_PASSWORD` 或 `JWT_SECRET` 时，Compose 会直接报错，避免误用不安全配置。

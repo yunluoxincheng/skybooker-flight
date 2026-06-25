@@ -2,10 +2,12 @@ package com.skybooker.ai.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.skybooker.ai.config.AiLlmProperties;
+import com.skybooker.ai.config.LlmEffectiveConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -17,17 +19,16 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class OpenAiCompatibleLlmChatClient implements LlmChatClient {
 
-    private final AiLlmProperties properties;
     private final ObjectMapper objectMapper;
 
     @Override
-    public String complete(String systemPrompt, String userPrompt) {
-        int attempts = properties.normalizedMaxRetries() + 1;
+    public String complete(String systemPrompt, String userPrompt, LlmEffectiveConfig cfg) {
+        int attempts = cfg.normalizedMaxRetries() + 1;
         RuntimeException lastFailure = null;
 
         for (int i = 0; i < attempts; i++) {
             try {
-                return doComplete(systemPrompt, userPrompt);
+                return doComplete(systemPrompt, userPrompt, cfg);
             } catch (RuntimeException e) {
                 lastFailure = e;
             }
@@ -36,15 +37,15 @@ public class OpenAiCompatibleLlmChatClient implements LlmChatClient {
         throw new LlmIntentParseException("Provider request failed", lastFailure);
     }
 
-    private String doComplete(String systemPrompt, String userPrompt) {
+    private String doComplete(String systemPrompt, String userPrompt, LlmEffectiveConfig cfg) {
         RestClient restClient = RestClient.builder()
-                .baseUrl(normalizeBaseUrl(properties.getBaseUrl()))
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
-                .requestFactory(requestFactory())
+                .baseUrl(normalizeBaseUrl(cfg.baseUrl()))
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + cfg.apiKey())
+                .requestFactory(requestFactory(cfg))
                 .build();
 
         Map<String, Object> body = Map.of(
-                "model", properties.getModel(),
+                "model", cfg.model(),
                 "temperature", 0,
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
@@ -81,10 +82,9 @@ public class OpenAiCompatibleLlmChatClient implements LlmChatClient {
         return trimmed;
     }
 
-    private org.springframework.http.client.ClientHttpRequestFactory requestFactory() {
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        Duration timeout = Duration.ofMillis(properties.normalizedTimeoutMs());
+    private ClientHttpRequestFactory requestFactory(LlmEffectiveConfig cfg) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        Duration timeout = Duration.ofMillis(cfg.normalizedTimeoutMs());
         factory.setConnectTimeout(timeout);
         factory.setReadTimeout(timeout);
         return factory;
