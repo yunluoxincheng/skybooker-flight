@@ -87,6 +87,7 @@ MYSQL_PASSWORD=replace-with-local-password
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
+# JWT 签名密钥（至少 256 位）。生成：openssl rand -base64 48 。务必妥善保管，轮换或丢失后所有已签发 token 失效、用户需重新登录。
 JWT_SECRET=replace-with-a-random-secret-at-least-256-bits-long
 JWT_ACCESS_MS=3600000
 JWT_REFRESH_MS=1209600000
