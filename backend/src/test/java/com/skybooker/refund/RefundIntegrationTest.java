@@ -346,7 +346,7 @@ class RefundIntegrationTest {
 
         // H3 关键:cabinClasses 只含快照座位 cabin(ECONOMY),不含脏座位 cabin(BUSINESS),
         // 故 BUSINESS 候补不应被退款候补兑现触及 —— status 仍 WAITING 且无 skip_reason。
-        // 旧代码 findCabinClassesByOrderId 会把 BUSINESS 纳入并尝试兑现,因 BUSINESS 无 AVAILABLE
+        // 旧代码(按 orderId 全量查 cabin)会把 BUSINESS 纳入并尝试兑现,因 BUSINESS 无 AVAILABLE
         // 座位而写 last_skip_reason("可用座位不足"),此处可区分新旧实现。
         Map<String, Object> wl = jdbcTemplate.queryForMap(
                 "SELECT status, last_skip_reason FROM waitlist_order WHERE id = ?", businessWlId);
