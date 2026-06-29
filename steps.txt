@@ -1,0 +1,14 @@
+
+Git 基线统一 + 创建 feature/frontend-infra 分支
+
+阶段 0: 项目初始化（Next.js + shadcn/ui + 依赖）
+
+阶段 1: 基础设施层（types/services/contexts/hooks/layouts）
+
+阶段 2: 认证模块（登录/注册/忘记密码/管理员登录）
+
+阶段 3: 用户端核心页面（首页/航班/预订/订单）
+
+阶段 4: AI 智能购票助手
+
+阶段 5: 管理后台（看板/航班/订单/用户管理）

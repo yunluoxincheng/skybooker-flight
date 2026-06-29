@@ -1,0 +1,72 @@
+/** 航班状态 */
+export type FlightStatus =
+  | "ON_TIME"
+  | "DELAYED"
+  | "CANCELLED"
+  | "BOARDING"
+  | "DEPARTED"
+  | "ARRIVED"
+
+/** 上架状态 */
+export type PublishStatus = "PUBLISHED" | "UNPUBLISHED"
+
+/** 航班 VO */
+export interface FlightVO {
+  id: number
+  flightNo: string
+  airlineCode: string
+  airlineName: string
+  departureAirportCode: string
+  departureAirportName: string
+  departureCity: string
+  arrivalAirportCode: string
+  arrivalAirportName: string
+  arrivalCity: string
+  departureTime: string
+  arrivalTime: string
+  durationMinutes: number
+  basePrice: number
+  remainingSeats: number
+  totalSeats: number
+  status: FlightStatus
+  publishStatus: PublishStatus
+  directFlag: boolean
+  baggageAllowance: string
+  punctualityRate: number
+}
+
+/** 航班搜索参数 */
+export interface FlightSearchParams {
+  departureCity?: string
+  arrivalCity?: string
+  departureDate?: string
+  airlineId?: number
+  minPrice?: number
+  maxPrice?: number
+  directOnly?: boolean
+  departureTimeStart?: string // "HH:mm"
+  departureTimeEnd?: string   // "HH:mm"
+  sort?: string
+  page?: number
+  size?: number
+}
+
+/** 座位 VO */
+export interface FlightSeatVO {
+  id: number
+  seatNo: string
+  cabinClass: "ECONOMY" | "BUSINESS" | "FIRST"
+  seatType: "WINDOW" | "AISLE" | "MIDDLE"
+  price: number
+  status: "AVAILABLE" | "OCCUPIED" | "LOCKED"
+  version: number
+}
+
+/** 舱位类型 */
+export type CabinClass = "ECONOMY" | "BUSINESS" | "FIRST"
+
+/** 座位类型 */
+export type SeatType = "WINDOW" | "AISLE" | "MIDDLE"
+
+/** 座位状态 */
+export type SeatStatus = "AVAILABLE" | "OCCUPIED" | "LOCKED"
