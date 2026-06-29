@@ -1,6 +1,12 @@
 server:
   port: 8080
 
+app:
+  # 允许跨域的前端 Origin 列表，逗号分隔。开发默认 localhost:3000；
+  # 生产通过环境变量 CORS_ALLOWED_ORIGINS 覆盖，例如 https://skybooker.yunluostar.com
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
 spring:
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:flight_booking}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=${DB_ALLOW_PUBLIC_KEY_RETRIEVAL:true}&useSSL=${DB_USE_SSL:false}

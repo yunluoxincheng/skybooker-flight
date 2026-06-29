@@ -89,6 +89,8 @@ AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
 # 后台管理 LLM apiKey 的 AES-256 加密密钥（base64 32 字节，openssl rand -base64 32）。缺失则后台无法写入配置。
 AI_CONFIG_ENC_KEY=
+# 允许跨域的前端 Origin，逗号分隔。开发默认 localhost:3000；生产例如 https://skybooker.yunluostar.com
+CORS_ALLOWED_ORIGINS=http://localhost:3000
 BACKEND_PORT=8080
 NGINX_PORT=8088
 ```
@@ -137,6 +139,7 @@ AI_LLM_MODEL=gpt-4o-mini
 AI_LLM_TIMEOUT_MS=8000
 AI_LLM_MAX_RETRIES=1
 AI_CONFIG_ENC_KEY=
+CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
 `docker-compose.yml` 不再为 MySQL 密码和 JWT 密钥提供 `123456` 这类明文默认值。缺少 `MYSQL_PASSWORD` 或 `JWT_SECRET` 时，Compose 会直接报错，避免误用不安全配置。
@@ -264,11 +267,13 @@ server {
 
 ### 前端请求后端跨域失败
 
-后端配置 CORS，允许：
+后端已通过 `SecurityConfig` 启用 CORS，允许的 Origin 由环境变量 `CORS_ALLOWED_ORIGINS`（配置项 `app.cors.allowed-origins`）控制，逗号分隔。开发默认 `http://localhost:3000`；生产需设置为实际前端域名：
 
 ```text
-http://localhost:3000
+CORS_ALLOWED_ORIGINS=https://skybooker.yunluostar.com
 ```
+
+多 origin 用逗号分隔，例如 `CORS_ALLOWED_ORIGINS=http://localhost:3000,https://skybooker.yunluostar.com`。注意：因前端请求携带 `Authorization` 头，CORS 启用了 `allowCredentials`，Origin 列表必须是精确地址，**不能用通配 `*`**。修改后需重启后端生效。
 
 ### Token 失效
 

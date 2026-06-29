@@ -13,11 +13,14 @@ import java.time.LocalDateTime;
 public class FlightVO {
     private Long id;
     private String flightNo;
+    private Long airlineId;
     private String airlineCode;
     private String airlineName;
+    private Long departureAirportId;
     private String departureAirportCode;
     private String departureAirportName;
     private String departureCity;
+    private Long arrivalAirportId;
     private String arrivalAirportCode;
     private String arrivalAirportName;
     private String arrivalCity;

@@ -6,11 +6,14 @@
     <resultMap id="flightVOResult" type="com.skybooker.flight.vo.FlightVO" autoMapping="false">
         <id property="id" column="id"/>
         <result property="flightNo" column="flight_no"/>
+        <result property="airlineId" column="airline_id"/>
         <result property="airlineCode" column="airline_code"/>
         <result property="airlineName" column="airline_name"/>
+        <result property="departureAirportId" column="departure_airport_id"/>
         <result property="departureAirportCode" column="departure_airport_code"/>
         <result property="departureAirportName" column="departure_airport_name"/>
         <result property="departureCity" column="departure_city"/>
+        <result property="arrivalAirportId" column="arrival_airport_id"/>
         <result property="arrivalAirportCode" column="arrival_airport_code"/>
         <result property="arrivalAirportName" column="arrival_airport_name"/>
         <result property="arrivalCity" column="arrival_city"/>
@@ -28,7 +31,8 @@
     </resultMap>
 
     <sql id="flightSelect">
-        SELECT f.id, f.flight_no, f.departure_time, f.arrival_time, f.duration_minutes,
+        SELECT f.id, f.flight_no, f.airline_id, f.departure_airport_id, f.arrival_airport_id,
+               f.departure_time, f.arrival_time, f.duration_minutes,
                f.base_price, f.remaining_seats, f.total_seats, f.status, f.publish_status,
                f.direct_flag, f.baggage_allowance, f.punctuality_rate,
                al.code AS airline_code, al.name AS airline_name,

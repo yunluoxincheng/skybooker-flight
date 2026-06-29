@@ -16,6 +16,12 @@ public class OrderVO {
     private String orderNo;
     private Long flightId;
     private String flightNo;
+    // 航班展示信息（join flight + airline + airport 填充，供订单页直接渲染）
+    private String airlineName;
+    private String departureCity;
+    private String arrivalCity;
+    private LocalDateTime departureTime;
+    private LocalDateTime arrivalTime;
     private Long userId;
     private String userEmail;
     private String userNickname;
