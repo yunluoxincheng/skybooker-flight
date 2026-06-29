@@ -23,7 +23,7 @@
 - 管理员 Token 访问 `/api/auth/me`、`/api/auth/logout`、`/api/orders`、`/api/passengers`、`/api/waitlist`、`/api/ai` 失败。
 - 普通用户 Token 访问 `/api/admin/me`、`/api/admin/logout` 失败。
 - 后台普通用户管理接口不能禁用 `role = ADMIN` 的管理员账号，也不能禁用当前登录管理员自身。
-- Flyway 默认账号密码哈希必须通过后端集成测试校验：`admin / Admin@123456` 只能登录管理端，`user1@example.com / User@123456` 只能登录用户端。
+- Flyway 默认账号密码哈希必须通过后端集成测试校验：`admin / SkyBooker@Init2026!` 只能登录管理端，`user1@example.com / User@123456` 只能登录用户端。
 
 ### 航班查询
 

@@ -73,7 +73,7 @@ AI 智能购票助手
 
 - [ ] 服务器 `docker compose ps` 全部 healthy；
 - [ ] `scripts/smoke/backend-smoke.sh` 通过 `SKYBOOKER_BASE_URL=http://<server-ip>:8088` 验证；
-- [ ] 管理员密码已从默认 `Admin@123456` 修改；
+- [ ] 管理员密码已从默认 `SkyBooker@Init2026!` 修改；
 - [ ] 演示数据日期未过期（执行 `scripts/refresh-demo-flight-dates.sql`）；
 - [ ] 前端可通过公网访问或由前端同学另行启动；
 - [ ] 保存以下证据用于答辩或 PR：

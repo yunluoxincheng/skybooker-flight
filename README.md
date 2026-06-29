@@ -209,7 +209,7 @@ backend/src/main/resources/db/migration/
 ```text
 普通用户：user1@example.com / User@123456
 管理员用户名：admin
-管理员密码：Admin@123456
+管理员密码：SkyBooker@Init2026!
 管理员资料邮箱：admin@skybooker.local
 ```
 

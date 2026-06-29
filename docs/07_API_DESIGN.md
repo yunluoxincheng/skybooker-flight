@@ -133,7 +133,7 @@ POST /api/admin/auth/login
 ```json
 {
   "username": "admin",
-  "password": "Admin@123456"
+  "password": "SkyBooker@Init2026!"
 }
 ```
 
