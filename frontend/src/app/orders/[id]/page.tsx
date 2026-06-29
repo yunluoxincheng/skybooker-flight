@@ -184,7 +184,9 @@ export default function OrderDetailPage() {
                 </Dialog>
               )}
               {canChange && (
-                <Button size="sm" variant="outline" render={<a href={`/orders/${id}/change`}>改签</a>} disabled={actionLoading} />
+                <Button size="sm" variant="outline" disabled title="改签功能即将上线">
+                  改签
+                </Button>
               )}
               {canRefund && (
                 <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
