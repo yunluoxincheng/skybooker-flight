@@ -1,7 +1,6 @@
-/** 乘机人 VO（用户保存的常用乘机人） */
+/** 乘机人 VO（用户保存的常用乘机人） — 匹配后端 PassengerVO */
 export interface PassengerVO {
   id: number
-  userId: number
   name: string
   idCardNo: string
   passengerType: "ADULT" | "CHILD" | "INFANT"

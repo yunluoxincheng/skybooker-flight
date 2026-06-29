@@ -30,14 +30,20 @@ export interface OrderStatusDistributionVO {
   count: number
 }
 
-/** 管理员端的用户 */
+/** 管理员端的用户 — 匹配后端 UserAdminVO */
 export interface UserAdminVO {
   id: number
   email: string
-  nickname: string
+  realName: string
+  phone?: string
+  avatarUrl?: string
   role: "USER" | "ADMIN"
-  status: "ENABLED" | "DISABLED"
+  status: "NORMAL" | "DISABLED"
+  emailVerified: boolean
+  phoneVerified: boolean
+  lastLoginAt?: string
   createdAt: string
+  updatedAt?: string
 }
 
 /** 航班表单 DTO（管理端） */
@@ -55,41 +61,55 @@ export interface FlightFormDTO {
   directFlag: boolean
 }
 
-/** 销售趋势 */
+/** 销售趋势 — 匹配后端 SalesTrendVO */
 export interface SalesTrendVO {
-  date: string
-  orderCount: number
+  period: string
+  activeOrderCount: number
+  passengerCount: number
   revenue: number
 }
 
-/** 航线表现 */
+/** 航线表现 — 匹配后端 RoutePerformanceVO */
 export interface RoutePerformanceVO {
-  route: string
-  orderCount: number
-  loadFactor: number
-  avgRevenue: number
+  departureCity: string
+  arrivalCity: string
+  routeLabel: string
+  activeOrderCount: number
+  passengerCount: number
+  revenue: number
+  refundAmount: number
+  netRevenue: number
 }
 
-/** 航班载客率 */
+/** 航班载客率 — 匹配后端 FlightLoadFactorVO */
 export interface FlightLoadFactorVO {
+  flightId: number
   flightNo: string
-  route: string
+  airlineName: string
+  routeLabel: string
+  departureTime: string
   totalSeats: number
-  occupiedSeats: number
-  loadFactor: number
+  soldPassengerCount: number
+  loadFactorPercent: number
 }
 
-/** 退款趋势 */
+/** 退款趋势 — 匹配后端 RefundTrendVO */
 export interface RefundTrendVO {
-  date: string
+  period: string
   refundCount: number
   refundAmount: number
 }
 
-/** 候补表现 */
+/** 候补表现 — 匹配后端 WaitlistPerformanceVO */
 export interface WaitlistPerformanceVO {
-  date: string
-  waitlistCount: number
-  convertedCount: number
-  conversionRate: number
+  submittedCount: number
+  pendingPaymentCount: number
+  waitingCount: number
+  successCount: number
+  failedCount: number
+  cancelledCount: number
+  refundedCount: number
+  expiredCount: number
+  payAmount: number
+  refundAmount: number
 }

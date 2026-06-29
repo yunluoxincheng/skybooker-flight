@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bot, Send, Sparkles, Trash2, Loader2, Plane, MapPin, ArrowRight } from "lucide-react"
+import { Bot, Send, Sparkles, Trash2, Loader2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { UserLayout } from "@/components/layout/UserLayout"
-import { FlightCard } from "@/components/common/FlightCard"
+import { AiFlightCard } from "@/components/common/AiFlightCard"
 import { useAiChat } from "@/features/ai/hooks/useAiChat"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -184,10 +183,9 @@ export default function AiAssistantPage() {
                         {msg.flights && msg.flights.length > 0 && (
                           <div className="space-y-2 pl-4 border-l-2 border-primary/30">
                             {msg.flights.map((f) => (
-                              <FlightCard
-                                key={f.id}
+                              <AiFlightCard
+                                key={f.flightId}
                                 flight={f}
-                                showBookButton
                                 className="shadow-none border-slate-200"
                               />
                             ))}

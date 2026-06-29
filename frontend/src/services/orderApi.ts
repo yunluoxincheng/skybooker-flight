@@ -1,5 +1,5 @@
 import { get, post } from "@/lib/request"
-import type { OrderVO, CreateOrderDTO, ChangeOptionVO, ChangeOrderDTO } from "@/types/order"
+import type { OrderVO, CreateOrderDTO, ChangeOptionVO, ChangeOrderDTO, RefundVO, ChangeOrderResultVO } from "@/types/order"
 import type { PageData } from "@/types/api"
 
 /** 创建订单 */
@@ -31,9 +31,9 @@ export function cancelOrder(id: number) {
   return post<OrderVO>(`/orders/${id}/cancel`, undefined, { auth: "user" })
 }
 
-/** 退票 */
+/** 退票 — 后端返回 RefundVO */
 export function refundOrder(id: number, reason?: string) {
-  return post<OrderVO>(`/orders/${id}/refund`, { reason }, { auth: "user" })
+  return post<RefundVO>(`/orders/${id}/refund`, { reason }, { auth: "user" })
 }
 
 /** 获取改签可选航班 */
@@ -41,7 +41,7 @@ export function getChangeOptions(id: number) {
   return get<ChangeOptionVO[]>(`/orders/${id}/change-options`, undefined, { auth: "user" })
 }
 
-/** 执行改签 */
+/** 执行改签 — 后端返回 ChangeOrderResultVO */
 export function changeOrder(id: number, data: ChangeOrderDTO) {
-  return post<OrderVO>(`/orders/${id}/change`, data, { auth: "user" })
+  return post<ChangeOrderResultVO>(`/orders/${id}/change`, data, { auth: "user" })
 }

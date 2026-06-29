@@ -1,7 +1,7 @@
 import type { ApiResponse } from "@/types/api"
 import { getUserToken, getAdminToken, removeUserToken, removeUserRefreshToken, removeUserData, removeAdminToken, removeAdminRefreshToken, removeAdminData } from "./auth-storage"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api"
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 const DEFAULT_TIMEOUT = 15000
 
 export class ApiError extends Error {

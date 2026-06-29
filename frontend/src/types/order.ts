@@ -58,17 +58,15 @@ export interface CreateOrderDTO {
   items: OrderItemDTO[]
 }
 
-/** 改签可选航班 */
+/** 改签可选航班 — 匹配后端 ChangeOptionVO */
 export interface ChangeOptionVO {
   flightId: number
   flightNo: string
-  airlineName: string
   departureTime: string
   arrivalTime: string
-  durationMinutes: number
   basePrice: number
   remainingSeats: number
-  priceDiff: number
+  status: string
 }
 
 /** 改签座位映射 */
@@ -81,4 +79,24 @@ export interface SeatMapping {
 export interface ChangeOrderDTO {
   newFlightId: number
   seatMappings: SeatMapping[]
+}
+
+/** 退票结果 VO — 匹配后端 RefundVO */
+export interface RefundVO {
+  id: number
+  orderId: number
+  refundAmount: number
+  feeAmount: number
+  status: string
+  createdAt: string
+}
+
+/** 改签结果 VO — 匹配后端 ChangeOrderResultVO */
+export interface ChangeOrderResultVO {
+  id: number
+  orderNo: string
+  status: string
+  flightId: number
+  totalAmount: number
+  passengers: OrderPassengerVO[]
 }

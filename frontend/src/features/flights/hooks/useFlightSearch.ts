@@ -38,7 +38,6 @@ export function useFlightSearch(): UseFlightSearchReturn {
       const departureTimeRange = searchParams.get("departureTimeRange")
       const sortBy = searchParams.get("sortBy")
       const sortOrder = searchParams.get("sortOrder")
-      const airlineCode = searchParams.get("airlineCode")
 
       if (departureCity) params.departureCity = departureCity
       if (arrivalCity) params.arrivalCity = arrivalCity
@@ -57,7 +56,6 @@ export function useFlightSearch(): UseFlightSearchReturn {
         const order = sortOrder || "asc"
         params.sort = `${sortBy}_${order}`
       }
-      if (airlineCode) params.airlineId = Number(airlineCode)
       params.page = page
       params.size = size
 

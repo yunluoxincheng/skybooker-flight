@@ -30,7 +30,7 @@ export interface FlightVO {
   totalSeats: number
   status: FlightStatus
   publishStatus: PublishStatus
-  directFlag: boolean
+  directFlag: number   // 后端 Integer: 0=经停 1=直飞
   baggageAllowance: string
   punctualityRate: number
 }

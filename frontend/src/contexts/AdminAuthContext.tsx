@@ -62,8 +62,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    const refreshToken = getAdminRefreshToken()
     try {
-      const refreshToken = getAdminRefreshToken()
       await adminApi.adminLogout(refreshToken ?? undefined)
     } catch {
       // ignore

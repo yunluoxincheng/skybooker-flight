@@ -20,7 +20,7 @@ interface AuthState {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (data: { email: string; code: string; nickname: string; password: string }) => Promise<void>
+  register: (data: { email: string; code: string; nickname: string; password: string; confirmPassword: string }) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(
-    async (data: { email: string; code: string; nickname: string; password: string }) => {
+    async (data: { email: string; code: string; nickname: string; password: string; confirmPassword: string }) => {
       await authApi.register(data)
       // 注册后不自动登录，需跳转到登录页
     },
@@ -73,8 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
+    const refreshToken = getUserRefreshToken()
     try {
-      const refreshToken = getUserRefreshToken()
       await authApi.logout(refreshToken ?? undefined)
     } catch {
       // 即使 API 失败也清除本地状态

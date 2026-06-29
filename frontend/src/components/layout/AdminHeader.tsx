@@ -23,18 +23,18 @@ export function AdminHeader() {
             <Button variant="ghost" className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                  {admin?.nickname?.charAt(0)?.toUpperCase() || "A"}
+                  {admin?.realName?.charAt(0)?.toUpperCase() || "A"}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden sm:inline text-sm font-medium">
-                {admin?.nickname || "管理员"}
+                {admin?.realName || "管理员"}
               </span>
             </Button>
           }
         />
         <DropdownMenuContent className="w-48" align="end">
           <div className="px-2 py-1.5">
-            <p className="text-sm font-medium">{admin?.nickname}</p>
+            <p className="text-sm font-medium">{admin?.realName}</p>
             <p className="text-xs text-muted-foreground">
               {admin?.username} · 管理员
             </p>

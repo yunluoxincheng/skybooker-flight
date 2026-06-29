@@ -12,7 +12,7 @@ import type {
   RefundTrendVO,
   WaitlistPerformanceVO,
 } from "@/types/admin"
-import type { FlightVO, FlightSeatVO } from "@/types/flight"
+import type { FlightVO } from "@/types/flight"
 import type { OrderVO } from "@/types/order"
 import type { PageData } from "@/types/api"
 
@@ -59,15 +59,15 @@ export function updateFlight(id: number, data: FlightFormDTO) {
 }
 
 export function publishFlight(id: number) {
-  return post<FlightVO>(`/admin/flights/${id}/publish`, undefined, { auth: "admin" })
+  return post<null>(`/admin/flights/${id}/publish`, undefined, { auth: "admin" })
 }
 
 export function unpublishFlight(id: number) {
-  return post<FlightVO>(`/admin/flights/${id}/unpublish`, undefined, { auth: "admin" })
+  return post<null>(`/admin/flights/${id}/unpublish`, undefined, { auth: "admin" })
 }
 
 export function generateSeats(id: number) {
-  return post<FlightSeatVO[]>(`/admin/flights/${id}/generate-seats`, undefined, { auth: "admin" })
+  return post<null>(`/admin/flights/${id}/generate-seats`, undefined, { auth: "admin" })
 }
 
 // ---- Orders ----
@@ -113,5 +113,5 @@ export function getRefundTrend(params?: Record<string, string | number | boolean
 }
 
 export function getWaitlistPerformance(params?: Record<string, string | number | boolean | undefined>) {
-  return get<WaitlistPerformanceVO[]>("/admin/reports/waitlist-performance", params, { auth: "admin" })
+  return get<WaitlistPerformanceVO>("/admin/reports/waitlist-performance", params, { auth: "admin" })
 }

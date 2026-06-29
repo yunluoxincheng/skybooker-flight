@@ -1,15 +1,12 @@
-/** 用户信息（用户端） */
+/** 用户信息（用户端） — 匹配后端 UserVO */
 export interface User {
   id: number
   email: string
   nickname: string
-  avatar?: string
   role: "USER"
-  status: "ENABLED" | "DISABLED"
-  createdAt: string
 }
 
-/** 用户端登录响应 */
+/** 用户端登录响应 — 匹配后端 LoginVO */
 export interface LoginResponse {
   accessToken: string
   refreshToken: string
@@ -18,17 +15,15 @@ export interface LoginResponse {
   user: User
 }
 
-/** 管理员信息 */
+/** 管理员信息 — 匹配后端 AdminVO */
 export interface AdminUser {
   id: number
   username: string
-  nickname: string
+  realName: string
   role: "ADMIN"
-  status: "ENABLED" | "DISABLED"
-  createdAt: string
 }
 
-/** 管理员登录响应 */
+/** 管理员登录响应 — 匹配后端 AdminLoginVO */
 export interface AdminLoginResponse {
   accessToken: string
   refreshToken: string

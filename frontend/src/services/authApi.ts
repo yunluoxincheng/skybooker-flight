@@ -17,6 +17,7 @@ export function register(data: {
   code: string
   nickname: string
   password: string
+  confirmPassword: string
 }) {
   return post<null>("/auth/register", data)
 }
@@ -26,6 +27,7 @@ export function resetPassword(data: {
   email: string
   code: string
   newPassword: string
+  confirmPassword: string
 }) {
   return post<null>("/auth/reset-password", data)
 }

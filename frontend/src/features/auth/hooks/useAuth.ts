@@ -40,6 +40,7 @@ export function useRegister() {
     code: string
     nickname: string
     password: string
+    confirmPassword: string
   }) => {
     setError(null)
     try {
@@ -67,6 +68,7 @@ export function useForgotPassword() {
     email: string
     code: string
     newPassword: string
+    confirmPassword: string
   }) => {
     setError(null)
     try {

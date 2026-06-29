@@ -108,7 +108,7 @@ export default function AdminFlightsPage() {
     setValue("basePrice", f.basePrice)
     setValue("totalSeats", f.totalSeats)
     setValue("baggageAllowance", f.baggageAllowance)
-    setValue("directFlag", f.directFlag)
+    setValue("directFlag", Boolean(f.directFlag))
     setDialogOpen(true)
   }
 
