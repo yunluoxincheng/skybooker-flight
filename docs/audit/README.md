@@ -40,3 +40,17 @@
 5. 退票接口缺 `reason` 请求体(与 `07_API_DESIGN` 不符)
 
 详见 [汇总报告](2026-06-24-backend-deep-review.md)。
+
+---
+
+## 前端 ↔ 后端接口契约审查（2026-06-29）
+
+独立审查：前端 API 调用层 / 类型层 ↔ 后端 Controller / DTO / VO 逐条对照 + CORS 运行时实测。
+
+**结论**：BLOCK —— 后端未配置 CORS 导致前端全部接口 `Failed to fetch`（整个前端等于静态壳）；CORS 修复后另有 3 个 P0 契约不一致（订单航班信息空白 / AI 历史丢内容 / admin 编辑航班不可用）。
+
+| 文件 | 内容 |
+|---|---|
+| [2026-06-29-frontend-backend-contract-review.md](2026-06-29-frontend-backend-contract-review.md) | 完整审查报告（方法 / 基础设施对照 / 各模块对照 / 汇总表） |
+| [2026-06-29-issues-backend.md](2026-06-29-issues-backend.md) | 后端 Issue：CORS、OrderVO/FlightVO 字段补齐 |
+| [2026-06-29-issues-frontend.md](2026-06-29-issues-frontend.md) | 前端 Issue：AI 历史、改签 404、类型契约、.env |
