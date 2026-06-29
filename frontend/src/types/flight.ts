@@ -40,7 +40,6 @@ export interface FlightSearchParams {
   departureCity?: string
   arrivalCity?: string
   departureDate?: string
-  airlineCode?: string
   airlineId?: number
   minPrice?: number
   maxPrice?: number

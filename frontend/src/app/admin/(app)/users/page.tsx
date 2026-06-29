@@ -136,7 +136,7 @@ export default function AdminUsersPage() {
                     <TableCell className="font-medium">{u.realName}</TableCell>
                     <TableCell>{u.email}</TableCell>
                     <TableCell>
-                      {u.status === "ENABLED" ? (
+                      {u.status === "NORMAL" ? (
                         <Badge variant="default" className="text-xs">正常</Badge>
                       ) : (
                         <Badge variant="destructive" className="text-xs">已禁用</Badge>
@@ -144,7 +144,7 @@ export default function AdminUsersPage() {
                     </TableCell>
                     <TableCell className="text-sm">{formatTime(u.createdAt)}</TableCell>
                     <TableCell>
-                      {u.status === "ENABLED" ? (
+                      {u.status === "NORMAL" ? (
                         <Button
                           variant="ghost"
                           size="sm"

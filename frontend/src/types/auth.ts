@@ -9,6 +9,7 @@ export interface User {
 /** 用户端登录响应 — 匹配后端 LoginVO */
 export interface LoginResponse {
   accessToken: string
+  refreshToken: string
   tokenType: string
   expiresIn: number
   user: User
@@ -25,6 +26,7 @@ export interface AdminUser {
 /** 管理员登录响应 — 匹配后端 AdminLoginVO */
 export interface AdminLoginResponse {
   accessToken: string
+  refreshToken: string
   tokenType: string
   expiresIn: number
   admin: AdminUser
