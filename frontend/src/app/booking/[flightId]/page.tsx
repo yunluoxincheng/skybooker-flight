@@ -236,11 +236,13 @@ export default function BookingPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold">选择乘机人</h2>
                 <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1">
-                      <Plus className="h-3.5 w-3.5" /> 新增乘机人
-                    </Button>
-                  </DialogTrigger>
+                  <DialogTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <Plus className="h-3.5 w-3.5" /> 新增乘机人
+                      </Button>
+                    }
+                  />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>新增乘机人</DialogTitle>

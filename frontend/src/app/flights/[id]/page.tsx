@@ -239,12 +239,10 @@ export default function FlightDetailPage() {
                   className="w-full"
                   size="lg"
                   disabled={availableSeats === 0}
-                  asChild
-                >
-                  <Link href={`/booking/${flight.id}`}>
+                  render={<Link href={`/booking/${flight.id}`}>
                     {availableSeats > 0 ? "立即预订" : "已售罄"}
-                  </Link>
-                </Button>
+                  </Link>}
+                />
                 {availableSeats > 0 && availableSeats < 10 && (
                   <p className="text-xs text-destructive">
                     仅剩 {availableSeats} 座，请尽快预订

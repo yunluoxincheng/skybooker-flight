@@ -26,8 +26,8 @@ export function getAdminMe() {
   return get<AdminUser>("/admin/me", undefined, { auth: "admin" })
 }
 
-export function adminLogout() {
-  return post<null>("/admin/logout", undefined, { auth: "admin" })
+export function adminLogout(refreshToken?: string) {
+  return post<null>("/admin/logout", refreshToken ? { refreshToken } : undefined, { auth: "admin" })
 }
 
 // ---- Dashboard ----

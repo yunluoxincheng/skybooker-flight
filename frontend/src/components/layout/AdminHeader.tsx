@@ -18,18 +18,20 @@ export function AdminHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-end border-b border-slate-200 bg-white px-6 ml-60">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                {admin?.nickname?.charAt(0)?.toUpperCase() || "A"}
-              </AvatarFallback>
-            </Avatar>
-            <span className="hidden sm:inline text-sm font-medium">
-              {admin?.nickname || "管理员"}
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="ghost" className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                  {admin?.nickname?.charAt(0)?.toUpperCase() || "A"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="hidden sm:inline text-sm font-medium">
+                {admin?.nickname || "管理员"}
+              </span>
+            </Button>
+          }
+        />
         <DropdownMenuContent className="w-48" align="end">
           <div className="px-2 py-1.5">
             <p className="text-sm font-medium">{admin?.nickname}</p>

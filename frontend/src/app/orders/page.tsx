@@ -146,9 +146,7 @@ function OrdersContent() {
           <Card>
             <CardContent className="p-12 text-center">
               <p className="text-muted-foreground mb-4">暂无订单</p>
-              <Button asChild>
-                <a href="/flights">去预订航班</a>
-              </Button>
+              <Button render={<a href="/flights">去预订航班</a>} />
             </CardContent>
           </Card>
         )}

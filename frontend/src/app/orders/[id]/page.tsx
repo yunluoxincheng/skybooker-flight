@@ -170,9 +170,7 @@ export default function OrderDetailPage() {
               )}
               {canCancel && (
                 <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" disabled={actionLoading}>取消订单</Button>
-                  </DialogTrigger>
+                  <DialogTrigger render={<Button size="sm" variant="outline" disabled={actionLoading}>取消订单</Button>} />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>确认取消</DialogTitle>
@@ -186,15 +184,11 @@ export default function OrderDetailPage() {
                 </Dialog>
               )}
               {canChange && (
-                <Button size="sm" variant="outline" asChild disabled={actionLoading}>
-                  <a href={`/orders/${id}/change`}>改签</a>
-                </Button>
+                <Button size="sm" variant="outline" render={<a href={`/orders/${id}/change`}>改签</a>} disabled={actionLoading} />
               )}
               {canRefund && (
                 <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" disabled={actionLoading}>退票</Button>
-                  </DialogTrigger>
+                  <DialogTrigger render={<Button size="sm" variant="outline" disabled={actionLoading}>退票</Button>} />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>退票申请</DialogTitle>

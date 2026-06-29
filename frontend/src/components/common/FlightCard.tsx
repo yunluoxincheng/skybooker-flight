@@ -88,9 +88,7 @@ export function FlightCard({
             </div>
             {actionSlot || (
               showBookButton && (
-                <Button asChild size="sm">
-                  <Link href={`/flights/${flight.id}`}>查看详情</Link>
-                </Button>
+                <Button render={<Link href={`/flights/${flight.id}`}>查看详情</Link>} size="sm" />
               )
             )}
           </div>

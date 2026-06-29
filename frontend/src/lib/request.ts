@@ -1,5 +1,5 @@
 import type { ApiResponse } from "@/types/api"
-import { getUserToken, getAdminToken, removeUserToken, removeUserData, removeAdminToken, removeAdminData } from "./auth-storage"
+import { getUserToken, getAdminToken, removeUserToken, removeUserRefreshToken, removeUserData, removeAdminToken, removeAdminRefreshToken, removeAdminData } from "./auth-storage"
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api"
 const DEFAULT_TIMEOUT = 15000
@@ -36,10 +36,12 @@ function handleUnauthorized(auth: AuthType): void {
   switch (auth) {
     case "user":
       removeUserToken()
+      removeUserRefreshToken()
       removeUserData()
       break
     case "admin":
       removeAdminToken()
+      removeAdminRefreshToken()
       removeAdminData()
       break
   }

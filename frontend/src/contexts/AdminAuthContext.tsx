@@ -7,6 +7,9 @@ import {
   getAdminToken,
   setAdminToken,
   removeAdminToken,
+  getAdminRefreshToken,
+  setAdminRefreshToken,
+  removeAdminRefreshToken,
   setAdminData,
   removeAdminData,
 } from "@/lib/auth-storage"
@@ -43,6 +46,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         removeAdminToken()
+        removeAdminRefreshToken()
         removeAdminData()
       })
       .finally(() => setIsLoading(false))
@@ -51,6 +55,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const res = await adminApi.adminLogin(username, password)
     setAdminToken(res.accessToken)
+    setAdminRefreshToken(res.refreshToken)
     setAdminData(res.admin)
     setToken(res.accessToken)
     setAdmin(res.admin)
@@ -58,11 +63,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await adminApi.adminLogout()
+      const refreshToken = getAdminRefreshToken()
+      await adminApi.adminLogout(refreshToken ?? undefined)
     } catch {
       // ignore
     }
     removeAdminToken()
+    removeAdminRefreshToken()
     removeAdminData()
     setToken(null)
     setAdmin(null)

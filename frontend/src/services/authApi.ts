@@ -36,6 +36,6 @@ export function getMe() {
 }
 
 /** 登出 */
-export function logout() {
-  return post<null>("/auth/logout", undefined, { auth: "user" })
+export function logout(refreshToken?: string) {
+  return post<null>("/auth/logout", refreshToken ? { refreshToken } : undefined, { auth: "user" })
 }

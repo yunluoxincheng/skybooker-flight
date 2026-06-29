@@ -118,10 +118,13 @@ export default function AdminFlightsPage() {
     setIsSubmitting(true)
     setActionErr(null)
     try {
+      const normalizeLocalDateTime = (value: string) =>
+        value.length === 16 ? `${value}:00` : value
+
       const dto: FlightFormDTO = {
         ...data,
-        departureTime: new Date(data.departureTime).toISOString(),
-        arrivalTime: new Date(data.arrivalTime).toISOString(),
+        departureTime: normalizeLocalDateTime(data.departureTime),
+        arrivalTime: normalizeLocalDateTime(data.arrivalTime),
       }
       if (editingFlight) {
         await adminApi.updateFlight(editingFlight.id, dto)
@@ -231,9 +234,7 @@ export default function AdminFlightsPage() {
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">操作</Button>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger render={<Button variant="ghost" size="sm">操作</Button>} />
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(f)}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> 编辑

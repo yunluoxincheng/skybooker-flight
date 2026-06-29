@@ -42,10 +42,8 @@ export function Header() {
             <Button
               key={item.href}
               variant={pathname === item.href ? "secondary" : "ghost"}
-              asChild
-            >
-              <Link href={item.href}>{item.label}</Link>
-            </Button>
+              render={<Link href={item.href}>{item.label}</Link>}
+            />
           ))}
         </nav>
 
@@ -55,32 +53,30 @@ export function Header() {
             <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
           ) : isAuthenticated && user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                      {user.nickname?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {user.nickname?.charAt(0)?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                }
+              />
               <DropdownMenuContent className="w-48" align="end">
                 <div className="px-2 py-1.5">
                   <p className="text-sm font-medium">{user.nickname}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/orders">我的订单</Link>
-                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/orders">我的订单</Link>} />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logout()}>退出登录</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button asChild size="sm">
-              <Link href="/login">登录</Link>
-            </Button>
+            <Button render={<Link href="/login">登录</Link>} size="sm" />
           )}
 
           {/* Mobile menu toggle */}
@@ -103,11 +99,9 @@ export function Header() {
               key={item.href}
               variant={pathname === item.href ? "secondary" : "ghost"}
               className="w-full justify-start"
-              asChild
+              render={<Link href={item.href}>{item.label}</Link>}
               onClick={() => setMobileOpen(false)}
-            >
-              <Link href={item.href}>{item.label}</Link>
-            </Button>
+            />
           ))}
         </nav>
       )}

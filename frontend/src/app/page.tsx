@@ -114,9 +114,7 @@ export default function HomePage() {
           <p className="text-muted-foreground mb-8">
             立即注册，体验 AI 智能购票的便捷
           </p>
-          <Button asChild size="lg">
-            <Link href="/register">免费注册</Link>
-          </Button>
+          <Button render={<Link href="/register">免费注册</Link>} size="lg" />
         </div>
       </section>
     </UserLayout>

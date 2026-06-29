@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth as useAuthContext } from "@/contexts/AuthContext"
 import * as authApi from "@/services/authApi"
 import { ApiError } from "@/lib/request"
@@ -9,13 +9,15 @@ import { ApiError } from "@/lib/request"
 export function useLogin() {
   const { login } = useAuthContext()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
 
   const handleLogin = async (email: string, password: string) => {
     setError(null)
     try {
       await login(email, password)
-      router.push("/")
+      const redirect = searchParams.get("redirect")
+      router.push(redirect || "/")
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)

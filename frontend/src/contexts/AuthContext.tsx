@@ -7,6 +7,9 @@ import {
   getUserToken,
   setUserToken,
   removeUserToken,
+  getUserRefreshToken,
+  setUserRefreshToken,
+  removeUserRefreshToken,
   setUserData,
   removeUserData,
 } from "@/lib/auth-storage"
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         removeUserToken()
+        removeUserRefreshToken()
         removeUserData()
       })
       .finally(() => setIsLoading(false))
@@ -54,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password)
     setUserToken(res.accessToken)
+    setUserRefreshToken(res.refreshToken)
     setUserData(res.user)
     setToken(res.accessToken)
     setUser(res.user)
@@ -69,11 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await authApi.logout()
+      const refreshToken = getUserRefreshToken()
+      await authApi.logout(refreshToken ?? undefined)
     } catch {
       // 即使 API 失败也清除本地状态
     }
     removeUserToken()
+    removeUserRefreshToken()
     removeUserData()
     setToken(null)
     setUser(null)
