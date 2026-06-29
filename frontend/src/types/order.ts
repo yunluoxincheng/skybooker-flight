@@ -83,15 +83,20 @@ export interface ChangeOrderDTO {
 
 /** 退票结果 VO — 匹配后端 RefundVO */
 export interface RefundVO {
+  id: number
   orderId: number
   refundAmount: number
+  feeAmount: number
   status: string
+  createdAt: string
 }
 
 /** 改签结果 VO — 匹配后端 ChangeOrderResultVO */
 export interface ChangeOrderResultVO {
-  orderId: number
-  newOrderId?: number
+  id: number
+  orderNo: string
   status: string
-  priceDiff: number
+  flightId: number
+  totalAmount: number
+  passengers: OrderPassengerVO[]
 }

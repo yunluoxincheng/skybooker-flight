@@ -1,7 +1,14 @@
 import type { CabinClass } from "./flight"
 
-/** 候补状态 */
-export type WaitlistStatus = "WAITING" | "NOTIFIED" | "CONVERTED" | "CANCELLED"
+/** 候补状态 — 匹配后端 WaitlistStatus */
+export type WaitlistStatus =
+  | "PENDING_PAYMENT"
+  | "WAITING"
+  | "SUCCESS"
+  | "FAILED"
+  | "CANCELLED"
+  | "REFUNDED"
+  | "EXPIRED"
 
 /** 候补乘客 */
 export interface WaitlistPassengerVO {
