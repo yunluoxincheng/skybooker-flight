@@ -3,7 +3,6 @@ package com.skybooker.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
-import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.order.dto.CreateOrderDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
