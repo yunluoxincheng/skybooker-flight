@@ -222,10 +222,14 @@ departureTimeEnd
 maxDurationMinutes
 directOnly
 status
+cabinClass
+passengerCount
 sort
 page
 size
 ```
+
+`cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。
 
 ### 航班详情
 

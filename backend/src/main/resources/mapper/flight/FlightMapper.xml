@@ -70,10 +70,28 @@
             AND f.airline_id = #{airlineId}
         </if>
         <if test="minPrice != null">
-            AND f.base_price >= #{minPrice}
+            <choose>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (SELECT 1 FROM flight_cabin fc
+                                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+                                AND fc.price &gt;= #{minPrice})
+                </when>
+                <otherwise>
+                    AND f.base_price &gt;= #{minPrice}
+                </otherwise>
+            </choose>
         </if>
         <if test="maxPrice != null">
-            AND f.base_price &lt;= #{maxPrice}
+            <choose>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (SELECT 1 FROM flight_cabin fc
+                                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+                                AND fc.price &lt;= #{maxPrice})
+                </when>
+                <otherwise>
+                    AND f.base_price &lt;= #{maxPrice}
+                </otherwise>
+            </choose>
         </if>
         <if test="departureTimeStart != null">
             AND TIME(f.departure_time) >= #{departureTimeStart}
@@ -167,10 +185,28 @@
             AND f.airline_id = #{airlineId}
         </if>
         <if test="minPrice != null">
-            AND f.base_price >= #{minPrice}
+            <choose>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (SELECT 1 FROM flight_cabin fc
+                                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+                                AND fc.price &gt;= #{minPrice})
+                </when>
+                <otherwise>
+                    AND f.base_price &gt;= #{minPrice}
+                </otherwise>
+            </choose>
         </if>
         <if test="maxPrice != null">
-            AND f.base_price &lt;= #{maxPrice}
+            <choose>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (SELECT 1 FROM flight_cabin fc
+                                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+                                AND fc.price &lt;= #{maxPrice})
+                </when>
+                <otherwise>
+                    AND f.base_price &lt;= #{maxPrice}
+                </otherwise>
+            </choose>
         </if>
         <if test="departureTimeStart != null">
             AND TIME(f.departure_time) >= #{departureTimeStart}
