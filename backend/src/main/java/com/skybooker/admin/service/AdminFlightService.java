@@ -29,6 +29,7 @@ public class AdminFlightService {
 
     private static final Set<String> VALID_STATUSES = Set.of("ON_TIME", "DELAYED", "CANCELLED");
     private static final Set<String> VALID_PUBLISH_STATUSES = Set.of("PUBLISHED", "DRAFT");
+    private static final Set<String> VALID_CABINS = Set.of("ECONOMY", "BUSINESS", "FIRST");
 
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
@@ -58,6 +59,7 @@ public class AdminFlightService {
 
         boolean hasSeats = flightMapper.existsSeatsByFlightId(id);
         boolean hasOrders = flightMapper.existsOrdersByFlightId(id);
+        boolean hasCabinConfig = flightCabinMapper.existsByFlightId(id);
 
         if (hasSeats || hasOrders) {
             boolean structuralChange = !existing.getFlightNo().equals(dto.getFlightNo())
@@ -71,6 +73,9 @@ public class AdminFlightService {
             if (structuralChange) {
                 throw new BusinessException(ErrorCode.FLIGHT_HAS_INVENTORY);
             }
+        } else if (hasCabinConfig && !existing.getTotalSeats().equals(dto.getTotalSeats())) {
+            // 仅有舱位配置(尚未生成座位):禁止改 totalSeats,避免 cabin 总数与航班总数漂移
+            throw new BusinessException(ErrorCode.FLIGHT_HAS_INVENTORY);
         }
 
         validateFlightForm(dto);
@@ -148,6 +153,12 @@ public class AdminFlightService {
             defaultCabin.setTotalSeats(flight.getTotalSeats());
             flightCabinMapper.batchUpsert(List.of(defaultCabin));
             cabins = flightCabinMapper.findByFlightId(flightId);
+        } else {
+            // defense in depth:防止历史脏数据或绕过 service 的调用导致 cabin 总数与航班总数漂移
+            int cabinSum = cabins.stream().mapToInt(FlightCabinVO::getTotalSeats).sum();
+            if (cabinSum != flight.getTotalSeats()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            }
         }
 
         String[] letters = {"A", "B", "C", "D", "E", "F"};
@@ -194,6 +205,10 @@ public class AdminFlightService {
         Map<String, Integer> totals = new HashMap<>();
         int sum = 0;
         for (FlightCabinDTO dto : cabinDTOs) {
+            // 白名单兜底(不依赖 List 元素级 @Valid 触发)
+            if (dto.getCabinClass() == null || !VALID_CABINS.contains(dto.getCabinClass())) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            }
             if (dto.getTotalSeats() == null || dto.getTotalSeats() <= 0
                     || dto.getPrice() == null || dto.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR);

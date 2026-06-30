@@ -65,7 +65,7 @@ public class AdminController {
 
     @PutMapping("/flights/{id}/cabins")
     public ApiResponse<List<FlightCabinVO>> setCabins(@PathVariable Long id,
-                                                       @Valid @RequestBody List<FlightCabinDTO> cabins) {
+                                                       @RequestBody List<FlightCabinDTO> cabins) {
         adminFlightService.setCabins(id, cabins);
         return ApiResponse.success(adminFlightService.getCabins(id));
     }

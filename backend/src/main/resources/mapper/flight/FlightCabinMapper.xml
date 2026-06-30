@@ -25,6 +25,10 @@
         DELETE FROM flight_cabin WHERE flight_id = #{flightId}
     </delete>
 
+    <select id="existsByFlightId" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM flight_cabin WHERE flight_id = #{flightId}
+    </select>
+
     <insert id="batchUpsert">
         INSERT INTO flight_cabin(flight_id, cabin_class, price, total_seats)
         VALUES

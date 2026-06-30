@@ -3,6 +3,7 @@ package com.skybooker.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.order.dto.CreateOrderDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -307,5 +308,62 @@ class AdminMultiCabinIntegrationTest {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.ticketAmount").value(1200.00))
                 .andExpect(jsonPath("$.data.totalAmount").value(1280.00));
+    }
+
+    @Test
+    void updateFlight_rejectsTotalSeatsChangeWhenCabinsConfigured() throws Exception {
+        Long flightId = createFlight(18);
+        setCabins(flightId, List.of(
+                cabin("FIRST", "2000.00", 2),
+                cabin("BUSINESS", "1200.00", 4),
+                cabin("ECONOMY", "500.00", 12)));
+
+        FlightFormDTO update = new FlightFormDTO();
+        update.setFlightNo("MC" + System.nanoTime() % 1000000);
+        update.setAirlineId(1L);
+        update.setDepartureAirportId(1L);
+        update.setArrivalAirportId(3L);
+        update.setDepartureTime(LocalDateTime.now().plusDays(7));
+        update.setArrivalTime(LocalDateTime.now().plusDays(7).plusHours(2));
+        update.setDurationMinutes(120);
+        update.setBasePrice(new BigDecimal("500.00"));
+        update.setTotalSeats(20); // 配过舱位后改总数,应拒绝(防 cabin 总数与航班总数漂移)
+        update.setStatus("ON_TIME");
+        update.setPublishStatus("PUBLISHED");
+        update.setDirectFlag(true);
+
+        mockMvc.perform(put("/api/admin/flights/" + flightId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40008));
+    }
+
+    @Test
+    void setCabins_rejectsInvalidCabinClass() throws Exception {
+        Long flightId = createFlight(18);
+        mockMvc.perform(put("/api/admin/flights/" + flightId + "/cabins")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of(cabin("LUXURY", "1000.00", 18)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void generateSeats_rejectsWhenCabinSumDriftsFromTotalSeats() throws Exception {
+        Long flightId = createFlight(18);
+        setCabins(flightId, List.of(
+                cabin("FIRST", "2000.00", 2),
+                cabin("BUSINESS", "1200.00", 4),
+                cabin("ECONOMY", "500.00", 12)));
+        // 模拟脏数据:直接改 flight.total_seats 破坏不变量(绕过 service 守护),验证 generateSeats 二次校验
+        jdbcTemplate.update("UPDATE flight SET total_seats = 20 WHERE id = ?", flightId);
+
+        mockMvc.perform(post("/api/admin/flights/" + flightId + "/generate-seats")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
     }
 }
