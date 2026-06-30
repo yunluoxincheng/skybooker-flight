@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.ai.parser.ParsedCondition;
+import com.skybooker.ai.service.FlightRecommendationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +45,9 @@ class CabinPriceFilterIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private FlightRecommendationService recommendationService;
 
     private String adminToken;
 
@@ -179,5 +185,31 @@ class CabinPriceFilterIntegrationTest {
                         .param("maxPrice", "600"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[*].flightNo").value(hasItem("CPFBASE")));
+    }
+
+    @Test
+    void recommend_cabinPriceSort_ascByCabinPrice() throws Exception {
+        // base_price 与 BUSINESS 价相反:RECHI base 400 < RECLO base 500,但 BUSINESS RECLO 850 < RECHI 880
+        // 若排序仍按 base_price 会得 [RECHI,RECLO];按舱位价应为 [RECLO,RECHI]
+        // 用独特价格区间 [830,900] 隔离,排除残留 CPFLO(800)/CPFHI(1200) 等航班
+        createMultiCabinFlight("RECLO", 6, 2, "850.00", "500.00");
+        createMultiCabinFlight("RECHI", 6, 2, "880.00", "400.00");
+
+        ParsedCondition condition = ParsedCondition.builder()
+                .departureCity("上海").arrivalCity("北京")
+                .cabinClass("BUSINESS").sort("PRICE_ASC")
+                .minPrice(new BigDecimal("830")).maxPrice(new BigDecimal("900"))
+                .build();
+
+        List<Map<String, Object>> cards = recommendationService.recommend(condition, null);
+
+        int idxLo = -1, idxHi = -1;
+        for (int i = 0; i < cards.size(); i++) {
+            String no = String.valueOf(cards.get(i).get("flightNo"));
+            if ("RECLO".equals(no)) idxLo = i;
+            if ("RECHI".equals(no)) idxHi = i;
+        }
+        assertTrue(idxLo >= 0 && idxHi >= 0, "两个公务舱航班都应返回");
+        assertTrue(idxLo < idxHi, "AI 推荐应按公务舱价升序(RECLO 850 < RECHI 880),而非 base_price");
     }
 }
