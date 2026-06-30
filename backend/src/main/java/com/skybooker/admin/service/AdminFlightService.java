@@ -8,6 +8,7 @@ import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.entity.Flight;
 import com.skybooker.flight.entity.FlightCabin;
 import com.skybooker.flight.entity.FlightSeat;
+import com.skybooker.flight.enums.FlightSort;
 import com.skybooker.flight.mapper.FlightCabinMapper;
 import com.skybooker.flight.mapper.FlightMapper;
 import com.skybooker.flight.vo.FlightCabinVO;
@@ -29,7 +30,6 @@ public class AdminFlightService {
 
     private static final Set<String> VALID_STATUSES = Set.of("ON_TIME", "DELAYED", "CANCELLED");
     private static final Set<String> VALID_PUBLISH_STATUSES = Set.of("PUBLISHED", "DRAFT");
-    private static final Set<String> VALID_CABINS = Set.of("ECONOMY", "BUSINESS", "FIRST");
 
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
@@ -206,7 +206,7 @@ public class AdminFlightService {
         int sum = 0;
         for (FlightCabinDTO dto : cabinDTOs) {
             // 白名单兜底(不依赖 List 元素级 @Valid 触发)
-            if (dto.getCabinClass() == null || !VALID_CABINS.contains(dto.getCabinClass())) {
+            if (!FlightSort.isValidCabin(dto.getCabinClass())) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR);
             }
             if (dto.getTotalSeats() == null || dto.getTotalSeats() <= 0

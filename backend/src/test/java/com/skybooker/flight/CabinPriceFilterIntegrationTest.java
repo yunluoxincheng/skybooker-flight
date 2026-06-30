@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -49,6 +50,9 @@ class CabinPriceFilterIntegrationTest {
     @Autowired
     private FlightRecommendationService recommendationService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private String adminToken;
 
     @BeforeEach
@@ -73,6 +77,8 @@ class CabinPriceFilterIntegrationTest {
     /** 创建上海→北京、PUBLISHED、含 BUSINESS 舱座位的多舱位航班。 */
     private void createMultiCabinFlight(String flightNo, int totalSeats, int businessSeats,
                                         String businessPrice, String economyPrice) throws Exception {
+        cleanupFlight(flightNo); // 清理同 flightNo 残留,避免 @DirtiesContext 不清 DB 的累积干扰
+
         FlightFormDTO dto = new FlightFormDTO();
         dto.setFlightNo(flightNo);
         dto.setAirlineId(1L);
@@ -107,6 +113,13 @@ class CabinPriceFilterIntegrationTest {
         mockMvc.perform(post("/api/admin/flights/" + flightId + "/generate-seats")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
+    }
+
+    /** 清理指定 flightNo 的残留航班及其座位/舱位配置(测试间 DB 累积隔离)。 */
+    private void cleanupFlight(String flightNo) {
+        jdbcTemplate.update("DELETE fs FROM flight_seat fs JOIN flight f ON fs.flight_id = f.id WHERE f.flight_no = ?", flightNo);
+        jdbcTemplate.update("DELETE fc FROM flight_cabin fc JOIN flight f ON fc.flight_id = f.id WHERE f.flight_no = ?", flightNo);
+        jdbcTemplate.update("DELETE FROM flight WHERE flight_no = ?", flightNo);
     }
 
     @Test

@@ -11,14 +11,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class FlightRecommendationService {
 
     private static final int DEFAULT_LIMIT = 3;
-    private static final Set<String> VALID_CABINS = Set.of("ECONOMY", "BUSINESS", "FIRST");
 
     private final FlightMapper flightMapper;
 
@@ -100,19 +98,8 @@ public class FlightRecommendationService {
     private String resolveOrderBy(String sort, String cabinClass) {
         FlightSort flightSort = FlightSort.fromParam(sort);
         if (flightSort == null) flightSort = FlightSort.DEFAULT;
-        // cabinClass 经白名单校验后才拼入 ORDER BY(${}),防 SQL 注入
-        boolean hasCabin = cabinClass != null && VALID_CABINS.contains(cabinClass);
-        return switch (flightSort) {
-            // 指定舱位时按该舱位价排序(与 FlightService.sortToOrderBy 一致);否则按 base_price
-            case PRICE_ASC -> hasCabin
-                    ? "(SELECT MIN(fc.price) FROM flight_cabin fc WHERE fc.flight_id = f.id AND fc.cabin_class = '" + cabinClass + "') ASC, f.departure_time ASC"
-                    : "f.base_price ASC, f.departure_time ASC";
-            case DURATION_ASC -> "f.duration_minutes ASC, f.departure_time ASC";
-            case TIME_ASC -> "f.departure_time ASC";
-            case SEATS_DESC -> "f.remaining_seats DESC, f.departure_time ASC";
-            case PUNCTUAL_DESC -> "f.punctuality_rate DESC, f.departure_time ASC";
-            default -> "f.departure_time ASC";
-        };
+        // 排序 SQL 由 FlightSort.orderBy 统一生成(cabinClass 拼入前经 isValidCabin 校验)
+        return flightSort.orderBy(cabinClass);
     }
 
 }
