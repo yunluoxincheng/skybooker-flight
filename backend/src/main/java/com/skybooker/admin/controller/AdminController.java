@@ -1,5 +1,6 @@
 package com.skybooker.admin.controller;
 
+import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
@@ -10,6 +11,7 @@ import com.skybooker.admin.vo.OrderStatusDistributionVO;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
+import com.skybooker.flight.vo.FlightCabinVO;
 import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.order.vo.OrderVO;
 import jakarta.validation.Valid;
@@ -54,6 +56,18 @@ public class AdminController {
     public ApiResponse<Void> unpublishFlight(@PathVariable Long id) {
         adminFlightService.unpublishFlight(id);
         return ApiResponse.success();
+    }
+
+    @GetMapping("/flights/{id}/cabins")
+    public ApiResponse<List<FlightCabinVO>> getCabins(@PathVariable Long id) {
+        return ApiResponse.success(adminFlightService.getCabins(id));
+    }
+
+    @PutMapping("/flights/{id}/cabins")
+    public ApiResponse<List<FlightCabinVO>> setCabins(@PathVariable Long id,
+                                                       @Valid @RequestBody List<FlightCabinDTO> cabins) {
+        adminFlightService.setCabins(id, cabins);
+        return ApiResponse.success(adminFlightService.getCabins(id));
     }
 
     @PostMapping("/flights/{id}/generate-seats")

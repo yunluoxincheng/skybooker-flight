@@ -136,6 +136,17 @@ public interface FlightMapper {
 </select>
 ```
 
+### 多舱位座位生成
+
+座位生成(`AdminFlightService.generateSeats`)按舱位配置(`flight_cabin`)分区排座，支持经济/公务/头等舱：
+
+- 管理员通过 `PUT /api/admin/flights/{id}/cabins` 配置各舱 `price` 与 `total_seats`，service 层校验各舱 `total_seats` 之和等于 `flight.total_seats`、且数量符合现实布局 ECONOMY ≥ BUSINESS ≥ FIRST；
+- `generateSeats` 读取 `flight_cabin`(已按 FIRST→BUSINESS→ECONOMY 排序)，每舱从新排起、舱位间不混排，依次生成 `flight_seat`(seat_no = 行号 + 字母 A–F，price 取该舱价)；
+- 未显式配置舱位时回退为单经济舱(`base_price` / `total_seats`)，保持"创建即可生成"的兼容流程；
+- 舱位配置仅在未生成座位时可写，已生成则冻结(与 `updateFlight` 同守护)。
+
+各舱实时余座不维护计数器，按 `cabin_class` 聚合 `flight_seat.status = 'AVAILABLE'` 得到；`flight.remaining_seats` 仍为航班总余座，下单/退票/候补的扣减逻辑不因多舱位而改变。
+
 ## 6. 事务设计
 
 需要使用事务的方法：

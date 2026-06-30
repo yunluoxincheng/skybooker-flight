@@ -233,6 +233,8 @@ size
 GET /api/flights/{id}
 ```
 
+返回 `FlightVO`，其中 `cabins` 为该航班各舱位配置列表 `[{cabinClass, price, totalSeats, availableSeats}]`，`availableSeats` 为按舱位实时聚合的可选座位数；未配置舱位的航班为空列表，前端 booking 页据此展示多舱位选择。
+
 ### 查询座位图
 
 ```http
@@ -600,6 +602,8 @@ POST   /api/admin/flights
 PUT    /api/admin/flights/{id}
 POST   /api/admin/flights/{id}/publish
 POST   /api/admin/flights/{id}/unpublish
+GET    /api/admin/flights/{id}/cabins      # 查询舱位配置(各舱 price/totalSeats/availableSeats)
+PUT    /api/admin/flights/{id}/cabins      # 设置各舱位价格与座位数(仅未生成座位时；校验 sum=totalSeats、ECONOMY≥BUSINESS≥FIRST)
 POST   /api/admin/flights/{id}/generate-seats
 ```
 

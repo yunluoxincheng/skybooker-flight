@@ -1,12 +1,16 @@
 package com.skybooker.admin.service;
 
+import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.entity.Flight;
+import com.skybooker.flight.entity.FlightCabin;
 import com.skybooker.flight.entity.FlightSeat;
+import com.skybooker.flight.mapper.FlightCabinMapper;
 import com.skybooker.flight.mapper.FlightMapper;
+import com.skybooker.flight.vo.FlightCabinVO;
 import com.skybooker.flight.vo.FlightVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -25,6 +31,7 @@ public class AdminFlightService {
     private static final Set<String> VALID_PUBLISH_STATUSES = Set.of("PUBLISHED", "DRAFT");
 
     private final FlightMapper flightMapper;
+    private final FlightCabinMapper flightCabinMapper;
 
     public PageResponse<FlightVO> listFlights(int page, int size) {
         int offset = (page - 1) * size;
@@ -91,6 +98,39 @@ public class AdminFlightService {
     }
 
     @Transactional
+    public void setCabins(Long flightId, List<FlightCabinDTO> cabinDTOs) {
+        Flight flight = flightMapper.findById(flightId);
+        if (flight == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        // 舱位配置仅在未生成座位时可写(与 updateFlight 同守护),避免与已售座位/订单快照不一致
+        if (flightMapper.existsSeatsByFlightId(flightId)) {
+            throw new BusinessException(ErrorCode.FLIGHT_HAS_INVENTORY);
+        }
+        if (cabinDTOs == null || cabinDTOs.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        validateCabinConfig(cabinDTOs, flight.getTotalSeats());
+
+        flightCabinMapper.deleteByFlightId(flightId);
+        List<FlightCabin> cabins = new ArrayList<>();
+        for (FlightCabinDTO dto : cabinDTOs) {
+            FlightCabin c = new FlightCabin();
+            c.setFlightId(flightId);
+            c.setCabinClass(dto.getCabinClass());
+            c.setPrice(dto.getPrice());
+            c.setTotalSeats(dto.getTotalSeats());
+            cabins.add(c);
+        }
+        flightCabinMapper.batchUpsert(cabins);
+    }
+
+    public List<FlightCabinVO> getCabins(Long flightId) {
+        if (flightMapper.findById(flightId) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return flightCabinMapper.findByFlightId(flightId);
+    }
+
+    @Transactional
     public void generateSeats(Long flightId) {
         Flight flight = flightMapper.findById(flightId);
         if (flight == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -98,27 +138,86 @@ public class AdminFlightService {
         if (flight.getBasePrice().compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         if (flightMapper.existsSeatsByFlightId(flightId)) throw new BusinessException(ErrorCode.SEAT_ALREADY_EXISTS);
 
+        List<FlightCabinVO> cabins = flightCabinMapper.findByFlightId(flightId);
+        if (cabins.isEmpty()) {
+            // 未显式配置舱位:回退为单经济舱(base_price / total_seats),保持"创建即可生成"的兼容流程
+            FlightCabin defaultCabin = new FlightCabin();
+            defaultCabin.setFlightId(flightId);
+            defaultCabin.setCabinClass("ECONOMY");
+            defaultCabin.setPrice(flight.getBasePrice());
+            defaultCabin.setTotalSeats(flight.getTotalSeats());
+            flightCabinMapper.batchUpsert(List.of(defaultCabin));
+            cabins = flightCabinMapper.findByFlightId(flightId);
+        }
+
         String[] letters = {"A", "B", "C", "D", "E", "F"};
-        int totalSeats = flight.getTotalSeats();
         List<FlightSeat> seats = new ArrayList<>();
         int seatCount = 0;
-        for (int row = 1; seatCount < totalSeats; row++) {
-            for (String letter : letters) {
-                if (seatCount >= totalSeats) break;
+        int row = 1;
+        // cabins 已按 FIRST→BUSINESS→ECONOMY 排序;每舱从新排起,舱位间不混排
+        for (FlightCabinVO cabin : cabins) {
+            int letterIdx = 0;
+            for (int i = 0; i < cabin.getTotalSeats(); i++) {
+                String letter = letters[letterIdx];
                 FlightSeat seat = new FlightSeat();
                 seat.setFlightId(flightId);
                 seat.setSeatNo(row + letter);
-                seat.setCabinClass("ECONOMY");
+                seat.setCabinClass(cabin.getCabinClass());
                 seat.setSeatType(getSeatType(letter));
-                seat.setPrice(flight.getBasePrice());
+                seat.setPrice(cabin.getPrice());
                 seat.setStatus("AVAILABLE");
                 seats.add(seat);
                 seatCount++;
+                letterIdx++;
+                if (letterIdx == letters.length) {
+                    letterIdx = 0;
+                    row++;
+                }
+            }
+            // 当前排未填满则下一舱另起新排,保证舱位物理边界(符合真实机型布局)
+            if (letterIdx != 0) {
+                row++;
             }
         }
 
         flightMapper.batchInsertFlightSeats(seats);
         flightMapper.setRemainingSeats(flightId, seatCount);
+    }
+
+    /**
+     * 舱位配置校验:
+     * - 舱位不重复
+     * - 各舱 totalSeats 之和 = flight.totalSeats(配置与实际生成座位 1:1,无遗漏无溢出)
+     * - 数量符合现实布局 ECONOMY ≥ BUSINESS ≥ FIRST(仅校验存在的舱位,避免经济舱比公务舱少等反常配置)
+     */
+    private void validateCabinConfig(List<FlightCabinDTO> cabinDTOs, int flightTotalSeats) {
+        Map<String, Integer> totals = new HashMap<>();
+        int sum = 0;
+        for (FlightCabinDTO dto : cabinDTOs) {
+            if (dto.getTotalSeats() == null || dto.getTotalSeats() <= 0
+                    || dto.getPrice() == null || dto.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            }
+            if (totals.put(dto.getCabinClass(), dto.getTotalSeats()) != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            }
+            sum += dto.getTotalSeats();
+        }
+        if (sum != flightTotalSeats) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        Integer first = totals.get("FIRST");
+        Integer business = totals.get("BUSINESS");
+        Integer economy = totals.get("ECONOMY");
+        if (first != null && business != null && first > business) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (business != null && economy != null && business > economy) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (first != null && economy != null && first > economy) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     private String getSeatType(String letter) {

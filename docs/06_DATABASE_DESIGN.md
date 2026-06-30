@@ -24,6 +24,7 @@
 | airline | 航空公司表 |
 | airport | 机场表 |
 | flight | 航班表 |
+| flight_cabin | 航班舱位配置表(经济/公务/头等舱价格与座位数) |
 | flight_seat | 航班座位表 |
 | ticket_order | 订单表 |
 | order_passenger | 订单乘客表 |
@@ -79,6 +80,24 @@
 - 上下架状态。
 
 `remaining_seats` 表示可售余票缓存，必须与 `flight_seat` 状态保持一致。创建订单锁座、支付出票、取消订单、退票、候补兑现出票和改签都必须在同一事务中同步维护余票；查询展示可以优先使用该字段，定期校验时可按 `flight_seat.status = 'AVAILABLE'` 聚合核对。
+
+## 3.1 航班舱位配置表 flight_cabin
+
+一个航班多行，每行描述一个舱位(ECONOMY/BUSINESS/FIRST)的价格与座位数，供管理后台配置与座位生成使用。
+
+关键字段：
+
+- flight_id；
+- cabin_class(ECONOMY/BUSINESS/FIRST，唯一键 `uk_flight_cabin` 限制同一航班同舱位仅一行)；
+- price(该舱位票价，生成座位时写入 `flight_seat.price`)；
+- total_seats(该舱位座位数)。
+
+约束：
+
+- 各舱 `total_seats` 之和必须等于 `flight.total_seats`(配置与实际生成座位 1:1，无遗漏无溢出)；
+- 舱位数量须符合现实机型布局 ECONOMY ≥ BUSINESS ≥ FIRST；
+- 此表**不维护** remaining_seats 计数器，各舱实时余座从 `flight_seat` 按 `cabin_class` 聚合 AVAILABLE 座位数得到(复用既有按舱位查询)，避免与 `flight.remaining_seats` 双写不一致；
+- 舱位配置仅在航班**未生成座位**时可写，已生成座位后冻结(与 `updateFlight` 同守护)，防止与已售座位/订单票价快照冲突。
 
 ## 4. 座位表 flight_seat
 

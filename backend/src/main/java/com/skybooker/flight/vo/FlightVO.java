@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -35,4 +36,6 @@ public class FlightVO {
     private Integer directFlag;
     private String baggageAllowance;
     private BigDecimal punctualityRate;
+    /** 各舱位价格/配置/实时余座,供前端 booking 页选舱;未配置舱位的航班为空列表。 */
+    private List<FlightCabinVO> cabins;
 }

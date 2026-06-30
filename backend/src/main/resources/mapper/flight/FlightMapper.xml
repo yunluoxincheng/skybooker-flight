@@ -28,6 +28,10 @@
         <result property="directFlag" column="direct_flag"/>
         <result property="baggageAllowance" column="baggage_allowance"/>
         <result property="punctualityRate" column="punctuality_rate"/>
+        <collection property="cabins"
+                    column="{flightId=id}"
+                    select="com.skybooker.flight.mapper.FlightCabinMapper.findByFlightId"
+                    ofType="com.skybooker.flight.vo.FlightCabinVO"/>
     </resultMap>
 
     <sql id="flightSelect">

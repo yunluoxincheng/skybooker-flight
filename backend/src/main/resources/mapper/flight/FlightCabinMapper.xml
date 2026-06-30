@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.flight.mapper.FlightCabinMapper">
+
+    <resultMap id="flightCabinVOResult" type="com.skybooker.flight.vo.FlightCabinVO" autoMapping="false">
+        <result property="cabinClass" column="cabin_class"/>
+        <result property="price" column="price"/>
+        <result property="totalSeats" column="total_seats"/>
+        <result property="availableSeats" column="available_seats"/>
+    </resultMap>
+
+    <select id="findByFlightId" resultMap="flightCabinVOResult">
+        SELECT fc.cabin_class, fc.price, fc.total_seats,
+               (SELECT COUNT(*) FROM flight_seat fs
+                WHERE fs.flight_id = fc.flight_id
+                  AND fs.cabin_class = fc.cabin_class
+                  AND fs.status = 'AVAILABLE') AS available_seats
+        FROM flight_cabin fc
+        WHERE fc.flight_id = #{flightId}
+        ORDER BY FIELD(fc.cabin_class, 'FIRST', 'BUSINESS', 'ECONOMY')
+    </select>
+
+    <delete id="deleteByFlightId">
+        DELETE FROM flight_cabin WHERE flight_id = #{flightId}
+    </delete>
+
+    <insert id="batchUpsert">
+        INSERT INTO flight_cabin(flight_id, cabin_class, price, total_seats)
+        VALUES
+        <foreach collection="cabins" item="c" separator=",">
+            (#{c.flightId}, #{c.cabinClass}, #{c.price}, #{c.totalSeats})
+        </foreach>
+        ON DUPLICATE KEY UPDATE price = VALUES(price), total_seats = VALUES(total_seats)
+    </insert>
+
+</mapper>
