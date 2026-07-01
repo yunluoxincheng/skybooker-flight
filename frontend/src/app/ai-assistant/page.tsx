@@ -224,7 +224,7 @@ export default function AiAssistantPage() {
           {!isAuthenticated ? (
             <div className="text-center py-3">
               <p className="text-sm text-muted-foreground mb-2">请先登录以使用 AI 助手</p>
-              <Button render={<a href="/login?redirect=/ai-assistant">去登录</a>} size="sm" />
+              <Button render={<a href="/login?redirect=/ai-assistant">去登录</a>} size="sm" nativeButton={false} />
             </div>
           ) : (
             <div className="flex items-end gap-2">
