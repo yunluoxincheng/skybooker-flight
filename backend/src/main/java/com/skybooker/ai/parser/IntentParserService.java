@@ -72,6 +72,10 @@ public class IntentParserService implements IntentParser {
             "(.+?)[→\\->](.+?)");
     private static final Pattern DESTINATION_ONLY = Pattern.compile(
             "(?:我想|想|我要|帮我)?(?:去|飞往|飞)([\\u4e00-\\u9fa5]{2,8})");
+    private static final Pattern DEPARTURE_CITY_ONLY = Pattern.compile(
+            "(?:从|自)([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
+    private static final Pattern ARRIVAL_CITY_ONLY = Pattern.compile(
+            "(?:目的地|到达|飞往|去)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DATE_PATTERN = Pattern.compile(
             "(\\d{4})[年/-](\\d{1,2})[月/-](\\d{1,2})[日号]?");
     private static final Pattern SHORT_DATE = Pattern.compile(
@@ -82,6 +86,8 @@ public class IntentParserService implements IntentParser {
             "(?:周|星期)[一二三四五六日天].*(?:周|星期)[一二三四五六日天].*(?:都可以|均可|都行|任选)");
     private static final Pattern PASSENGER_PATTERN = Pattern.compile(
             "(?<![0-9-])(\\d{1,2})(?:个?人|位)(?!\\d)");
+    private static final Pattern PASSENGER_CN_PATTERN = Pattern.compile(
+            "([一二两三四五六七八九十])(?:个?人|位)");
     private static final Pattern PRICE_PATTERN = Pattern.compile(
             "(?:低于|不超过|最高|最多|预算)[^\\d]?(\\d+)");
     private static final Pattern DURATION_PATTERN = Pattern.compile(
@@ -149,6 +155,20 @@ public class IntentParserService implements IntentParser {
             }
         }
 
+        if (departureCity == null) {
+            Matcher departureOnly = DEPARTURE_CITY_ONLY.matcher(text);
+            if (departureOnly.find()) {
+                departureCity = resolveCity(departureOnly.group(1).trim());
+            }
+        }
+
+        if (arrivalCity == null) {
+            Matcher arrivalOnly = ARRIVAL_CITY_ONLY.matcher(text);
+            if (arrivalOnly.find()) {
+                arrivalCity = resolveCity(arrivalOnly.group(1).trim());
+            }
+        }
+
         // Date parsing - explicit first
         if (!ambiguousDateExpression) {
             Matcher dateMatcher = DATE_PATTERN.matcher(text);
@@ -178,6 +198,11 @@ public class IntentParserService implements IntentParser {
         Matcher passengerMatcher = PASSENGER_PATTERN.matcher(text);
         if (passengerMatcher.find()) {
             passengerCount = Integer.parseInt(passengerMatcher.group(1));
+        } else {
+            Matcher passengerCnMatcher = PASSENGER_CN_PATTERN.matcher(text);
+            if (passengerCnMatcher.find()) {
+                passengerCount = parseChinesePassengerCount(passengerCnMatcher.group(1));
+            }
         }
 
         // Cabin class
@@ -390,6 +415,22 @@ public class IntentParserService implements IntentParser {
             }
         }
         return null;
+    }
+
+    private Integer parseChinesePassengerCount(String text) {
+        return switch (text) {
+            case "一" -> 1;
+            case "二", "两" -> 2;
+            case "三" -> 3;
+            case "四" -> 4;
+            case "五" -> 5;
+            case "六" -> 6;
+            case "七" -> 7;
+            case "八" -> 8;
+            case "九" -> 9;
+            case "十" -> 10;
+            default -> null;
+        };
     }
 
     private boolean hasAmbiguousDateExpression(String text) {

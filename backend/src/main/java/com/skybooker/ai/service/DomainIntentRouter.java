@@ -7,7 +7,9 @@ import com.skybooker.ai.config.LlmEffectiveConfig;
 import com.skybooker.ai.entity.AiChatMessage;
 import com.skybooker.ai.enums.AiReplyType;
 import com.skybooker.ai.enums.DomainIntent;
+import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.parser.LlmChatClient;
+import com.skybooker.ai.parser.ParsedCondition;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,13 +52,20 @@ public class DomainIntentRouter {
     private final DynamicLlmConfigProvider configProvider;
     private final LlmChatClient llmChatClient;
     private final ObjectMapper objectMapper;
+    private final IntentParserService ruleIntentParserService;
 
     public RouteResult route(String message, AiChatMessage previousAssistant) {
         LlmEffectiveConfig cfg = configProvider.getConfig();
         String text = message == null ? "" : message.trim();
 
-        if (hasPendingFollowUp(previousAssistant) && isShortSlotFill(text)) {
-            return new RouteResult(DomainIntent.FLIGHT_SEARCH_CONTINUATION, cfg, false);
+        if (hasPendingFollowUp(previousAssistant)) {
+            DomainIntent explicitNonSearch = explicitNonSearchRoute(text);
+            if (explicitNonSearch != null) {
+                return new RouteResult(explicitNonSearch, cfg, false);
+            }
+            if (isContinuationSlotFill(text)) {
+                return new RouteResult(DomainIntent.FLIGHT_SEARCH_CONTINUATION, cfg, false);
+            }
         }
 
         DomainIntent deterministic = deterministicRoute(text);
@@ -104,6 +113,27 @@ public class DomainIntentRouter {
         return null;
     }
 
+    private DomainIntent explicitNonSearchRoute(String text) {
+        if (text.isBlank()) {
+            return null;
+        }
+
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (containsAny(lower, OUT_OF_SCOPE_KEYWORDS)) {
+            return DomainIntent.OUT_OF_SCOPE;
+        }
+        if (isDestinationContent(text) || containsAny(text, TRAVEL_ADVICE_KEYWORDS)) {
+            return DomainIntent.TRAVEL_ADVICE;
+        }
+        if (containsAny(text, PLATFORM_HELP_KEYWORDS) && !hasFlightSearchSignal(text)) {
+            return DomainIntent.PLATFORM_HELP;
+        }
+        if (isGreeting(lower)) {
+            return DomainIntent.GREETING;
+        }
+        return null;
+    }
+
     private boolean isGreeting(String lower) {
         for (String keyword : GREETING_KEYWORDS) {
             if (lower.equals(keyword.toLowerCase(Locale.ROOT)) || lower.contains(keyword.toLowerCase(Locale.ROOT))) {
@@ -142,6 +172,48 @@ public class DomainIntentRouter {
             log.warn("LLM domain intent routing failed, falling back to deterministic routing: {}", sanitizeErrorMessage(e.getMessage()));
             return null;
         }
+    }
+
+    private boolean isContinuationSlotFill(String text) {
+        if (text.isBlank()) {
+            return false;
+        }
+        if (hasFlightSearchSignal(text) || isShortSlotFill(text)) {
+            return true;
+        }
+
+        ParsedCondition parsed = ruleIntentParserService.parse(text);
+        return hasParsedSearchSignal(parsed)
+                || hasSpecificFollowUp(parsed);
+    }
+
+    private boolean hasFlightSearchSignal(String text) {
+        return containsAny(text, FLIGHT_KEYWORDS)
+                || ROUTE_PATTERN.matcher(text).find()
+                || CITY_DESTINATION.matcher(text).matches();
+    }
+
+    private boolean hasParsedSearchSignal(ParsedCondition parsed) {
+        if (parsed == null) {
+            return false;
+        }
+        return parsed.getDepartureCity() != null
+                || parsed.getArrivalCity() != null
+                || parsed.getDepartureDate() != null
+                || parsed.getCabinClass() != null
+                || parsed.getAirlineRaw() != null
+                || parsed.getMaxPrice() != null
+                || parsed.getDepartureTimeStart() != null
+                || parsed.getDepartureTimeEnd() != null
+                || parsed.getMaxDurationMinutes() != null
+                || parsed.getDirectOnly() != null
+                || parsed.getSort() != null;
+    }
+
+    private boolean hasSpecificFollowUp(ParsedCondition parsed) {
+        return parsed != null
+                && parsed.getFollowUpQuestion() != null
+                && parsed.getFollowUpQuestion().contains("一个出发日期");
     }
 
     private boolean hasPendingFollowUp(AiChatMessage previousAssistant) {
@@ -197,6 +269,8 @@ public class DomainIntentRouter {
             return "";
         }
         return message
+                .replaceAll("(?i)(Authorization\\s*:\\s*)(Bearer\\s+)?[A-Za-z0-9._~+/=-]+", "$1***")
+                .replaceAll("(?i)((?:x-)?api-key\\s*[:=]?\\s*)[A-Za-z0-9._~+/=-]+", "$1***")
                 .replaceAll("(?i)Bearer\\s+[A-Za-z0-9._~+/=-]+", "Bearer ***")
                 .replaceAll("sk-[A-Za-z0-9._-]+", "sk-***");
     }

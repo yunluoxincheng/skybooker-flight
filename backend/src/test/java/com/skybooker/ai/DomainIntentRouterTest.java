@@ -7,6 +7,7 @@ import com.skybooker.ai.config.LlmConfigCrypto;
 import com.skybooker.ai.entity.AiChatMessage;
 import com.skybooker.ai.enums.DomainIntent;
 import com.skybooker.ai.mapper.AiLlmConfigMapper;
+import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.service.DomainIntentRouter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ class DomainIntentRouterTest {
 
     private AiLlmProperties properties;
     private ObjectMapper objectMapper;
+    private IntentParserService ruleIntentParserService;
 
     @BeforeEach
     void setUp() {
@@ -27,6 +29,7 @@ class DomainIntentRouterTest {
         properties.setApiKey("test-key");
         properties.setModel("test-model");
         objectMapper = new ObjectMapper();
+        ruleIntentParserService = new IntentParserService();
     }
 
     @Test
@@ -61,6 +64,32 @@ class DomainIntentRouterTest {
     }
 
     @Test
+    void route_previousFollowUpNaturalSlotFillWins() {
+        DomainIntentRouter router = newRouter("{}");
+        AiChatMessage previous = new AiChatMessage();
+        previous.setExtraJson("""
+                {"replyType":"FOLLOW_UP","missingFields":["departureDate"],"parsedCondition":{"departureCity":"上海","arrivalCity":"北京"}}
+                """);
+
+        assertThat(router.route("我想明天上午从广州出发", previous).intent())
+                .isEqualTo(DomainIntent.FLIGHT_SEARCH_CONTINUATION);
+        assertThat(router.route("下周一上午走，经济舱，一个人", previous).intent())
+                .isEqualTo(DomainIntent.FLIGHT_SEARCH_CONTINUATION);
+    }
+
+    @Test
+    void route_previousFollowUpExplicitNonSearchStillWins() {
+        DomainIntentRouter router = newRouter("{}");
+        AiChatMessage previous = new AiChatMessage();
+        previous.setExtraJson("""
+                {"replyType":"FOLLOW_UP","missingFields":["departureDate"],"parsedCondition":{"departureCity":"上海","arrivalCity":"北京"}}
+                """);
+
+        assertThat(router.route("退票怎么操作", previous).intent()).isEqualTo(DomainIntent.PLATFORM_HELP);
+        assertThat(router.route("帮我写代码", previous).intent()).isEqualTo(DomainIntent.OUT_OF_SCOPE);
+    }
+
+    @Test
     void route_llmCanClassifyUnclearTravelIntent() {
         properties.setEnabled(true);
         DomainIntentRouter router = newRouter("{\"intent\":\"TRAVEL_ADVICE\"}");
@@ -76,13 +105,14 @@ class DomainIntentRouterTest {
         properties.setEnabled(true);
         DomainIntentRouter router = new DomainIntentRouter(providerFromProperties(properties), (system, user, cfg) -> {
             throw new RuntimeException("timeout Bearer sk-secret");
-        }, objectMapper);
+        }, objectMapper, ruleIntentParserService);
 
         assertThat(router.route("帮我安排一个放松计划", null).intent()).isEqualTo(DomainIntent.OUT_OF_SCOPE);
     }
 
     private DomainIntentRouter newRouter(String llmResponse) {
-        return new DomainIntentRouter(providerFromProperties(properties), (system, user, cfg) -> llmResponse, objectMapper);
+        return new DomainIntentRouter(providerFromProperties(properties), (system, user, cfg) -> llmResponse,
+                objectMapper, ruleIntentParserService);
     }
 
     private DynamicLlmConfigProvider providerFromProperties(AiLlmProperties props) {

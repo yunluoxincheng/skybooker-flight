@@ -209,8 +209,12 @@ public class AiChatService {
         if (result.getArrivalCity() == null) missing.add("arrivalCity");
         if (result.getDepartureDate() == null) missing.add("departureDate");
         if (!missing.isEmpty()) {
+            String followUpQuestion = current.getFollowUpQuestion();
+            if (followUpQuestion == null || followUpQuestion.isBlank()) {
+                followUpQuestion = buildFollowUpQuestion(missing);
+            }
             return result.toBuilder().missingFields(missing)
-                    .followUpQuestion(buildFollowUpQuestion(missing))
+                    .followUpQuestion(followUpQuestion)
                     .quickActionLabels(List.of())
                     .build();
         }

@@ -39,6 +39,8 @@ public class CompositeIntentParser implements IntentParser {
             return "";
         }
         return message
+                .replaceAll("(?i)(Authorization\\s*:\\s*)(Bearer\\s+)?[A-Za-z0-9._~+/=-]+", "$1***")
+                .replaceAll("(?i)((?:x-)?api-key\\s*[:=]?\\s*)[A-Za-z0-9._~+/=-]+", "$1***")
                 .replaceAll("(?i)Bearer\\s+[A-Za-z0-9._~+/=-]+", "Bearer ***")
                 .replaceAll("sk-[A-Za-z0-9._-]+", "sk-***");
     }
