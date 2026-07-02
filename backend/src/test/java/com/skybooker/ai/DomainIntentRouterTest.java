@@ -36,10 +36,10 @@ class DomainIntentRouterTest {
     void route_commonDeterministicIntents() {
         DomainIntentRouter router = newRouter("{}");
 
-        assertThat(router.route("你好", null).intent()).isEqualTo(DomainIntent.GREETING);
-        assertThat(router.route("北京有什么好玩", null).intent()).isEqualTo(DomainIntent.TRAVEL_ADVICE);
-        assertThat(router.route("退票怎么操作", null).intent()).isEqualTo(DomainIntent.PLATFORM_HELP);
-        assertThat(router.route("帮我查上海到北京机票", null).intent()).isEqualTo(DomainIntent.FLIGHT_SEARCH);
+        assertThat(router.route("你好", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("北京有什么好玩", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("退票怎么操作", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("帮我查上海到北京机票", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
         assertThat(router.route("帮我写代码", null).intent()).isEqualTo(DomainIntent.OUT_OF_SCOPE);
     }
 
@@ -47,9 +47,9 @@ class DomainIntentRouterTest {
     void route_destinationBoundaries() {
         DomainIntentRouter router = newRouter("{}");
 
-        assertThat(router.route("我想去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_SEARCH);
-        assertThat(router.route("去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_SEARCH);
-        assertThat(router.route("北京旅行推荐", null).intent()).isEqualTo(DomainIntent.TRAVEL_ADVICE);
+        assertThat(router.route("我想去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        assertThat(router.route("去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        assertThat(router.route("北京旅行推荐", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
     }
 
     @Test
@@ -60,7 +60,21 @@ class DomainIntentRouterTest {
                 {"replyType":"FOLLOW_UP","missingFields":["departureDate"],"parsedCondition":{"departureCity":"上海","arrivalCity":"北京"}}
                 """);
 
-        assertThat(router.route("明天", previous).intent()).isEqualTo(DomainIntent.FLIGHT_SEARCH_CONTINUATION);
+        // 纯"明天"靠 parser 解析出 departureDate，无需文本长度启发式。
+        assertThat(router.route("明天", previous).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY_CONTINUATION);
+    }
+
+    @Test
+    void route_previousFollowUpBareSlotFillerWins() {
+        DomainIntentRouter router = newRouter("{}");
+        AiChatMessage previous = new AiChatMessage();
+        previous.setExtraJson("""
+                {"replyType":"FOLLOW_UP","missingFields":["arrivalCity"],"parsedCondition":{"departureCity":"上海"}}
+                """);
+
+        // 纯城市名/乘客数词 parse 不出结构化字段，由 looksLikeSlotFiller 兜底为 continuation。
+        assertThat(router.route("北京", previous).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY_CONTINUATION);
+        assertThat(router.route("两个人", previous).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY_CONTINUATION);
     }
 
     @Test
@@ -72,9 +86,9 @@ class DomainIntentRouterTest {
                 """);
 
         assertThat(router.route("我想明天上午从广州出发", previous).intent())
-                .isEqualTo(DomainIntent.FLIGHT_SEARCH_CONTINUATION);
+                .isEqualTo(DomainIntent.FLIGHT_QUERY_CONTINUATION);
         assertThat(router.route("下周一上午走，经济舱，一个人", previous).intent())
-                .isEqualTo(DomainIntent.FLIGHT_SEARCH_CONTINUATION);
+                .isEqualTo(DomainIntent.FLIGHT_QUERY_CONTINUATION);
     }
 
     @Test
@@ -85,18 +99,18 @@ class DomainIntentRouterTest {
                 {"replyType":"FOLLOW_UP","missingFields":["departureDate"],"parsedCondition":{"departureCity":"上海","arrivalCity":"北京"}}
                 """);
 
-        assertThat(router.route("退票怎么操作", previous).intent()).isEqualTo(DomainIntent.PLATFORM_HELP);
+        assertThat(router.route("退票怎么操作", previous).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
         assertThat(router.route("帮我写代码", previous).intent()).isEqualTo(DomainIntent.OUT_OF_SCOPE);
     }
 
     @Test
     void route_llmCanClassifyUnclearTravelIntent() {
         properties.setEnabled(true);
-        DomainIntentRouter router = newRouter("{\"intent\":\"TRAVEL_ADVICE\"}");
+        DomainIntentRouter router = newRouter("{\"intent\":\"TRAVEL_CHAT\"}");
 
         DomainIntentRouter.RouteResult result = router.route("帮我安排一个放松计划", null);
 
-        assertThat(result.intent()).isEqualTo(DomainIntent.TRAVEL_ADVICE);
+        assertThat(result.intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
         assertThat(result.llmClassified()).isTrue();
     }
 

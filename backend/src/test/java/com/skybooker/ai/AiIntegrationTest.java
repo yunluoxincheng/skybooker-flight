@@ -217,7 +217,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sessionId").isNotEmpty())
                 .andExpect(jsonPath("$.data.replyType").isNotEmpty())
-                .andExpect(jsonPath("$.data.intent").value("GREETING"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
                 .andExpect(jsonPath("$.data.replyText").isNotEmpty())
                 .andExpect(jsonPath("$.data.parsedCondition").exists())
                 .andExpect(jsonPath("$.data.missingFields").isArray())
@@ -335,8 +335,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("CHAT_REPLY"))
-                .andExpect(jsonPath("$.data.intent").value("GREETING"))
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
                 .andExpect(jsonPath("$.data.missingFields").isArray())
                 .andExpect(jsonPath("$.data.missingFields").isEmpty())
                 .andExpect(jsonPath("$.data.flights").isArray())
@@ -353,8 +353,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_ADVICE"))
-                .andExpect(jsonPath("$.data.intent").value("TRAVEL_ADVICE"))
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
                 .andExpect(jsonPath("$.data.flights").isEmpty())
                 .andExpect(jsonPath("$.data.searchUrl").isEmpty())
                 .andReturn();
@@ -376,8 +376,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("PLATFORM_HELP"))
-                .andExpect(jsonPath("$.data.intent").value("PLATFORM_HELP"))
+                .andExpect(jsonPath("$.data.replyType").value("BOOKING_HELP"))
+                .andExpect(jsonPath("$.data.intent").value("BOOKING_HELP"))
                 .andExpect(jsonPath("$.data.replyText").value(containsString("订单详情")))
                 .andExpect(jsonPath("$.data.flights").isEmpty());
     }
@@ -406,7 +406,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(flightSearch)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_SEARCH"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"));
 
         AiChatRequest travelAdvice = new AiChatRequest();
@@ -416,8 +416,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(travelAdvice)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_ADVICE"))
-                .andExpect(jsonPath("$.data.intent").value("TRAVEL_ADVICE"));
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"));
     }
 
     // --- 6.3 Recommendation data tests ---
@@ -731,7 +731,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_SEARCH_CONTINUATION"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY_CONTINUATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
@@ -749,7 +749,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_SEARCH_CONTINUATION"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY_CONTINUATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
@@ -768,7 +768,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_SEARCH_CONTINUATION"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY_CONTINUATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
@@ -787,7 +787,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_SEARCH_CONTINUATION"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY_CONTINUATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.missingFields", hasItem("departureDate")))

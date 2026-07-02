@@ -23,7 +23,8 @@ public class DomainReplyComposer {
     private final LlmChatClient llmChatClient;
 
     public String compose(DomainIntent intent, String message, LlmEffectiveConfig cfg) {
-        if (intent == DomainIntent.PLATFORM_HELP || intent == DomainIntent.OUT_OF_SCOPE) {
+        // BOOKING_HELP / OUT_OF_SCOPE 必走后端模板：平台政策与越界引导不接受 LLM 自由发挥。
+        if (intent == DomainIntent.BOOKING_HELP || intent == DomainIntent.OUT_OF_SCOPE) {
             return deterministicReply(intent, message);
         }
 
@@ -54,15 +55,15 @@ public class DomainReplyComposer {
 
     private String deterministicReply(DomainIntent intent, String message) {
         return switch (intent) {
-            case GREETING -> "您好，我是 SkyBooker 航班助手。可以帮您查询机票、补全出发地/目的地/日期，也可以提供旅行相关建议。";
-            case TRAVEL_ADVICE -> "可以的。我可以给您做旅行方向建议、目的地玩法思路和出行准备提醒；如果要查具体航班、价格或余票，请告诉我出发城市、目的地和出发日期。";
-            case PLATFORM_HELP -> platformHelpReply(message);
+            // TRAVEL_CHAT 兼顾问候介绍与旅游建议：LLM 不可用时用它兜底。
+            case TRAVEL_CHAT -> "您好，我是 SkyBooker 航班与旅行助手。我可以给您做旅行方向建议、目的地玩法思路和出行准备提醒；如果要查具体航班、价格或余票，请告诉我出发城市、目的地和出发日期。";
+            case BOOKING_HELP -> bookingHelpReply(message);
             case OUT_OF_SCOPE -> "抱歉，这个问题超出了 SkyBooker 航班与旅行助手的范围。我可以继续帮您查询机票、规划旅行方向，或说明订票、退票、改签、候补、订单等平台流程。";
-            case FLIGHT_SEARCH, FLIGHT_SEARCH_CONTINUATION -> "请告诉我出发城市、目的地和出发日期，我会基于 SkyBooker 的航班数据为您查询。";
+            case FLIGHT_QUERY, FLIGHT_QUERY_CONTINUATION -> "请告诉我出发城市、目的地和出发日期，我会基于 SkyBooker 的航班数据为您查询。";
         };
     }
 
-    private String platformHelpReply(String message) {
+    private String bookingHelpReply(String message) {
         String text = message == null ? "" : message;
         if (text.contains("退票") || text.contains("退款")) {
             return "退票或退款请在 SkyBooker 订单详情中发起。系统会按订单状态和平台规则处理，具体可退金额以订单页面展示为准。";

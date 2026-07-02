@@ -310,6 +310,26 @@ public class IntentParserService implements IntentParser {
                 .build();
     }
 
+    /**
+     * 判断文本是否为"缺槽上下文里的裸补全词"。
+     *
+     * <p>纯城市名、乘客数量词等在缺少"从/到/去"等结构词时，{@link #parse} 无法将其结构化为
+     * 查询字段，但在 FOLLOW_UP 缺槽状态下语义上明显是在补全航班查询条件（例如用户回复"北京"、"两个人"）。
+     * 本方法仅复用已维护的城市表与乘客模式做语义识别，不引入"文本长度"启发式。</p>
+     */
+    public boolean looksLikeSlotFiller(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String t = text.trim();
+        for (String city : CITY_ALIASES.keySet()) {
+            if (t.contains(city)) {
+                return true;
+            }
+        }
+        return PASSENGER_PATTERN.matcher(t).find() || PASSENGER_CN_PATTERN.matcher(t).find();
+    }
+
     private LocalDate safeDate(int year, int month, int day) {
         try {
             return LocalDate.of(year, month, day);

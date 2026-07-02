@@ -76,7 +76,7 @@ public class AiChatService {
         DomainIntentRouter.RouteResult route = domainIntentRouter.route(message, previousAssistant);
 
         AiChatReplyVO reply;
-        if (route.intent() == DomainIntent.FLIGHT_SEARCH || route.intent() == DomainIntent.FLIGHT_SEARCH_CONTINUATION) {
+        if (route.intent() == DomainIntent.FLIGHT_QUERY || route.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION) {
             ParsedCondition condition = intentParser.parse(message);
             condition = mergeWithPreviousContext(session.getId(), condition);
 
@@ -324,23 +324,18 @@ public class AiChatService {
     private AiChatReplyVO buildConversationalReply(String sessionId, String message, DomainIntentRouter.RouteResult route) {
         DomainIntent intent = route.intent();
         AiReplyType replyType = switch (intent) {
-            case GREETING -> AiReplyType.CHAT_REPLY;
-            case TRAVEL_ADVICE -> AiReplyType.TRAVEL_ADVICE;
-            case PLATFORM_HELP -> AiReplyType.PLATFORM_HELP;
+            case TRAVEL_CHAT -> AiReplyType.TRAVEL_CHAT;
+            case BOOKING_HELP -> AiReplyType.BOOKING_HELP;
             case OUT_OF_SCOPE -> AiReplyType.OUT_OF_SCOPE;
-            case FLIGHT_SEARCH, FLIGHT_SEARCH_CONTINUATION -> AiReplyType.FOLLOW_UP;
+            case FLIGHT_QUERY, FLIGHT_QUERY_CONTINUATION -> AiReplyType.FOLLOW_UP;
         };
 
         List<Map<String, String>> quickActions = switch (intent) {
-            case GREETING -> List.of(
+            case TRAVEL_CHAT -> List.of(
                     Map.of("label", "帮我查机票", "value", "帮我查机票"),
                     Map.of("label", "推荐旅行目的地", "value", "有哪些地方推荐去玩")
             );
-            case TRAVEL_ADVICE -> List.of(
-                    Map.of("label", "查具体航班", "value", "帮我查机票"),
-                    Map.of("label", "出行准备建议", "value", "出行前需要准备什么")
-            );
-            case PLATFORM_HELP -> List.of(
+            case BOOKING_HELP -> List.of(
                     Map.of("label", "查询订单", "value", "订单怎么查看"),
                     Map.of("label", "查机票", "value", "帮我查机票")
             );
@@ -348,7 +343,7 @@ public class AiChatService {
                     Map.of("label", "查机票", "value", "帮我查机票"),
                     Map.of("label", "旅行建议", "value", "有哪些地方推荐去玩")
             );
-            case FLIGHT_SEARCH, FLIGHT_SEARCH_CONTINUATION -> List.of();
+            case FLIGHT_QUERY, FLIGHT_QUERY_CONTINUATION -> List.of();
         };
 
         return AiChatReplyVO.builder()

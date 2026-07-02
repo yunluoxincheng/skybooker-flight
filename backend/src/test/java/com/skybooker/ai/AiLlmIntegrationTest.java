@@ -133,8 +133,8 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_ADVICE"))
-                .andExpect(jsonPath("$.data.intent").value("TRAVEL_ADVICE"))
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
                 .andReturn();
 
         ApiResponse<Map> response = objectMapper.readValue(
@@ -157,7 +157,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("PLATFORM_HELP"))
+                .andExpect(jsonPath("$.data.replyType").value("BOOKING_HELP"))
                 .andExpect(jsonPath("$.data.replyText").value(org.hamcrest.Matchers.containsString("订单详情")));
 
         verify(llmChatClient, never()).complete(anyString(), anyString(), any());
