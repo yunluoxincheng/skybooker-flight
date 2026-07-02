@@ -11,6 +11,8 @@ import type {
   FlightLoadFactorVO,
   RefundTrendVO,
   WaitlistPerformanceVO,
+  LlmConfigVO,
+  LlmConfigDTO,
 } from "@/types/admin"
 import type { FlightVO } from "@/types/flight"
 import type { OrderVO } from "@/types/order"
@@ -114,4 +116,14 @@ export function getRefundTrend(params?: Record<string, string | number | boolean
 
 export function getWaitlistPerformance(params?: Record<string, string | number | boolean | undefined>) {
   return get<WaitlistPerformanceVO>("/admin/reports/waitlist-performance", params, { auth: "admin" })
+}
+
+// ---- AI Config ----
+
+export function getLlmConfig() {
+  return get<LlmConfigVO>("/admin/ai/llm-config", undefined, { auth: "admin" })
+}
+
+export function updateLlmConfig(data: LlmConfigDTO) {
+  return put<LlmConfigVO>("/admin/ai/llm-config", data, { auth: "admin" })
 }

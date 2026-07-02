@@ -43,6 +43,7 @@ export function Header() {
               key={item.href}
               variant={pathname === item.href ? "secondary" : "ghost"}
               render={<Link href={item.href}>{item.label}</Link>}
+              nativeButton={false}
             />
           ))}
         </nav>
@@ -76,7 +77,7 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button render={<Link href="/login">登录</Link>} size="sm" />
+            <Button render={<Link href="/login">登录</Link>} size="sm" nativeButton={false} />
           )}
 
           {/* Mobile menu toggle */}
@@ -101,6 +102,7 @@ export function Header() {
               className="w-full justify-start"
               render={<Link href={item.href}>{item.label}</Link>}
               onClick={() => setMobileOpen(false)}
+              nativeButton={false}
             />
           ))}
         </nav>
