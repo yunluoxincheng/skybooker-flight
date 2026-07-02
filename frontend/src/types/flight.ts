@@ -10,6 +10,27 @@ export type FlightStatus =
 /** 上架状态 */
 export type PublishStatus = "PUBLISHED" | "UNPUBLISHED"
 
+/** 舱位类型 */
+export type CabinClass = "ECONOMY" | "BUSINESS" | "FIRST"
+
+/** 舱位顺序 */
+export const CABIN_CLASS_ORDER: CabinClass[] = ["ECONOMY", "BUSINESS", "FIRST"]
+
+/** 舱位标签 */
+export const CABIN_CLASS_LABEL: Record<CabinClass, string> = {
+  ECONOMY: "经济舱",
+  BUSINESS: "公务舱",
+  FIRST: "头等舱",
+}
+
+/** 舱位摘要 */
+export interface FlightCabinVO {
+  cabinClass: CabinClass
+  price: number
+  totalSeats: number
+  remainingSeats: number
+}
+
 /** 航班 VO */
 export interface FlightVO {
   id: number
@@ -33,6 +54,7 @@ export interface FlightVO {
   directFlag: number   // 后端 Integer: 0=经停 1=直飞
   baggageAllowance: string
   punctualityRate: number
+  cabins?: FlightCabinVO[]
 }
 
 /** 航班搜索参数 */
@@ -61,9 +83,6 @@ export interface FlightSeatVO {
   status: "AVAILABLE" | "OCCUPIED" | "LOCKED"
   version: number
 }
-
-/** 舱位类型 */
-export type CabinClass = "ECONOMY" | "BUSINESS" | "FIRST"
 
 /** 座位类型 */
 export type SeatType = "WINDOW" | "AISLE" | "MIDDLE"

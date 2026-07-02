@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation"
 import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as orderApi from "@/services/orderApi"
-import type { FlightVO, FlightSeatVO } from "@/types/flight"
+import { getFallbackCabinPrice } from "@/lib/cabin-utils"
+import {
+  CABIN_CLASS_ORDER,
+  type CabinClass,
+  type FlightCabinVO,
+  type FlightSeatVO,
+  type FlightVO,
+} from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
 import type { OrderVO } from "@/types/order"
 import type { ApiError } from "@/lib/request"
@@ -16,6 +23,7 @@ interface BookingState {
   step: BookingStep
   flight: FlightVO | null
   seats: FlightSeatVO[]
+  selectedCabinClass: CabinClass | null
   myPassengers: PassengerVO[]
   selectedPassengerIds: number[]
   selectedSeatIds: number[]
@@ -26,12 +34,43 @@ interface BookingState {
   error: string | null
 }
 
+function deriveFlightCabins(flight: FlightVO, seats: FlightSeatVO[]): FlightCabinVO[] {
+  const configuredCabins = new Map((flight.cabins ?? []).map((cabin) => [cabin.cabinClass, cabin]))
+
+  return CABIN_CLASS_ORDER
+    .map((cabinClass) => {
+      const configured = configuredCabins.get(cabinClass)
+      const cabinSeats = seats.filter((seat) => seat.cabinClass === cabinClass)
+
+      if (!configured && cabinSeats.length === 0) {
+        return null
+      }
+
+      const seatPrice = cabinSeats[0]?.price
+      const availableSeats = cabinSeats.filter((seat) => seat.status === "AVAILABLE").length
+
+      return {
+        cabinClass,
+        price: configured?.price ?? seatPrice ?? getFallbackCabinPrice(flight.basePrice, cabinClass),
+        totalSeats: configured?.totalSeats ?? cabinSeats.length,
+        remainingSeats: configured?.remainingSeats ?? availableSeats,
+      }
+    })
+    .filter((cabin): cabin is FlightCabinVO => cabin !== null)
+}
+
+function getDefaultCabinClass(flight: FlightVO, seats: FlightSeatVO[]): CabinClass | null {
+  const cabins = deriveFlightCabins(flight, seats)
+  return cabins.find((cabin) => cabin.remainingSeats > 0)?.cabinClass ?? cabins[0]?.cabinClass ?? null
+}
+
 export function useBooking(flightId: number) {
   const router = useRouter()
   const [state, setState] = useState<BookingState>({
     step: 0,
     flight: null,
     seats: [],
+    selectedCabinClass: null,
     myPassengers: [],
     selectedPassengerIds: [],
     selectedSeatIds: [],
@@ -55,7 +94,12 @@ export function useBooking(flightId: number) {
         flightApi.getFlightById(flightId),
         flightApi.getFlightSeats(flightId),
       ])
-      setPartial({ flight, seats, isLoadingFlight: false })
+      setPartial({
+        flight,
+        seats,
+        selectedCabinClass: getDefaultCabinClass(flight, seats),
+        isLoadingFlight: false,
+      })
     } catch (err) {
       setPartial({ error: (err as ApiError).message || "加载航班失败", isLoadingFlight: false })
     }
@@ -102,13 +146,28 @@ export function useBooking(flightId: number) {
   const togglePassenger = useCallback((pId: number) => {
     setState((s) => {
       const exists = s.selectedPassengerIds.includes(pId)
+      const nextPassengerIds = exists
+        ? s.selectedPassengerIds.filter((id) => id !== pId)
+        : [...s.selectedPassengerIds, pId]
+      const maxSeats = nextPassengerIds.length || 1
+
       return {
         ...s,
-        selectedPassengerIds: exists
-          ? s.selectedPassengerIds.filter((id) => id !== pId)
-          : [...s.selectedPassengerIds, pId],
+        selectedPassengerIds: nextPassengerIds,
+        selectedSeatIds: s.selectedSeatIds.slice(0, maxSeats),
       }
     })
+  }, [])
+
+  const selectCabin = useCallback((cabinClass: CabinClass) => {
+    setState((s) => ({
+      ...s,
+      selectedCabinClass: cabinClass,
+      selectedSeatIds: s.selectedSeatIds.filter((seatId) => {
+        const seat = s.seats.find((item) => item.id === seatId)
+        return seat?.cabinClass === cabinClass
+      }),
+    }))
   }, [])
 
   // 座位选择
@@ -174,14 +233,22 @@ export function useBooking(flightId: number) {
     }
   }, [state.createdOrder, setPartial, router])
 
+  const cabins = state.flight ? deriveFlightCabins(state.flight, state.seats) : []
+  const filteredSeats = state.selectedCabinClass
+    ? state.seats.filter((seat) => seat.cabinClass === state.selectedCabinClass)
+    : state.seats
+
   return {
     ...state,
+    cabins,
+    filteredSeats,
     loadFlight,
     loadPassengers,
     goToStep,
     nextStep,
     prevStep,
     togglePassenger,
+    selectCabin,
     toggleSeat,
     submitOrder,
     payOrder,

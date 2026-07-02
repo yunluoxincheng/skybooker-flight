@@ -43,6 +43,7 @@ import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { SeatMap } from "@/features/booking/components/SeatMap"
 import { useBooking } from "@/features/booking/hooks/useBooking"
+import { CABIN_CLASS_LABEL } from "@/types/flight"
 import { useAuth } from "@/contexts/AuthContext"
 import * as passengerApi from "@/services/passengerApi"
 import type { ApiError } from "@/lib/request"
@@ -129,6 +130,7 @@ export default function BookingPage() {
   const selectedPassengers = booking.myPassengers.filter((p) =>
     booking.selectedPassengerIds.includes(p.id)
   )
+  const selectedCabin = booking.cabins.find((cabin) => cabin.cabinClass === booking.selectedCabinClass)
   const totalPrice = selectedSeats.reduce((sum, s) => sum + s.price, 0)
 
   // Auth loading
@@ -349,8 +351,47 @@ export default function BookingPage() {
                 （当前已选 {booking.selectedSeatIds.length} 个）
               </p>
 
+              {booking.cabins.length > 0 && (
+                <div className="grid gap-3 mb-5 sm:grid-cols-3">
+                  {booking.cabins.map((cabin) => {
+                    const isActive = cabin.cabinClass === booking.selectedCabinClass
+                    const isSoldOut = cabin.remainingSeats <= 0
+
+                    return (
+                      <button
+                        key={cabin.cabinClass}
+                        type="button"
+                        onClick={() => booking.selectCabin(cabin.cabinClass)}
+                        className={`rounded-xl border p-4 text-left transition-colors ${
+                          isActive
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                            : "border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{CABIN_CLASS_LABEL[cabin.cabinClass]}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {isSoldOut ? "当前无可售座位" : `剩余 ${cabin.remainingSeats} / ${cabin.totalSeats} 座`}
+                            </p>
+                          </div>
+                          {isActive && <Badge>已选</Badge>}
+                        </div>
+                        <FlightPriceTag price={cabin.price} className="mt-3 text-lg" />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {selectedCabin && (
+                <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-muted-foreground mb-4">
+                  当前舱位：{CABIN_CLASS_LABEL[selectedCabin.cabinClass]}，票价 ¥{selectedCabin.price.toLocaleString()}，剩余 {selectedCabin.remainingSeats} 座
+                </div>
+              )}
+
               <SeatMap
-                seats={booking.seats}
+                seats={booking.filteredSeats}
                 selectedSeatIds={booking.selectedSeatIds}
                 maxSelect={selectedPassengers.length || 1}
                 onToggleSeat={booking.toggleSeat}
@@ -398,7 +439,7 @@ export default function BookingPage() {
                     <div key={p.id} className="flex items-center justify-between text-sm">
                       <span>{p.name}</span>
                       <span className="text-muted-foreground">
-                        座位 {selectedSeats[i]?.seatNo || "-"}
+                        {selectedSeats[i] ? `${CABIN_CLASS_LABEL[selectedSeats[i].cabinClass]} ${selectedSeats[i].seatNo}` : "-"}
                       </span>
                     </div>
                   ))}
@@ -412,7 +453,7 @@ export default function BookingPage() {
                   {selectedSeats.map((s, i) => (
                     <div key={i} className="flex justify-between">
                       <span className="text-muted-foreground">
-                        机票 ({selectedPassengers[i]?.name} · {s.seatNo})
+                        机票 ({selectedPassengers[i]?.name} · {CABIN_CLASS_LABEL[s.cabinClass]} {s.seatNo})
                       </span>
                       <span>¥{s.price.toLocaleString()}</span>
                     </div>

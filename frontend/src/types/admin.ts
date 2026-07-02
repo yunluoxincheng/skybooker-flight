@@ -123,7 +123,19 @@ export interface LlmConfigDTO {
   maxRetries?: number
 }
 
-/** 候补表现 — 匹配后端 WaitlistPerformanceVO */
+/** 舱位库存设置项 */
+export interface FlightCabinSettingDTO {
+  cabinClass: "ECONOMY" | "BUSINESS" | "FIRST"
+  price: number
+  totalSeats: number
+}
+
+/** 批量更新舱位库存请求 */
+export interface UpdateFlightCabinsDTO {
+  cabins: FlightCabinSettingDTO[]
+}
+
+/** 候补表现 */
 export interface WaitlistPerformanceVO {
   submittedCount: number
   pendingPaymentCount: number
