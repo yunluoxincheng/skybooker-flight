@@ -18,7 +18,7 @@ class IntentParserServiceTest {
     @BeforeEach
     void setUp() {
         parser = new IntentParserService();
-        parser.setClock(Clock.fixed(LocalDate.of(2026, 6, 9).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant(), ZoneId.of("Asia/Shanghai")));
+        parser.setClock(fixedClock(LocalDate.of(2026, 6, 9)));
     }
 
     @Test
@@ -80,5 +80,73 @@ class IntentParserServiceTest {
     void parse_blankMessage_returnsIncomplete() {
         ParsedCondition result = parser.parse("  ");
         assertThat(result.isComplete()).isFalse();
+    }
+
+    @Test
+    void parse_supportedSingleDayDateExpressions_resolveDeterministically() {
+        parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
+
+        assertThat(parser.parse("上海到北京2026-07-06机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京2026年7月6日机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京7月6日机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京今天机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 2));
+        assertThat(parser.parse("上海到北京明天机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 3));
+        assertThat(parser.parse("上海到北京后天机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 4));
+        assertThat(parser.parse("上海到北京大后天机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 5));
+        assertThat(parser.parse("上海到北京周五机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 3));
+        assertThat(parser.parse("上海到北京这周五机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 3));
+        assertThat(parser.parse("上海到北京本周五机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 3));
+        assertThat(parser.parse("上海到北京下周一机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京下星期一机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京下个周一机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(parser.parse("上海到北京周末机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 4));
+        assertThat(parser.parse("上海到北京下周末机票").getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 11));
+    }
+
+    @Test
+    void parse_monthDayBeforeCurrentDate_rollsToNextYear() {
+        parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
+
+        ParsedCondition result = parser.parse("上海到北京6月30日机票");
+
+        assertThat(result.getDepartureDate()).isEqualTo(LocalDate.of(2027, 6, 30));
+    }
+
+    @Test
+    void parse_chineseCityRouteWithoutFromKeyword() {
+        parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
+
+        ParsedCondition result = parser.parse("上海到北京下周一机票");
+
+        assertThat(result.getDepartureCity()).isEqualTo("上海");
+        assertThat(result.getArrivalCity()).isEqualTo("北京");
+        assertThat(result.getDepartureDate()).isEqualTo(LocalDate.of(2026, 7, 6));
+    }
+
+    @Test
+    void parse_destinationOnlyPhrase_setsArrivalCityAndAsksForMissingFields() {
+        ParsedCondition result = parser.parse("我想去北京");
+
+        assertThat(result.getArrivalCity()).isEqualTo("北京");
+        assertThat(result.getMissingFields()).contains("departureCity", "departureDate");
+        assertThat(result.getDepartureDate()).isNull();
+    }
+
+    @Test
+    void parse_ambiguousDateRange_asksForSpecificDepartureDate() {
+        parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
+
+        for (String message : java.util.List.of("最近几天的机票", "未来一周机票", "7月6日到7月8日机票", "周一周二都可以")) {
+            ParsedCondition result = parser.parse("上海到北京" + message);
+
+            assertThat(result.getDepartureDate()).as(message).isNull();
+            assertThat(result.getMissingFields()).as(message).contains("departureDate");
+            assertThat(result.getFollowUpQuestion()).as(message).contains("一个出发日期");
+        }
+    }
+
+    private Clock fixedClock(LocalDate date) {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        return Clock.fixed(date.atStartOfDay(zone).toInstant(), zone);
     }
 }

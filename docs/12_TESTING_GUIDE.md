@@ -64,6 +64,22 @@
 测试输入：
 
 ```text
+你好
+```
+
+期望：返回 `CHAT_REPLY`，`intent = GREETING`，不要求出发地、目的地或日期。
+
+测试输入：
+
+```text
+北京有什么好玩
+```
+
+期望：返回 `TRAVEL_ADVICE`，不包含具体航班号、价格、余票、库存或预订链接。
+
+测试输入：
+
+```text
 我想去北京
 ```
 
@@ -88,9 +104,10 @@ LLM 意图解析测试：
 
 - `AI_LLM_ENABLED=false` 或未配置 LLM 凭据时，AI 助手继续使用规则解析；
 - LLM 单元测试使用 mock provider JSON，不依赖真实 `AI_LLM_API_KEY`；
-- LLM 集成测试通过 mock `LlmChatClient` 验证解析成功、失败降级、多轮上下文补全和伪造航班字段忽略；
+- LLM 集成测试通过 mock `LlmChatClient` 验证解析成功、失败降级、多轮上下文补全、非搜索文本安全回退和伪造航班字段忽略；
 - 推荐航班、价格、余票、详情链接和预订链接必须来自数据库查询结果，不能来自 LLM 响应；
-- 多轮补全时，历史上下文合并中的内部空消息 follow-up 只能走规则解析，不能额外触发 LLM 调用。
+- 多轮补全时，最新 assistant `FOLLOW_UP` 且有 `missingFields` 时，短回复如“明天”必须优先按 `FLIGHT_SEARCH_CONTINUATION` 合并上下文；
+- `最近几天`、`未来一周`、`7月6日到7月8日`、`周一周二都可以` 等多日表达必须追问一个具体出发日期，不能任意查询单日。
 
 ## 3. 并发测试
 

@@ -7,11 +7,11 @@ import com.skybooker.ai.entity.AiChatMessage;
 import com.skybooker.ai.entity.AiChatSession;
 import com.skybooker.ai.entity.AiRecommendationRecord;
 import com.skybooker.ai.enums.AiReplyType;
+import com.skybooker.ai.enums.DomainIntent;
 import com.skybooker.ai.enums.MessageType;
 import com.skybooker.ai.enums.SessionStatus;
 import com.skybooker.ai.mapper.AiMapper;
 import com.skybooker.ai.parser.IntentParser;
-import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.parser.ParsedCondition;
 import com.skybooker.ai.ratelimit.AiRateLimiter;
 import com.skybooker.ai.vo.AiChatReplyVO;
@@ -39,8 +39,9 @@ public class AiChatService {
 
     private final AiMapper aiMapper;
     private final IntentParser intentParser;
-    private final IntentParserService ruleIntentParserService;
     private final FlightRecommendationService flightRecommendationService;
+    private final DomainIntentRouter domainIntentRouter;
+    private final DomainReplyComposer domainReplyComposer;
     private final FlightMapper flightMapper;
     private final ObjectMapper objectMapper;
     private final AiRateLimiter aiRateLimiter;
@@ -71,25 +72,29 @@ public class AiChatService {
         userMsg.setMessageType(MessageType.TEXT.name());
         aiMapper.insertMessage(userMsg);
 
-        // Parse intent
-        ParsedCondition condition = intentParser.parse(message);
+        AiChatMessage previousAssistant = aiMapper.findLatestAssistantMessage(session.getId());
+        DomainIntentRouter.RouteResult route = domainIntentRouter.route(message, previousAssistant);
 
-        // Multi-turn: merge with previous assistant context if current parse is incomplete
-        condition = mergeWithPreviousContext(session.getId(), condition);
-
-        // Build response
         AiChatReplyVO reply;
-        if (!condition.isComplete()) {
-            reply = buildFollowUpReply(session.getPublicSessionId(), condition);
-        } else {
-            Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
-            List<Map<String, Object>> flights = flightRecommendationService.recommend(condition, resolvedAirlineId);
+        if (route.intent() == DomainIntent.FLIGHT_SEARCH || route.intent() == DomainIntent.FLIGHT_SEARCH_CONTINUATION) {
+            ParsedCondition condition = intentParser.parse(message);
+            condition = mergeWithPreviousContext(session.getId(), condition);
 
-            if (flights.isEmpty()) {
-                reply = buildNoResultReply(session.getPublicSessionId(), condition);
+            if (!condition.isComplete()) {
+                reply = buildFollowUpReply(session.getPublicSessionId(), condition, route.intent());
             } else {
-                reply = buildRecommendationReply(session.getPublicSessionId(), condition, flights, resolvedAirlineId, message);
+                Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
+                List<Map<String, Object>> flights = flightRecommendationService.recommend(condition, resolvedAirlineId);
+
+                if (flights.isEmpty()) {
+                    reply = buildNoResultReply(session.getPublicSessionId(), condition, route.intent());
+                } else {
+                    reply = buildRecommendationReply(session.getPublicSessionId(), condition, flights,
+                            message, route.intent());
+                }
             }
+        } else {
+            reply = buildConversationalReply(session.getPublicSessionId(), message, route);
         }
 
         // Persist assistant message
@@ -204,9 +209,8 @@ public class AiChatService {
         if (result.getArrivalCity() == null) missing.add("arrivalCity");
         if (result.getDepartureDate() == null) missing.add("departureDate");
         if (!missing.isEmpty()) {
-            String followUp = ruleIntentParserService.parse("").getFollowUpQuestion();
             return result.toBuilder().missingFields(missing)
-                    .followUpQuestion(followUp)
+                    .followUpQuestion(buildFollowUpQuestion(missing))
                     .quickActionLabels(List.of())
                     .build();
         }
@@ -220,7 +224,21 @@ public class AiChatService {
         return flightMapper.findAirlineIdByCodeOrName(airlineRaw, airlineRaw);
     }
 
-    private AiChatReplyVO buildFollowUpReply(String sessionId, ParsedCondition condition) {
+    private String buildFollowUpQuestion(List<String> missingFields) {
+        List<String> parts = new ArrayList<>();
+        for (String field : missingFields) {
+            switch (field) {
+                case "departureCity" -> parts.add("出发城市");
+                case "arrivalCity" -> parts.add("目的地城市");
+                case "departureDate" -> parts.add("出发日期");
+                default -> {
+                }
+            }
+        }
+        return "请问您的" + String.join("、", parts) + "是什么？";
+    }
+
+    private AiChatReplyVO buildFollowUpReply(String sessionId, ParsedCondition condition, DomainIntent intent) {
         List<Map<String, String>> quickActions = condition.getQuickActionLabels().stream()
                 .map(label -> Map.of("label", label, "value", label))
                 .collect(Collectors.toList());
@@ -228,6 +246,7 @@ public class AiChatService {
         return AiChatReplyVO.builder()
                 .sessionId(sessionId)
                 .replyType(AiReplyType.FOLLOW_UP.name())
+                .intent(intent.name())
                 .replyText(condition.getFollowUpQuestion())
                 .parsedCondition(conditionToMap(condition))
                 .missingFields(condition.getMissingFields())
@@ -239,8 +258,8 @@ public class AiChatService {
     }
 
     private AiChatReplyVO buildRecommendationReply(String sessionId, ParsedCondition condition,
-                                                    List<Map<String, Object>> flights, Long resolvedAirlineId,
-                                                    String originalQuery) {
+                                                    List<Map<String, Object>> flights,
+                                                    String originalQuery, DomainIntent intent) {
         String searchUrl = flightRecommendationService.buildSearchUrl(condition);
         String replyText = "为您找到 " + flights.size() + " 个推荐航班：";
 
@@ -266,6 +285,7 @@ public class AiChatService {
         return AiChatReplyVO.builder()
                 .sessionId(sessionId)
                 .replyType(AiReplyType.FLIGHT_RECOMMENDATION.name())
+                .intent(intent.name())
                 .replyText(replyText)
                 .parsedCondition(conditionToMap(condition))
                 .missingFields(Collections.emptyList())
@@ -276,7 +296,7 @@ public class AiChatService {
                 .build();
     }
 
-    private AiChatReplyVO buildNoResultReply(String sessionId, ParsedCondition condition) {
+    private AiChatReplyVO buildNoResultReply(String sessionId, ParsedCondition condition, DomainIntent intent) {
         String replyText = "抱歉，没有找到符合条件的航班。请尝试调整搜索条件。";
         List<Map<String, String>> quickActions = List.of(
                 Map.of("label", "换个日期", "value", "换个日期"),
@@ -286,10 +306,55 @@ public class AiChatService {
         return AiChatReplyVO.builder()
                 .sessionId(sessionId)
                 .replyType(AiReplyType.NO_RESULT.name())
+                .intent(intent.name())
                 .replyText(replyText)
                 .parsedCondition(conditionToMap(condition))
                 .missingFields(Collections.emptyList())
                 .followUpQuestion("是否需要调整搜索条件？")
+                .searchUrl(null)
+                .flights(Collections.emptyList())
+                .quickActions(quickActions)
+                .build();
+    }
+
+    private AiChatReplyVO buildConversationalReply(String sessionId, String message, DomainIntentRouter.RouteResult route) {
+        DomainIntent intent = route.intent();
+        AiReplyType replyType = switch (intent) {
+            case GREETING -> AiReplyType.CHAT_REPLY;
+            case TRAVEL_ADVICE -> AiReplyType.TRAVEL_ADVICE;
+            case PLATFORM_HELP -> AiReplyType.PLATFORM_HELP;
+            case OUT_OF_SCOPE -> AiReplyType.OUT_OF_SCOPE;
+            case FLIGHT_SEARCH, FLIGHT_SEARCH_CONTINUATION -> AiReplyType.FOLLOW_UP;
+        };
+
+        List<Map<String, String>> quickActions = switch (intent) {
+            case GREETING -> List.of(
+                    Map.of("label", "帮我查机票", "value", "帮我查机票"),
+                    Map.of("label", "推荐旅行目的地", "value", "有哪些地方推荐去玩")
+            );
+            case TRAVEL_ADVICE -> List.of(
+                    Map.of("label", "查具体航班", "value", "帮我查机票"),
+                    Map.of("label", "出行准备建议", "value", "出行前需要准备什么")
+            );
+            case PLATFORM_HELP -> List.of(
+                    Map.of("label", "查询订单", "value", "订单怎么查看"),
+                    Map.of("label", "查机票", "value", "帮我查机票")
+            );
+            case OUT_OF_SCOPE -> List.of(
+                    Map.of("label", "查机票", "value", "帮我查机票"),
+                    Map.of("label", "旅行建议", "value", "有哪些地方推荐去玩")
+            );
+            case FLIGHT_SEARCH, FLIGHT_SEARCH_CONTINUATION -> List.of();
+        };
+
+        return AiChatReplyVO.builder()
+                .sessionId(sessionId)
+                .replyType(replyType.name())
+                .intent(intent.name())
+                .replyText(domainReplyComposer.compose(intent, message, route.llmConfig()))
+                .parsedCondition(Collections.emptyMap())
+                .missingFields(Collections.emptyList())
+                .followUpQuestion(null)
                 .searchUrl(null)
                 .flights(Collections.emptyList())
                 .quickActions(quickActions)
@@ -316,15 +381,13 @@ public class AiChatService {
     private Map<String, Object> buildExtraJson(AiChatReplyVO reply) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("replyType", reply.getReplyType());
-        if (reply.getParsedCondition() != null) extra.put("parsedCondition", reply.getParsedCondition());
-        if (reply.getMissingFields() != null && !reply.getMissingFields().isEmpty())
-            extra.put("missingFields", reply.getMissingFields());
-        if (reply.getFollowUpQuestion() != null) extra.put("followUpQuestion", reply.getFollowUpQuestion());
-        if (reply.getSearchUrl() != null) extra.put("searchUrl", reply.getSearchUrl());
-        if (reply.getFlights() != null && !reply.getFlights().isEmpty())
-            extra.put("flights", reply.getFlights());
-        if (reply.getQuickActions() != null && !reply.getQuickActions().isEmpty())
-            extra.put("quickActions", reply.getQuickActions());
+        extra.put("intent", reply.getIntent());
+        extra.put("parsedCondition", reply.getParsedCondition() == null ? Collections.emptyMap() : reply.getParsedCondition());
+        extra.put("missingFields", reply.getMissingFields() == null ? Collections.emptyList() : reply.getMissingFields());
+        extra.put("followUpQuestion", reply.getFollowUpQuestion());
+        extra.put("searchUrl", reply.getSearchUrl());
+        extra.put("flights", reply.getFlights() == null ? Collections.emptyList() : reply.getFlights());
+        extra.put("quickActions", reply.getQuickActions() == null ? Collections.emptyList() : reply.getQuickActions());
         return extra;
     }
 

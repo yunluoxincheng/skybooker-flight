@@ -122,6 +122,48 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_llmTravelAdviceUnsafeFlightFactsFallsBackToTemplate() throws Exception {
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("明天 CZ3101 还有 9 个座位，价格 580 元，可以访问 /booking/1 预订。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("北京有什么好玩");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_ADVICE"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_ADVICE"))
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        String replyText = (String) ((Map<String, Object>) response.getData()).get("replyText");
+        assertThat(replyText).doesNotContain("CZ3101");
+        assertThat(replyText).doesNotContain("580");
+        assertThat(replyText).doesNotContain("/booking/");
+    }
+
+    @Test
+    void chat_platformHelpDoesNotCallLlmForPolicyFacts() throws Exception {
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("可以随便退票，系统一定全额退款。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("退票怎么操作");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("PLATFORM_HELP"))
+                .andExpect(jsonPath("$.data.replyText").value(org.hamcrest.Matchers.containsString("订单详情")));
+
+        verify(llmChatClient, never()).complete(anyString(), anyString(), any());
+    }
+
+    @Test
     void chat_llmMultiTurnContextMerge_doesNotCallLlmForInternalBlankFollowUp() throws Exception {
         when(llmChatClient.complete(anyString(), anyString(), any()))
                 .thenReturn("""

@@ -15,6 +15,7 @@ import java.util.Map;
 public class AiChatReplyVO {
     private String sessionId;
     private String replyType;
+    private String intent;
     private String replyText;
     private Map<String, Object> parsedCondition;
     private List<String> missingFields;
