@@ -79,7 +79,7 @@ export default function AiAssistantPage() {
         </div>
 
         {/* 消息区域 */}
-        <ScrollArea className="flex-1 py-4" ref={scrollRef}>
+        <ScrollArea className="flex-1 min-h-0 overflow-hidden py-4" ref={scrollRef}>
           {showWelcome ? (
             /* 欢迎界面 */
             <div className="flex flex-col items-center justify-center min-h-[50vh]">

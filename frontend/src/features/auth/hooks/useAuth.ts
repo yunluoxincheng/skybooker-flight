@@ -52,7 +52,6 @@ export function useRegister() {
       } else {
         setError("注册失败，请稍后重试")
       }
-      throw err
     }
   }
 
@@ -81,7 +80,6 @@ export function useForgotPassword() {
       } else {
         setError("重置失败，请稍后重试")
       }
-      throw err
     }
   }
 

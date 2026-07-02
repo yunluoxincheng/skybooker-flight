@@ -1,11 +1,14 @@
 "use client"
 
+import { useState, type Dispatch, type KeyboardEvent, type MouseEvent, type SetStateAction } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import Link from "next/link"
+import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { useRegister } from "../hooks/useAuth"
 import { EmailCodeButton } from "./EmailCodeButton"
@@ -31,6 +34,9 @@ type RegisterFormData = z.infer<typeof registerSchema>
 
 export function RegisterForm() {
   const { register: doRegister, error } = useRegister()
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isCapsLock, setIsCapsLock] = useState(false)
   const {
     register,
     handleSubmit,
@@ -41,6 +47,35 @@ export function RegisterForm() {
   })
 
   const email = watch("email")
+
+  const updateCapsLockState = (e: KeyboardEvent<HTMLInputElement>) => {
+    setIsCapsLock(e.getModifierState("CapsLock"))
+  }
+
+  const togglePasswordVisibility = (
+    e: MouseEvent<HTMLButtonElement>,
+    setVisible: Dispatch<SetStateAction<boolean>>
+  ) => {
+    e.preventDefault()
+
+    const input = e.currentTarget.closest('[data-slot="input-group"]')?.querySelector("input") ?? null
+    const selectionStart = input?.selectionStart ?? null
+    const selectionEnd = input?.selectionEnd ?? null
+
+    setVisible((visible) => !visible)
+
+    requestAnimationFrame(() => {
+      if (!input) {
+        return
+      }
+
+      input.focus({ preventScroll: true })
+
+      if (selectionStart !== null && selectionEnd !== null) {
+        input.setSelectionRange(selectionStart, selectionEnd)
+      }
+    })
+  }
 
   return (
     <form
@@ -76,13 +111,50 @@ export function RegisterForm() {
 
       <div className="space-y-2">
         <Label htmlFor="password">密码</Label>
-        <Input id="password" type="password" placeholder="8-20位，含大小写字母和数字" {...register("password")} />
+        <InputGroup>
+          <InputGroupInput
+            id="password"
+            type={showPassword ? "text" : "password"}
+            placeholder="8-20位，含大小写字母和数字"
+            {...register("password")}
+            onKeyDown={updateCapsLockState}
+            onKeyUp={updateCapsLockState}
+          />
+          <InputGroupButton
+            size="icon-xs"
+            variant="ghost"
+            type="button"
+            aria-label={showPassword ? "隐藏密码" : "显示密码"}
+            onClick={(e) => togglePasswordVisibility(e, setShowPassword)}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </InputGroupButton>
+        </InputGroup>
+        {isCapsLock && <p className="text-xs text-amber-600 dark:text-amber-400">大写锁定已开启</p>}
         {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">确认密码</Label>
-        <Input id="confirmPassword" type="password" placeholder="请再次输入密码" {...register("confirmPassword")} />
+        <InputGroup>
+          <InputGroupInput
+            id="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            placeholder="请再次输入密码"
+            {...register("confirmPassword")}
+            onKeyDown={updateCapsLockState}
+            onKeyUp={updateCapsLockState}
+          />
+          <InputGroupButton
+            size="icon-xs"
+            variant="ghost"
+            type="button"
+            aria-label={showConfirmPassword ? "隐藏确认密码" : "显示确认密码"}
+            onClick={(e) => togglePasswordVisibility(e, setShowConfirmPassword)}
+          >
+            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </InputGroupButton>
+        </InputGroup>
         {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
       </div>
 

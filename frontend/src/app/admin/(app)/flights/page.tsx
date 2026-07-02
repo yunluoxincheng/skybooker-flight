@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,9 +32,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
+import { getFallbackCabinPrice } from "@/lib/cabin-utils"
 import * as adminApi from "@/services/adminApi"
-import type { FlightVO } from "@/types/flight"
-import type { FlightFormDTO } from "@/types/admin"
+import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER, type CabinClass, type FlightVO } from "@/types/flight"
+import type { FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
 
 const flightSchema = z.object({
@@ -51,6 +52,25 @@ const flightSchema = z.object({
   directFlag: z.boolean(),
 })
 
+interface CabinFormItem extends FlightCabinSettingDTO {
+  remainingSeats: number
+}
+
+function buildCabinForm(flight: FlightVO): CabinFormItem[] {
+  const configuredCabins = new Map((flight.cabins ?? []).map((cabin) => [cabin.cabinClass, cabin]))
+
+  return CABIN_CLASS_ORDER.map((cabinClass) => {
+    const cabin = configuredCabins.get(cabinClass)
+
+    return {
+      cabinClass,
+      price: cabin?.price ?? getFallbackCabinPrice(flight.basePrice, cabinClass),
+      totalSeats: cabin?.totalSeats ?? (cabinClass === "ECONOMY" ? flight.totalSeats : 0),
+      remainingSeats: cabin?.remainingSeats ?? (cabinClass === "ECONOMY" ? flight.remainingSeats : 0),
+    }
+  })
+}
+
 export default function AdminFlightsPage() {
   const [flights, setFlights] = useState<FlightVO[]>([])
   const [total, setTotal] = useState(0)
@@ -63,6 +83,13 @@ export default function AdminFlightsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingFlight, setEditingFlight] = useState<FlightVO | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 舱位库存 Dialog
+  const [cabinDialogOpen, setCabinDialogOpen] = useState(false)
+  const [cabinFlight, setCabinFlight] = useState<FlightVO | null>(null)
+  const [cabinForm, setCabinForm] = useState<CabinFormItem[]>([])
+  const [cabinErr, setCabinErr] = useState<string | null>(null)
+  const [isSavingCabins, setIsSavingCabins] = useState(false)
 
   const {
     register,
@@ -163,6 +190,67 @@ export default function AdminFlightsPage() {
     }
   }
 
+  const openCabinDialog = (f: FlightVO) => {
+    setCabinFlight(f)
+    setCabinForm(buildCabinForm(f))
+    setCabinErr(null)
+    setCabinDialogOpen(true)
+  }
+
+  const updateCabinField = (
+    cabinClass: CabinClass,
+    field: "price" | "totalSeats",
+    value: number
+  ) => {
+    setCabinForm((current) =>
+      current.map((item) =>
+        item.cabinClass === cabinClass
+          ? {
+              ...item,
+              [field]:
+                field === "totalSeats"
+                  ? Math.max(item.remainingSeats, Number.isFinite(value) ? value : item.remainingSeats)
+                  : Math.max(0, Number.isFinite(value) ? value : 0),
+            }
+          : item
+      )
+    )
+  }
+
+  const submitCabins = async () => {
+    if (!cabinFlight) return
+
+    const invalidCabin = cabinForm.find((item) => item.totalSeats < item.remainingSeats)
+    if (invalidCabin) {
+      setCabinErr(`${CABIN_CLASS_LABEL[invalidCabin.cabinClass]}库存不能小于当前剩余座位数`)
+      return
+    }
+
+    const configuredCabins = cabinForm
+      .filter((item) => item.totalSeats > 0)
+      .map(({ remainingSeats: _remainingSeats, ...item }) => item)
+
+    const totalConfiguredSeats = configuredCabins.reduce((sum, item) => sum + item.totalSeats, 0)
+    if (totalConfiguredSeats !== cabinFlight.totalSeats) {
+      setCabinErr(
+        `舱位总座位数必须等于航班总座位数（当前航班 ${cabinFlight.totalSeats}，当前配置 ${totalConfiguredSeats}）`
+      )
+      return
+    }
+
+    setIsSavingCabins(true)
+    setCabinErr(null)
+    try {
+      await adminApi.updateFlightCabins(cabinFlight.id, configuredCabins)
+      setCabinDialogOpen(false)
+      fetchFlights()
+    } catch (err) {
+      setCabinErr((err as ApiError).message || "舱位库存设置失败")
+    } finally {
+      setIsSavingCabins(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / 10))
 
   return (
@@ -239,6 +327,9 @@ export default function AdminFlightsPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(f)}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> 编辑
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openCabinDialog(f)}>
+                            <Settings2 className="h-3.5 w-3.5 mr-2" /> 舱位库存设置
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => togglePublish(f)}>
                             {f.publishStatus === "PUBLISHED" ? (
@@ -348,6 +439,84 @@ export default function AdminFlightsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 舱位库存 Dialog */}
+      <Dialog open={cabinDialogOpen} onOpenChange={setCabinDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              舱位库存设置{cabinFlight ? ` · ${cabinFlight.flightNo}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {cabinErr && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {cabinErr}
+              </div>
+            )}
+
+            <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
+              可编辑各舱位票价与库存，总库存余量以服务端校验和返回结果为准。
+            </div>
+
+            <div className="rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>舱位</TableHead>
+                    <TableHead>票价 (¥)</TableHead>
+                    <TableHead>库存</TableHead>
+                    <TableHead>当前剩余</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cabinForm.map((item) => (
+                    <TableRow key={item.cabinClass}>
+                      <TableCell className="font-medium">
+                        {CABIN_CLASS_LABEL[item.cabinClass]}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={item.price}
+                          onChange={(event) =>
+                            updateCabinField(item.cabinClass, "price", Number(event.target.value))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={item.totalSeats}
+                          onChange={(event) =>
+                            updateCabinField(item.cabinClass, "totalSeats", Number(event.target.value))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {item.remainingSeats}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setCabinDialogOpen(false)}>
+                取消
+              </Button>
+              <Button type="button" onClick={submitCabins} disabled={isSavingCabins}>
+                {isSavingCabins && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                保存舱位配置
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

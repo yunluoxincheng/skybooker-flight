@@ -6,6 +6,7 @@ import type {
   OrderStatusDistributionVO,
   UserAdminVO,
   FlightFormDTO,
+  UpdateFlightCabinsDTO,
   SalesTrendVO,
   RoutePerformanceVO,
   FlightLoadFactorVO,
@@ -14,7 +15,7 @@ import type {
   LlmConfigVO,
   LlmConfigDTO,
 } from "@/types/admin"
-import type { FlightVO } from "@/types/flight"
+import type { FlightCabinVO, FlightVO } from "@/types/flight"
 import type { OrderVO } from "@/types/order"
 import type { PageData } from "@/types/api"
 
@@ -70,6 +71,10 @@ export function unpublishFlight(id: number) {
 
 export function generateSeats(id: number) {
   return post<null>(`/admin/flights/${id}/generate-seats`, undefined, { auth: "admin" })
+}
+
+export function updateFlightCabins(id: number, data: UpdateFlightCabinsDTO) {
+  return put<FlightCabinVO[]>(`/admin/flights/${id}/cabins`, data, { auth: "admin" })
 }
 
 // ---- Orders ----
