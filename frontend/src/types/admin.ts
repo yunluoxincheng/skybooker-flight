@@ -116,11 +116,11 @@ export interface LlmConfigVO {
 /** LLM 配置 DTO — 匹配后端 AiLlmConfigDTO */
 export interface LlmConfigDTO {
   enabled: boolean
-  baseUrl: string
-  apiKey: string
-  model: string
-  timeoutMs: number
-  maxRetries: number
+  baseUrl?: string
+  apiKey?: string
+  model?: string
+  timeoutMs?: number
+  maxRetries?: number
 }
 
 /** 候补表现 — 匹配后端 WaitlistPerformanceVO */

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Cpu, Loader2 } from "lucide-react"
+import { Cpu, Loader2, Key } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import * as adminApi from "@/services/adminApi"
 import type { LlmConfigVO, LlmConfigDTO } from "@/types/admin"
 
-const ERROR_10022_MSG = "后端缺少 AI_CONFIG_ENC_KEY 环境变量，请联系后端管理员配置加密密钥"
+const ERROR_10022_MSG = "LLM 配置校验失败，请检查配置项；如仍失败请确认后端已配置 AI_CONFIG_ENC_KEY"
 
 export default function AdminAiConfigPage() {
   const [config, setConfig] = useState<LlmConfigVO | null>(null)
@@ -26,6 +26,7 @@ export default function AdminAiConfigPage() {
   const [model, setModel] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [apiKeyTouched, setApiKeyTouched] = useState(false)
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
   const [timeoutMs, setTimeoutMs] = useState("")
   const [maxRetries, setMaxRetries] = useState("")
 
@@ -38,7 +39,9 @@ export default function AdminAiConfigPage() {
         setEnabled(c.enabled)
         setBaseUrl(c.baseUrl)
         setModel(c.model)
-        setApiKey(c.apiKey)
+        // 后端返回脱敏值，不放入可编辑输入框
+        setApiKey("")
+        setApiKeyConfigured(!!c.apiKey)
         setTimeoutMs(String(c.timeoutMs))
         setMaxRetries(String(c.maxRetries))
       })
@@ -53,18 +56,22 @@ export default function AdminAiConfigPage() {
 
     const data: LlmConfigDTO = {
       enabled,
-      baseUrl,
-      model,
-      // 未修改则留空表示不改
-      apiKey: apiKeyTouched ? apiKey : "",
-      timeoutMs: Number(timeoutMs) || 8000,
-      maxRetries: Number(maxRetries) || 1,
+      baseUrl: baseUrl.trim(),
+      model: model.trim(),
+      timeoutMs: timeoutMs === "" ? undefined : Number(timeoutMs),
+      maxRetries: maxRetries === "" ? undefined : Number(maxRetries),
+    }
+
+    // 仅用户主动修改时才传 apiKey，避免空字符串覆盖
+    if (apiKeyTouched && apiKey.trim()) {
+      data.apiKey = apiKey.trim()
     }
 
     try {
       const updated = await adminApi.updateLlmConfig(data)
       setConfig(updated)
-      setApiKey(updated.apiKey)
+      setApiKey("")
+      setApiKeyConfigured(!!updated.apiKey)
       setApiKeyTouched(false)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -170,6 +177,12 @@ export default function AdminAiConfigPage() {
           {/* apiKey */}
           <div className="space-y-1.5">
             <Label htmlFor="ai-api-key" className="text-sm font-medium">API Key</Label>
+            {apiKeyConfigured && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Key className="h-3 w-3" />
+                当前已配置 API Key（加密存储，不回显明文）
+              </div>
+            )}
             <Input
               id="ai-api-key"
               type="password"
@@ -178,11 +191,8 @@ export default function AdminAiConfigPage() {
                 setApiKey(e.target.value)
                 setApiKeyTouched(true)
               }}
-              placeholder="留空不修改"
+              placeholder="如需更换请输入新密钥，留空不修改"
             />
-            <p className="text-xs text-muted-foreground">
-              密钥加密存储，不回显明文。留空表示不修改。
-            </p>
           </div>
 
           {/* timeoutMs */}
