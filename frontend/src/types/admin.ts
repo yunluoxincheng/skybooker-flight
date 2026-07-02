@@ -100,6 +100,29 @@ export interface RefundTrendVO {
   refundAmount: number
 }
 
+/** LLM 配置 VO — 匹配后端 AiLlmConfigVO */
+export interface LlmConfigVO {
+  enabled: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+  timeoutMs: number
+  maxRetries: number
+  source: string
+  updatedBy: number
+  updatedAt: string
+}
+
+/** LLM 配置 DTO — 匹配后端 AiLlmConfigDTO */
+export interface LlmConfigDTO {
+  enabled: boolean
+  baseUrl?: string
+  apiKey?: string
+  model?: string
+  timeoutMs?: number
+  maxRetries?: number
+}
+
 /** 候补表现 — 匹配后端 WaitlistPerformanceVO */
 export interface WaitlistPerformanceVO {
   submittedCount: number

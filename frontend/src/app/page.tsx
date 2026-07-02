@@ -114,7 +114,7 @@ export default function HomePage() {
           <p className="text-muted-foreground mb-8">
             立即注册，体验 AI 智能购票的便捷
           </p>
-          <Button render={<Link href="/register">免费注册</Link>} size="lg" />
+          <Button render={<Link href="/register">免费注册</Link>} size="lg" nativeButton={false} />
         </div>
       </section>
     </UserLayout>

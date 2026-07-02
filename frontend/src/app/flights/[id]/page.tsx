@@ -242,6 +242,7 @@ export default function FlightDetailPage() {
                   render={<Link href={`/booking/${flight.id}`}>
                     {availableSeats > 0 ? "立即预订" : "已售罄"}
                   </Link>}
+                  nativeButton={false}
                 />
                 {availableSeats > 0 && availableSeats < 10 && (
                   <p className="text-xs text-destructive">

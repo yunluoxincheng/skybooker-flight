@@ -89,6 +89,7 @@ export function AiFlightCard({ flight, className }: AiFlightCardProps) {
             <Button
               render={<Link href={flight.detailUrl || `/flights/${flight.flightId}`}>查看</Link>}
               size="sm"
+              nativeButton={false}
             />
           </div>
         </div>
