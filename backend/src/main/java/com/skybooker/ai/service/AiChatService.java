@@ -84,6 +84,7 @@ public class AiChatService {
             if (!condition.isComplete()) {
                 reply = buildFollowUpReply(session.getPublicSessionId(), condition, route.intent());
             } else {
+                condition = normalizeForSearch(condition);
                 Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
                 List<Map<String, Object>> flights = flightRecommendationService.recommend(condition, resolvedAirlineId);
 
@@ -243,6 +244,13 @@ public class AiChatService {
                     .build();
         }
         return result;
+    }
+
+    private ParsedCondition normalizeForSearch(ParsedCondition condition) {
+        if (condition.getPassengerCount() != null) {
+            return condition;
+        }
+        return condition.toBuilder().passengerCount(1).build();
     }
 
     private Integer toInt(Object value) {

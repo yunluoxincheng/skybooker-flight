@@ -237,11 +237,12 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         Map<String, Object> data = (Map<String, Object>) response.getData();
 
         assertThat(data.get("replyType")).isEqualTo("FLIGHT_RECOMMENDATION");
+        assertThat(((Map<String, Object>) data.get("parsedCondition")).get("passengerCount")).isEqualTo(1);
         List<Map<String, Object>> flights = (List<Map<String, Object>>) data.get("flights");
         assertThat(flights).isNotEmpty();
         assertThat(flights)
                 .extracting(flight -> flight.get("flightNo"))
-                .doesNotContain("CZ3101");
+                .doesNotContain("FAKE-002");
         assertThat(flights)
                 .extracting(flight -> ((Number) flight.get("remainingSeats")).intValue())
                 .allMatch(remainingSeats -> remainingSeats > 0);
@@ -256,8 +257,8 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         assertThat(parsedNode.path("departureCity").asText()).isEqualTo("上海");
         assertThat(parsedNode.path("arrivalCity").asText()).isEqualTo("北京");
         assertThat(parsedNode.path("departureDate").asText()).isEqualTo(tomorrowStr);
-        // passengerCount 未提及时为 null（P1-2 改动），不写入 parsed_condition_json，避免默认 1 覆盖多轮上下文
-        assertThat(parsedNode.has("passengerCount")).isFalse();
+        // parser/merge 阶段允许 null；进入最终查询前归一化为 1，并写入响应/推荐记录。
+        assertThat(parsedNode.path("passengerCount").asInt()).isEqualTo(1);
         assertThat(parsedJson).doesNotContain("FAKE-002");
         assertThat(parsedNode.has("price")).isFalse();
     }

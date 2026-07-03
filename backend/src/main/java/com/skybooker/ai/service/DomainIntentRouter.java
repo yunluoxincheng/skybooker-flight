@@ -41,6 +41,13 @@ public class DomainIntentRouter {
             "账户", "登录", "发票", "怎么订", "如何订", "预订流程", "怎么操作", "如何操作",
             "流程", "规则", "说明", "平台", "选座", "skybooker", "SkyBooker"
     );
+    private static final List<String> BOOKING_ACTION_KEYWORDS = List.of(
+            "退票", "退款", "改签", "改期", "候补", "订单", "支付", "账号", "账户", "登录",
+            "发票", "选座", "平台", "skybooker", "SkyBooker"
+    );
+    private static final List<String> HELP_CUE_KEYWORDS = List.of(
+            "怎么", "如何", "流程", "操作", "规则", "说明", "添加", "维护", "查看", "取消", "发起"
+    );
     /** 越界信号 → {@link DomainIntent#OUT_OF_SCOPE}。 */
     private static final List<String> OUT_OF_SCOPE_KEYWORDS = List.of(
             "写代码", "股票", "基金", "彩票", "作业", "论文", "游戏攻略", "电影", "天气预报",
@@ -144,7 +151,7 @@ public class DomainIntentRouter {
             return DomainIntent.OUT_OF_SCOPE;
         }
         // 缺槽上下文里，平台帮助只在不是明确航班事实查询时才接管。
-        if (isBookingHelpQuestion(text) && !containsAny(text, FLIGHT_FACT_KEYWORDS)) {
+        if (isBookingHelpQuestion(text)) {
             return DomainIntent.BOOKING_HELP;
         }
         if (isDestinationContent(text) || containsAny(text, TRAVEL_ADVICE_KEYWORDS)) {
@@ -191,23 +198,20 @@ public class DomainIntentRouter {
     }
 
     private boolean isBookingHelpQuestion(String text) {
-        if (containsAny(text, BOOKING_HELP_KEYWORDS)) {
+        if (isStandaloneBookingHelp(text)) {
             return true;
         }
         boolean mentionsBooking = text.contains("订票") || text.contains("预订") || text.contains("订机票");
-        if (!mentionsBooking) {
-            return false;
-        }
-        String compact = text.trim();
-        if (compact.equals("订票") || compact.equals("预订") || compact.equals("订机票")) {
+        boolean helpCue = containsAny(text, HELP_CUE_KEYWORDS);
+        if (helpCue && (mentionsBooking || containsAny(text, BOOKING_HELP_KEYWORDS))) {
             return true;
         }
-        return text.contains("怎么")
-                || text.contains("如何")
-                || text.contains("流程")
-                || text.contains("操作")
-                || text.contains("规则")
-                || text.contains("说明");
+        return containsAny(text, BOOKING_ACTION_KEYWORDS) && !hasFlightSearchSignal(text);
+    }
+
+    private boolean isStandaloneBookingHelp(String text) {
+        String compact = text.trim();
+        return compact.equals("订票") || compact.equals("预订") || compact.equals("订机票");
     }
 
     private DomainIntent classifyWithLlm(String text, LlmEffectiveConfig cfg) {

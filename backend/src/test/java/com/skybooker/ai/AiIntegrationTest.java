@@ -422,16 +422,17 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void chat_multiTurnKeepsOptionalCabinFilter() throws Exception {
-        // 第一轮：路线+舱位但缺日期 → FOLLOW_UP，parsedCondition.cabinClass=ECONOMY
+    void chat_multiTurnKeepsOptionalPassengerAndCabinFilters() throws Exception {
+        // 第一轮：路线+人数+舱位但缺日期 → FOLLOW_UP，parsedCondition 保留可选筛选条件
         AiChatRequest first = new AiChatRequest();
-        first.setMessage("查上海到北京经济舱");
+        first.setMessage("查上海到北京两个人经济舱");
 
         MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.parsedCondition.passengerCount").value(2))
                 .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
                 .andReturn();
 
@@ -439,7 +440,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 firstResult.getResponse().getContentAsString(), ApiResponse.class);
         String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
 
-        // 第二轮：只回复“明天”，舱位应从上一轮继承，不丢
+        // 第二轮：只回复“明天”，人数和舱位应从上一轮继承，不丢
         AiChatRequest second = new AiChatRequest();
         second.setSessionId(sessionId);
         second.setMessage("明天");
@@ -448,6 +449,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(second)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.passengerCount").value(2))
                 .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))

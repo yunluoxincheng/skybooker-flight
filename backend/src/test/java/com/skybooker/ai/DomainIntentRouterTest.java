@@ -73,7 +73,11 @@ class DomainIntentRouterTest {
         assertThat(router.route("怎么订票", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
         assertThat(router.route("预订流程是什么", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
         assertThat(router.route("如何订机票", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("乘机人怎么添加", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("乘客信息怎么维护", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
         assertThat(router.route("帮我预订上海到北京明天机票", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        assertThat(router.route("查上海到北京明天两位乘客机票", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        assertThat(router.route("帮我查上海到北京经济舱，乘客 2 位", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
     }
 
     @Test

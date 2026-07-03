@@ -16,7 +16,9 @@ public class DomainReplyComposer {
 
     private static final Pattern FLIGHT_NO_PATTERN = Pattern.compile("\\b[A-Z]{2}\\s?\\d{3,4}\\b");
     private static final Pattern PRICE_PATTERN = Pattern.compile("(?:[￥¥]\\s?\\d+|\\d+\\s?(?:元|块))");
-    private static final Pattern URL_PATTERN = Pattern.compile("(?:https?://|/flights/|/booking/|detailUrl|bookingUrl)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern URL_PATTERN = Pattern.compile(
+            "(?:https?://|/flights(?:[/?#]|$)|/booking(?:[/?#]|$)|detailUrl|bookingUrl)",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern SEAT_OR_AVAILABILITY_PATTERN = Pattern.compile(
             "(?:余票|剩余\\s?\\d+|\\d+\\s?个?座位|可预订|可以预订|有票|库存|当前有|现在有)");
 
