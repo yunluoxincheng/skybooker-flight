@@ -53,9 +53,6 @@ public class LlmIntentParserService {
             departureDate = null;
         }
         Integer passengerCount = passengerCount(root, "passengerCount");
-        if (passengerCount == null) {
-            passengerCount = 1;
-        }
         String cabinClass = cabin(root, "cabinClass");
         String airlineRaw = text(root, "airlineRaw");
         if (airlineRaw == null) {

@@ -398,16 +398,17 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_destinationPhraseBoundaries() throws Exception {
-        AiChatRequest flightSearch = new AiChatRequest();
-        flightSearch.setMessage("我想去北京");
+        // 裸目的地“我想去北京”不再直接查库，走 TRAVEL_CHAT 澄清（无 parsedCondition/missingFields）
+        AiChatRequest destinationOnly = new AiChatRequest();
+        destinationOnly.setMessage("我想去北京");
 
         mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(flightSearch)))
+                        .content(objectMapper.writeValueAsString(destinationOnly)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
-                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"));
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.missingFields").isEmpty());
 
         AiChatRequest travelAdvice = new AiChatRequest();
         travelAdvice.setMessage("北京有什么好玩");
@@ -418,6 +419,39 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
                 .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"));
+    }
+
+    @Test
+    void chat_multiTurnKeepsOptionalCabinFilter() throws Exception {
+        // 第一轮：路线+舱位但缺日期 → FOLLOW_UP，parsedCondition.cabinClass=ECONOMY
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("查上海到北京经济舱");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        // 第二轮：只回复“明天”，舱位应从上一轮继承，不丢
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("明天");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
     }
 
     // --- 6.3 Recommendation data tests ---
@@ -710,7 +744,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     @Test
     void chat_multiTurnMergesDate() throws Exception {
         AiChatRequest firstRequest = new AiChatRequest();
-        firstRequest.setMessage("从上海到北京");
+        firstRequest.setMessage("查上海到北京机票");
 
         MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -739,7 +773,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_multiTurnAcceptsNaturalDepartureContinuation() throws Exception {
-        String sessionId = startRouteFollowUpSession("从上海到北京");
+        String sessionId = startRouteFollowUpSession("查上海到北京机票");
 
         AiChatRequest secondRequest = new AiChatRequest();
         secondRequest.setSessionId(sessionId);
@@ -758,7 +792,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_multiTurnAcceptsNaturalRouteAndDateContinuation() throws Exception {
-        String sessionId = startRouteFollowUpSession("从上海到北京");
+        String sessionId = startRouteFollowUpSession("查上海到北京机票");
 
         AiChatRequest secondRequest = new AiChatRequest();
         secondRequest.setSessionId(sessionId);
@@ -776,7 +810,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_multiTurnAmbiguousDateKeepsSpecificFollowUp() throws Exception {
-        String sessionId = startRouteFollowUpSession("从上海到北京");
+        String sessionId = startRouteFollowUpSession("查上海到北京机票");
 
         AiChatRequest secondRequest = new AiChatRequest();
         secondRequest.setSessionId(sessionId);

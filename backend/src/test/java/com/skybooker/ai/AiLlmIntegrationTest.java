@@ -79,7 +79,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                 """.formatted(tomorrowStr));
 
         AiChatRequest request = new AiChatRequest();
-        request.setMessage("帮我订一张上海到北京的票");
+        request.setMessage("查上海到北京机票");
 
         MvcResult result = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -181,7 +181,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         """.formatted(tomorrowStr));
 
         AiChatRequest first = new AiChatRequest();
-        first.setMessage("我要从上海到北京");
+        first.setMessage("查上海到北京机票");
 
         MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -230,7 +230,6 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.parsedCondition.passengerCount").value(1))
                 .andReturn();
 
         ApiResponse<Map> response = objectMapper.readValue(
@@ -257,8 +256,32 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         assertThat(parsedNode.path("departureCity").asText()).isEqualTo("上海");
         assertThat(parsedNode.path("arrivalCity").asText()).isEqualTo("北京");
         assertThat(parsedNode.path("departureDate").asText()).isEqualTo(tomorrowStr);
-        assertThat(parsedNode.path("passengerCount").asInt()).isEqualTo(1);
+        // passengerCount 未提及时为 null（P1-2 改动），不写入 parsed_condition_json，避免默认 1 覆盖多轮上下文
+        assertThat(parsedNode.has("passengerCount")).isFalse();
         assertThat(parsedJson).doesNotContain("FAKE-002");
         assertThat(parsedNode.has("price")).isFalse();
+    }
+
+    @Test
+    void chat_travelChatUnsafeScheduleFactsFallsBackToTemplate() throws Exception {
+        // LLM 在 TRAVEL_CHAT 里编造航班时刻（“航班 9:00 起飞 / 14:30 到达”）→ 安全校验拒绝 → 回退模板
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("明天航班 9:00 起飞，14:30 到达，很适合出行。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("北京有什么好玩");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        String replyText = (String) ((Map<String, Object>) response.getData()).get("replyText");
+        assertThat(replyText).doesNotContain("9:00");
+        assertThat(replyText).doesNotContain("14:30");
     }
 }

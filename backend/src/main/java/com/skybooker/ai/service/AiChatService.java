@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -194,6 +195,7 @@ public class AiChatService {
         if (prevCondition == null) return current;
 
         ParsedCondition.ParsedConditionBuilder merged = current.toBuilder();
+        // 必填字段
         if (current.getDepartureCity() == null && prevCondition.get("departureCity") != null)
             merged.departureCity((String) prevCondition.get("departureCity"));
         if (current.getArrivalCity() == null && prevCondition.get("arrivalCity") != null)
@@ -201,9 +203,31 @@ public class AiChatService {
         if (current.getDepartureDate() == null && prevCondition.get("departureDate") != null) {
             merged.departureDate(LocalDate.parse((String) prevCondition.get("departureDate")));
         }
+        // 可选筛选字段：多轮补全时从上一轮继承，避免丢条件（舱位/航司/价格/时段/时长/直飞/排序/人数）。
+        // passengerCount 未提及为 null，避免“当前默认 1”覆盖上一轮用户明确说的“两个人”。
+        if (current.getPassengerCount() == null && prevCondition.get("passengerCount") != null)
+            merged.passengerCount(toInt(prevCondition.get("passengerCount")));
+        if (current.getCabinClass() == null && prevCondition.get("cabinClass") != null)
+            merged.cabinClass((String) prevCondition.get("cabinClass"));
+        if (current.getAirlineRaw() == null && prevCondition.get("airlineRaw") != null)
+            merged.airlineRaw((String) prevCondition.get("airlineRaw"));
+        if (current.getMinPrice() == null && prevCondition.get("minPrice") != null)
+            merged.minPrice(toBigDecimal(prevCondition.get("minPrice")));
+        if (current.getMaxPrice() == null && prevCondition.get("maxPrice") != null)
+            merged.maxPrice(toBigDecimal(prevCondition.get("maxPrice")));
+        if (current.getDepartureTimeStart() == null && prevCondition.get("departureTimeStart") != null)
+            merged.departureTimeStart(LocalTime.parse((String) prevCondition.get("departureTimeStart")));
+        if (current.getDepartureTimeEnd() == null && prevCondition.get("departureTimeEnd") != null)
+            merged.departureTimeEnd(LocalTime.parse((String) prevCondition.get("departureTimeEnd")));
+        if (current.getMaxDurationMinutes() == null && prevCondition.get("maxDurationMinutes") != null)
+            merged.maxDurationMinutes(toInt(prevCondition.get("maxDurationMinutes")));
+        if (current.getDirectOnly() == null && prevCondition.get("directOnly") != null)
+            merged.directOnly((Boolean) prevCondition.get("directOnly"));
+        if (current.getSort() == null && prevCondition.get("sort") != null)
+            merged.sort((String) prevCondition.get("sort"));
 
         ParsedCondition result = merged.build();
-        // Recompute missing fields
+        // Recompute missing fields（仅必填项）
         List<String> missing = new ArrayList<>();
         if (result.getDepartureCity() == null) missing.add("departureCity");
         if (result.getArrivalCity() == null) missing.add("arrivalCity");
@@ -219,6 +243,27 @@ public class AiChatService {
                     .build();
         }
         return result;
+    }
+
+    private Integer toInt(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private java.math.BigDecimal toBigDecimal(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.math.BigDecimal bd) return bd;
+        if (value instanceof Number n) return java.math.BigDecimal.valueOf(n.doubleValue());
+        try {
+            return new java.math.BigDecimal(value.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private Long resolveAirlineId(String airlineRaw) {

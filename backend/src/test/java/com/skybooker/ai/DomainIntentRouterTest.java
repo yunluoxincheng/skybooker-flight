@@ -47,9 +47,33 @@ class DomainIntentRouterTest {
     void route_destinationBoundaries() {
         DomainIntentRouter router = newRouter("{}");
 
-        assertThat(router.route("我想去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
-        assertThat(router.route("去北京", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        // 裸目的地（无明确航班事实词）不再直接查库，走 TRAVEL_CHAT 给澄清文案
+        assertThat(router.route("我想去北京", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("去北京", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
         assertThat(router.route("北京旅行推荐", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+    }
+
+    @Test
+    void route_travelAndGeographyNotFlightQuery() {
+        DomainIntentRouter router = newRouter("{}");
+
+        // 路线/目的地 + 旅游内容词 → TRAVEL_CHAT，不能误判为 FLIGHT_QUERY
+        assertThat(router.route("去北京有什么好玩", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("我想去成都玩三天怎么安排", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("北京到上海有多远", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("广州到成都怎么玩", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+    }
+
+    @Test
+    void route_bookingProcessQuestionsNotFlightQuery() {
+        DomainIntentRouter router = newRouter("{}");
+
+        // 流程型问题走 BOOKING_HELP，即使提到“票/机票”
+        assertThat(router.route("订票", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("怎么订票", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("预订流程是什么", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("如何订机票", null).intent()).isEqualTo(DomainIntent.BOOKING_HELP);
+        assertThat(router.route("帮我预订上海到北京明天机票", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
     }
 
     @Test

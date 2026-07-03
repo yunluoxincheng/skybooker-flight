@@ -294,7 +294,7 @@ public class IntentParserService implements IntentParser {
                 .departureCity(departureCity)
                 .arrivalCity(arrivalCity)
                 .departureDate(departureDate)
-                .passengerCount(passengerCount != null ? passengerCount : 1)
+                .passengerCount(passengerCount)
                 .cabinClass(cabinClass)
                 .airlineRaw(airlineRaw)
                 .minPrice(null)
