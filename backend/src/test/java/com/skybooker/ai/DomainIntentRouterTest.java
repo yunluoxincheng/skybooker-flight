@@ -65,6 +65,20 @@ class DomainIntentRouterTest {
     }
 
     @Test
+    void route_travelBudgetQuestionsNotFlightQuery() {
+        DomainIntentRouter router = newRouter("{}");
+
+        // 旅行预算/花费问题不是机票事实查询，不能只因“多少钱/预算/花费”进入 FLIGHT_QUERY。
+        assertThat(router.route("去北京玩三天要多少钱", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("北京旅行预算多少钱", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+        assertThat(router.route("成都旅游大概要花多少钱", null).intent()).isEqualTo(DomainIntent.TRAVEL_CHAT);
+
+        // 价格词绑定明确机票词，或完整路线 + 日期等查询信号时，仍然走航班查询。
+        assertThat(router.route("上海到北京明天机票多少钱", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+        assertThat(router.route("上海到北京明天多少钱", null).intent()).isEqualTo(DomainIntent.FLIGHT_QUERY);
+    }
+
+    @Test
     void route_bookingProcessQuestionsNotFlightQuery() {
         DomainIntentRouter router = newRouter("{}");
 

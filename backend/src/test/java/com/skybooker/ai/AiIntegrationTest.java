@@ -456,6 +456,39 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
     }
 
+    @Test
+    void chat_multiTurnCompleteReplyStillKeepsPreviousOptionalCabinFilter() throws Exception {
+        // 第一轮：路线+舱位但缺日期 → FOLLOW_UP，parsedCondition.cabinClass=ECONOMY
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("查上海到北京经济舱");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        // 第二轮：用户补了完整路线+日期但没重复“经济舱”，仍应继承上一轮可选舱位筛选。
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("上海到北京明天");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
+    }
+
     // --- 6.3 Recommendation data tests ---
 
     @Test

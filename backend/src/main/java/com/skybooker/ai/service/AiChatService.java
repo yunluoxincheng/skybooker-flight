@@ -178,8 +178,6 @@ public class AiChatService {
 
     @SuppressWarnings("unchecked")
     private ParsedCondition mergeWithPreviousContext(Long sessionId, ParsedCondition current) {
-        if (current.isComplete()) return current;
-
         AiChatMessage prevAssistant = aiMapper.findLatestAssistantMessage(sessionId);
         if (prevAssistant == null || prevAssistant.getExtraJson() == null) return current;
 
@@ -205,6 +203,7 @@ public class AiChatService {
             merged.departureDate(LocalDate.parse((String) prevCondition.get("departureDate")));
         }
         // 可选筛选字段：多轮补全时从上一轮继承，避免丢条件（舱位/航司/价格/时段/时长/直飞/排序/人数）。
+        // 即使 current 已经补齐必填字段，也要继续继承未被当前轮覆盖的可选条件。
         // passengerCount 未提及为 null，避免“当前默认 1”覆盖上一轮用户明确说的“两个人”。
         if (current.getPassengerCount() == null && prevCondition.get("passengerCount") != null)
             merged.passengerCount(toInt(prevCondition.get("passengerCount")));

@@ -33,7 +33,7 @@ public class DomainIntentRouter {
     private static final List<String> TRAVEL_ADVICE_KEYWORDS = List.of(
             "旅游", "旅行", "好玩", "推荐去玩", "旅行推荐", "旅游推荐", "攻略", "景点", "怎么玩",
             "玩几天", "行程", "美食", "住宿", "预算", "适合去", "目的地推荐", "在哪里", "多远",
-            "距离", "怎么安排"
+            "距离", "怎么安排", "花费", "费用", "大概要花"
     );
     /** 平台动作 / 流程型信号 → {@link DomainIntent#BOOKING_HELP}。 */
     private static final List<String> BOOKING_HELP_KEYWORDS = List.of(
@@ -59,12 +59,20 @@ public class DomainIntentRouter {
     // 它们走 TRAVEL_CHAT 由回复器给澄清文案，避免“去北京有什么好玩”被误判成查机票。
 
     private static final List<String> FLIGHT_FACT_KEYWORDS = List.of(
-            "机票", "航班", "飞机票", "票价", "价格", "多少钱", "时刻", "班次", "余票", "座位",
+            "机票", "航班", "飞机票", "票价", "时刻", "班次", "余票", "座位",
             "舱", "直飞", "直达", "航空", "航司", "查票", "有没有票", "起飞", "降落"
+    );
+    private static final List<String> PRICE_QUERY_KEYWORDS = List.of(
+            "价格", "多少钱", "预算", "花费", "费用", "要花"
+    );
+    private static final List<String> TICKET_QUERY_INTENT_KEYWORDS = List.of(
+            "查票", "买票", "订票", "预订", "查机票", "买机票", "订机票", "查航班", "订航班", "买飞机票"
     );
 
     private static final Pattern CITY_DESTINATION = Pattern.compile("(?:我想|想|我要|帮我)?(?:去|飞往|飞)[\\u4e00-\\u9fa5]{2,8}");
     private static final Pattern ROUTE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]{2,8}(?:到|飞|去)[\\u4e00-\\u9fa5]{2,8}");
+    private static final Pattern TRIP_DURATION_PATTERN = Pattern.compile(
+            "(?:玩|旅游|旅行|行程)[一二两三四五六七八九十\\d]+天|[一二两三四五六七八九十\\d]+天.*(?:怎么玩|怎么安排|预算|花|费用|行程)");
 
     private final DynamicLlmConfigProvider configProvider;
     private final LlmChatClient llmChatClient;
@@ -119,11 +127,13 @@ public class DomainIntentRouter {
             return DomainIntent.BOOKING_HELP;
         }
         // 步骤 3：明确航班事实词 → 查询（机票/票价/余票/舱位/航司/直飞/时刻等）。
-        if (containsAny(text, FLIGHT_FACT_KEYWORDS)) {
+        // “价格/多少钱/预算”是条件信号：只有绑定明确航班词、查票意图或路线+日期/舱位等查询信号时才查库，
+        // 避免“去北京玩三天要多少钱”这类旅行预算问题被误判为机票查询。
+        if (hasExplicitFlightFactSignal(text) || hasConditionalPriceFlightSignal(text)) {
             return DomainIntent.FLIGHT_QUERY;
         }
         // 步骤 4：旅游内容 → 闲聊（景点/怎么玩/攻略/在哪里/多远/玩几天/怎么安排等）。
-        if (isDestinationContent(text) || containsAny(text, TRAVEL_ADVICE_KEYWORDS)) {
+        if (isTravelPlanningSignal(text)) {
             return DomainIntent.TRAVEL_CHAT;
         }
         // 步骤 5：问候 → 闲聊。
@@ -154,7 +164,7 @@ public class DomainIntentRouter {
         if (isBookingHelpQuestion(text)) {
             return DomainIntent.BOOKING_HELP;
         }
-        if (isDestinationContent(text) || containsAny(text, TRAVEL_ADVICE_KEYWORDS)) {
+        if (isTravelPlanningSignal(text)) {
             return DomainIntent.TRAVEL_CHAT;
         }
         if (isGreeting(lower)) {
@@ -188,6 +198,12 @@ public class DomainIntentRouter {
                 || text.contains("怎么安排");
     }
 
+    private boolean isTravelPlanningSignal(String text) {
+        return isDestinationContent(text)
+                || containsAny(text, TRAVEL_ADVICE_KEYWORDS)
+                || TRIP_DURATION_PATTERN.matcher(text).find();
+    }
+
     private boolean containsAny(String text, List<String> keywords) {
         for (String keyword : keywords) {
             if (text.contains(keyword.toLowerCase(Locale.ROOT)) || text.contains(keyword)) {
@@ -207,6 +223,23 @@ public class DomainIntentRouter {
             return true;
         }
         return containsAny(text, BOOKING_ACTION_KEYWORDS) && !hasFlightSearchSignal(text);
+    }
+
+    private boolean hasExplicitFlightFactSignal(String text) {
+        return containsAny(text, FLIGHT_FACT_KEYWORDS);
+    }
+
+    private boolean hasConditionalPriceFlightSignal(String text) {
+        if (!containsAny(text, PRICE_QUERY_KEYWORDS)) {
+            return false;
+        }
+        if (hasExplicitFlightFactSignal(text) || containsAny(text, TICKET_QUERY_INTENT_KEYWORDS)) {
+            return true;
+        }
+        if (!(ROUTE_PATTERN.matcher(text).find() || CITY_DESTINATION.matcher(text).matches())) {
+            return false;
+        }
+        return hasExtraQuerySignal(ruleIntentParserService.parse(text));
     }
 
     private boolean isStandaloneBookingHelp(String text) {
@@ -253,7 +286,8 @@ public class DomainIntentRouter {
     }
 
     private boolean hasFlightSearchSignal(String text) {
-        return containsAny(text, FLIGHT_FACT_KEYWORDS)
+        return hasExplicitFlightFactSignal(text)
+                || hasConditionalPriceFlightSignal(text)
                 || ROUTE_PATTERN.matcher(text).find()
                 || CITY_DESTINATION.matcher(text).matches();
     }
@@ -340,8 +374,9 @@ public class DomainIntentRouter {
                 你是 SkyBooker 后端意图分类器。只返回 JSON，不要 Markdown。
                 intent 必须是 TRAVEL_CHAT、FLIGHT_QUERY、BOOKING_HELP、OUT_OF_SCOPE 之一。
                 只要用户询问机票、航班、票价、时刻、余票、舱位、航司、直飞或可预订选项，返回 FLIGHT_QUERY。
+                价格/多少钱/预算只有在同时出现明确航班词、查票/买票/订票意图，或完整路线+日期/舱位等查询信号时，才返回 FLIGHT_QUERY。
                 “怎么订票/退票/改签/订单/支付/流程/规则”等平台功能问题返回 BOOKING_HELP。
-                目的地怎么玩、景点、行程、在哪里、多远、攻略、问候、助手能力介绍等旅游出行闲聊返回 TRAVEL_CHAT。
+                目的地怎么玩、景点、行程、在哪里、多远、攻略、旅行预算、问候、助手能力介绍等旅游出行闲聊返回 TRAVEL_CHAT。
                 “我想去北京”“上海到北京”这类只表达目的地/路线、但未明确问机票的，返回 TRAVEL_CHAT。
                 非旅行、非航班、非 SkyBooker 平台帮助返回 OUT_OF_SCOPE。
                 示例：{"intent":"TRAVEL_CHAT"}
