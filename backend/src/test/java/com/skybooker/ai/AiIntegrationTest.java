@@ -489,6 +489,39 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
     }
 
+    @Test
+    void chat_newCompleteQueryDoesNotInheritPreviousRecommendationFilters() throws Exception {
+        // 第一轮是完整独立查询，assistant 会返回推荐或无结果，但不是 FOLLOW_UP。
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("查上海到北京明天经济舱");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        // 第二轮是新的完整查询，不是上一轮 FOLLOW_UP 的补槽，不应继承 ECONOMY。
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("查广州到深圳明天");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("深圳"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").doesNotExist());
+    }
+
     // --- 6.3 Recommendation data tests ---
 
     @Test

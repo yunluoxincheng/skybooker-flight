@@ -79,7 +79,9 @@ public class AiChatService {
         AiChatReplyVO reply;
         if (route.intent() == DomainIntent.FLIGHT_QUERY || route.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION) {
             ParsedCondition condition = intentParser.parse(message);
-            condition = mergeWithPreviousContext(session.getId(), condition);
+            if (route.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION) {
+                condition = mergeWithPreviousContext(previousAssistant, condition);
+            }
 
             if (!condition.isComplete()) {
                 reply = buildFollowUpReply(session.getPublicSessionId(), condition, route.intent());
@@ -177,14 +179,19 @@ public class AiChatService {
     }
 
     @SuppressWarnings("unchecked")
-    private ParsedCondition mergeWithPreviousContext(Long sessionId, ParsedCondition current) {
-        AiChatMessage prevAssistant = aiMapper.findLatestAssistantMessage(sessionId);
+    private ParsedCondition mergeWithPreviousContext(AiChatMessage prevAssistant, ParsedCondition current) {
         if (prevAssistant == null || prevAssistant.getExtraJson() == null) return current;
 
         Map<String, Object> prevCondition;
         try {
             Map<String, Object> extra = objectMapper.readValue(
                     prevAssistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
+            Object missingFields = extra.get("missingFields");
+            if (!AiReplyType.FOLLOW_UP.name().equals(extra.get("replyType"))
+                    || !(missingFields instanceof List<?> missing)
+                    || missing.isEmpty()) {
+                return current;
+            }
             prevCondition = (Map<String, Object>) extra.get("parsedCondition");
         } catch (Exception e) {
             log.warn("Failed to parse previous context for merging", e);
