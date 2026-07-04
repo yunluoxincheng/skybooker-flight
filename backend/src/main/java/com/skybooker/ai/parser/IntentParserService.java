@@ -70,12 +70,24 @@ public class IntentParserService implements IntentParser {
             "从(.+?)[飞到去](.+?)(?=[，。,.\\s\\d明今后下晚早]|$)");
     private static final Pattern ROUTE_SIMPLE = Pattern.compile(
             "(.+?)[→\\->](.+?)");
+    private static final Pattern DESTINATION_ONLY = Pattern.compile(
+            "(?:我想|想|我要|帮我)?(?:去|飞往|飞)([\\u4e00-\\u9fa5]{2,8})");
+    private static final Pattern DEPARTURE_CITY_ONLY = Pattern.compile(
+            "(?:从|自)([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
+    private static final Pattern ARRIVAL_CITY_ONLY = Pattern.compile(
+            "(?:目的地|到达|飞往|去)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DATE_PATTERN = Pattern.compile(
             "(\\d{4})[年/-](\\d{1,2})[月/-](\\d{1,2})[日号]?");
     private static final Pattern SHORT_DATE = Pattern.compile(
             "(\\d{1,2})[月/-](\\d{1,2})[日号]?");
+    private static final Pattern DATE_RANGE = Pattern.compile(
+            "(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])\\s*(?:到|至|-|~|—)\\s*(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])");
+    private static final Pattern MULTI_WEEKDAY = Pattern.compile(
+            "(?:周|星期)[一二三四五六日天].*(?:周|星期)[一二三四五六日天].*(?:都可以|均可|都行|任选)");
     private static final Pattern PASSENGER_PATTERN = Pattern.compile(
             "(?<![0-9-])(\\d{1,2})(?:个?人|位)(?!\\d)");
+    private static final Pattern PASSENGER_CN_PATTERN = Pattern.compile(
+            "([一二两三四五六七八九十])(?:个?人|位)");
     private static final Pattern PRICE_PATTERN = Pattern.compile(
             "(?:低于|不超过|最高|最多|预算)[^\\d]?(\\d+)");
     private static final Pattern DURATION_PATTERN = Pattern.compile(
@@ -98,6 +110,7 @@ public class IntentParserService implements IntentParser {
         }
 
         String text = message.trim();
+        boolean ambiguousDateExpression = hasAmbiguousDateExpression(text);
 
         String departureCity = null;
         String arrivalCity = null;
@@ -127,44 +140,57 @@ public class IntentParserService implements IntentParser {
             }
         }
 
-        // Date parsing - explicit first
-        Matcher dateMatcher = DATE_PATTERN.matcher(text);
-        if (dateMatcher.find()) {
-            int year = Integer.parseInt(dateMatcher.group(1));
-            int month = Integer.parseInt(dateMatcher.group(2));
-            int day = Integer.parseInt(dateMatcher.group(3));
-            departureDate = safeDate(year, month, day);
-        }
-
-        if (departureDate == null) {
-            Matcher shortDate = SHORT_DATE.matcher(text);
-            if (shortDate.find()) {
-                int month = Integer.parseInt(shortDate.group(1));
-                int day = Integer.parseInt(shortDate.group(2));
-                int year = LocalDate.now(clock).getYear();
-                departureDate = safeDate(year, month, day);
+        if (departureCity == null) {
+            String[] route = parseKnownCityRoute(text);
+            if (route != null) {
+                departureCity = route[0];
+                arrivalCity = route[1];
             }
         }
 
-        // Relative dates
-        if (departureDate == null) {
-            LocalDate today = LocalDate.now(clock);
-            if (text.contains("大后天")) {
-                departureDate = today.plusDays(3);
-            } else if (text.contains("后天")) {
-                departureDate = today.plusDays(2);
-            } else if (text.contains("明天")) {
-                departureDate = today.plusDays(1);
-            } else if (text.contains("今天")) {
-                departureDate = today;
-            } else if (text.contains("下周末") || text.contains("这周末") || text.contains("周末")) {
-                DayOfWeek todayDay = today.getDayOfWeek();
-                int daysToSaturday = DayOfWeek.SATURDAY.getValue() - todayDay.getValue();
-                if (daysToSaturday < 0) daysToSaturday += 7;
-                if (text.contains("下周末")) daysToSaturday += 7;
-                departureDate = today.plusDays(daysToSaturday);
-            } else if (text.contains("下周")) {
-                departureDate = today.with(TemporalAdjusters.next(DayOfWeek.MONDAY));
+        if (arrivalCity == null) {
+            Matcher destinationOnly = DESTINATION_ONLY.matcher(text);
+            if (destinationOnly.matches()) {
+                arrivalCity = resolveCity(destinationOnly.group(1).trim());
+            }
+        }
+
+        if (departureCity == null) {
+            Matcher departureOnly = DEPARTURE_CITY_ONLY.matcher(text);
+            if (departureOnly.find()) {
+                departureCity = resolveCity(departureOnly.group(1).trim());
+            }
+        }
+
+        if (arrivalCity == null) {
+            Matcher arrivalOnly = ARRIVAL_CITY_ONLY.matcher(text);
+            if (arrivalOnly.find()) {
+                arrivalCity = resolveCity(arrivalOnly.group(1).trim());
+            }
+        }
+
+        // Date parsing - explicit first
+        if (!ambiguousDateExpression) {
+            Matcher dateMatcher = DATE_PATTERN.matcher(text);
+            if (dateMatcher.find()) {
+                int year = Integer.parseInt(dateMatcher.group(1));
+                int month = Integer.parseInt(dateMatcher.group(2));
+                int day = Integer.parseInt(dateMatcher.group(3));
+                departureDate = safeDate(year, month, day);
+            }
+
+            if (departureDate == null) {
+                Matcher shortDate = SHORT_DATE.matcher(text);
+                if (shortDate.find()) {
+                    int month = Integer.parseInt(shortDate.group(1));
+                    int day = Integer.parseInt(shortDate.group(2));
+                    departureDate = resolveMonthDay(month, day);
+                }
+            }
+
+            // Relative dates
+            if (departureDate == null) {
+                departureDate = parseRelativeDate(text);
             }
         }
 
@@ -172,6 +198,11 @@ public class IntentParserService implements IntentParser {
         Matcher passengerMatcher = PASSENGER_PATTERN.matcher(text);
         if (passengerMatcher.find()) {
             passengerCount = Integer.parseInt(passengerMatcher.group(1));
+        } else {
+            Matcher passengerCnMatcher = PASSENGER_CN_PATTERN.matcher(text);
+            if (passengerCnMatcher.find()) {
+                passengerCount = parseChinesePassengerCount(passengerCnMatcher.group(1));
+            }
         }
 
         // Cabin class
@@ -253,7 +284,9 @@ public class IntentParserService implements IntentParser {
         List<String> quickActionLabels = List.of();
 
         if (!complete) {
-            followUpQuestion = buildFollowUpQuestion(missingFields);
+            followUpQuestion = ambiguousDateExpression && missingFields.contains("departureDate")
+                    ? "目前一次只能查询一个出发日期，请您选择一个具体日期。"
+                    : buildFollowUpQuestion(missingFields);
             quickActionLabels = buildQuickActions(missingFields, departureCity, arrivalCity);
         }
 
@@ -261,7 +294,7 @@ public class IntentParserService implements IntentParser {
                 .departureCity(departureCity)
                 .arrivalCity(arrivalCity)
                 .departureDate(departureDate)
-                .passengerCount(passengerCount != null ? passengerCount : 1)
+                .passengerCount(passengerCount)
                 .cabinClass(cabinClass)
                 .airlineRaw(airlineRaw)
                 .minPrice(null)
@@ -277,12 +310,157 @@ public class IntentParserService implements IntentParser {
                 .build();
     }
 
+    /**
+     * 判断文本是否为"缺槽上下文里的裸补全词"。
+     *
+     * <p>纯城市名、乘客数量词等在缺少"从/到/去"等结构词时，{@link #parse} 无法将其结构化为
+     * 查询字段，但在 FOLLOW_UP 缺槽状态下语义上明显是在补全航班查询条件（例如用户回复"北京"、"两个人"）。
+     * 本方法仅复用已维护的城市表与乘客模式做语义识别，不引入"文本长度"启发式。</p>
+     */
+    public boolean looksLikeSlotFiller(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String t = text.trim();
+        for (String city : CITY_ALIASES.keySet()) {
+            if (t.contains(city)) {
+                return true;
+            }
+        }
+        return PASSENGER_PATTERN.matcher(t).find() || PASSENGER_CN_PATTERN.matcher(t).find();
+    }
+
     private LocalDate safeDate(int year, int month, int day) {
         try {
             return LocalDate.of(year, month, day);
         } catch (DateTimeException e) {
             return null;
         }
+    }
+
+    private LocalDate resolveMonthDay(int month, int day) {
+        LocalDate today = LocalDate.now(clock);
+        LocalDate candidate = safeDate(today.getYear(), month, day);
+        if (candidate != null && candidate.isBefore(today)) {
+            candidate = safeDate(today.getYear() + 1, month, day);
+        }
+        return candidate;
+    }
+
+    private LocalDate parseRelativeDate(String text) {
+        LocalDate today = LocalDate.now(clock);
+        if (text.contains("大后天")) {
+            return today.plusDays(3);
+        }
+        if (text.contains("后天")) {
+            return today.plusDays(2);
+        }
+        if (text.contains("明天")) {
+            return today.plusDays(1);
+        }
+        if (text.contains("今天")) {
+            return today;
+        }
+        if (text.contains("下周末")) {
+            return saturdayOfIsoWeek(today.plusWeeks(1));
+        }
+        if (text.contains("这周末") || text.contains("本周末") || text.contains("周末")) {
+            LocalDate saturday = saturdayOfIsoWeek(today);
+            return saturday.isBefore(today) ? saturday.plusWeeks(1) : saturday;
+        }
+
+        WeekdayPhrase weekdayPhrase = parseWeekdayPhrase(text);
+        if (weekdayPhrase == null) {
+            return null;
+        }
+        if (weekdayPhrase.nextWeek()) {
+            return weekdayInIsoWeek(today.plusWeeks(1), weekdayPhrase.dayOfWeek());
+        }
+        LocalDate candidate = weekdayInIsoWeek(today, weekdayPhrase.dayOfWeek());
+        if (weekdayPhrase.explicitThisWeek()) {
+            return candidate;
+        }
+        return candidate.isBefore(today) ? candidate.plusWeeks(1) : candidate;
+    }
+
+    private LocalDate saturdayOfIsoWeek(LocalDate date) {
+        return weekdayInIsoWeek(date, DayOfWeek.SATURDAY);
+    }
+
+    private LocalDate weekdayInIsoWeek(LocalDate date, DayOfWeek dayOfWeek) {
+        return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .plusDays(dayOfWeek.getValue() - DayOfWeek.MONDAY.getValue());
+    }
+
+    private WeekdayPhrase parseWeekdayPhrase(String text) {
+        for (Map.Entry<String, DayOfWeek> entry : weekdayMap().entrySet()) {
+            String token = entry.getKey();
+            if (text.contains("下个" + token) || text.contains("下" + token)) {
+                return new WeekdayPhrase(entry.getValue(), true, false);
+            }
+            if (text.contains("这" + token) || text.contains("本" + token)) {
+                return new WeekdayPhrase(entry.getValue(), false, true);
+            }
+            if (text.contains(token)) {
+                return new WeekdayPhrase(entry.getValue(), false, false);
+            }
+        }
+        return null;
+    }
+
+    private Map<String, DayOfWeek> weekdayMap() {
+        return Map.ofEntries(
+                Map.entry("周一", DayOfWeek.MONDAY), Map.entry("星期一", DayOfWeek.MONDAY),
+                Map.entry("周二", DayOfWeek.TUESDAY), Map.entry("星期二", DayOfWeek.TUESDAY),
+                Map.entry("周三", DayOfWeek.WEDNESDAY), Map.entry("星期三", DayOfWeek.WEDNESDAY),
+                Map.entry("周四", DayOfWeek.THURSDAY), Map.entry("星期四", DayOfWeek.THURSDAY),
+                Map.entry("周五", DayOfWeek.FRIDAY), Map.entry("星期五", DayOfWeek.FRIDAY),
+                Map.entry("周六", DayOfWeek.SATURDAY), Map.entry("星期六", DayOfWeek.SATURDAY),
+                Map.entry("周日", DayOfWeek.SUNDAY), Map.entry("星期日", DayOfWeek.SUNDAY),
+                Map.entry("周天", DayOfWeek.SUNDAY), Map.entry("星期天", DayOfWeek.SUNDAY)
+        );
+    }
+
+    private String[] parseKnownCityRoute(String text) {
+        for (String departure : CITY_ALIASES.keySet()) {
+            for (String arrival : CITY_ALIASES.keySet()) {
+                if (departure.equals(arrival)) {
+                    continue;
+                }
+                if (text.contains(departure + "到" + arrival)
+                        || text.contains(departure + "飞" + arrival)
+                        || text.contains(departure + "去" + arrival)) {
+                    return new String[]{CITY_ALIASES.get(departure), CITY_ALIASES.get(arrival)};
+                }
+            }
+        }
+        return null;
+    }
+
+    private Integer parseChinesePassengerCount(String text) {
+        return switch (text) {
+            case "一" -> 1;
+            case "二", "两" -> 2;
+            case "三" -> 3;
+            case "四" -> 4;
+            case "五" -> 5;
+            case "六" -> 6;
+            case "七" -> 7;
+            case "八" -> 8;
+            case "九" -> 9;
+            case "十" -> 10;
+            default -> null;
+        };
+    }
+
+    private boolean hasAmbiguousDateExpression(String text) {
+        return text.contains("最近几天")
+                || text.contains("这几天")
+                || text.contains("未来几天")
+                || text.contains("近两天")
+                || text.contains("未来一周")
+                || DATE_RANGE.matcher(text).find()
+                || MULTI_WEEKDAY.matcher(text).find();
     }
 
     private String resolveCity(String text) {
@@ -322,5 +500,8 @@ public class IntentParserService implements IntentParser {
             actions.add("后天出发");
         }
         return actions;
+    }
+
+    private record WeekdayPhrase(DayOfWeek dayOfWeek, boolean nextWeek, boolean explicitThisWeek) {
     }
 }

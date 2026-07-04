@@ -15,6 +15,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +24,10 @@ public class LlmIntentParserService {
     private static final int MAX_PASSENGER_COUNT = 9;
     private static final List<String> REQUIRED_FIELDS = List.of("departureCity", "arrivalCity", "departureDate");
     private static final List<String> ALLOWED_CABINS = List.of("ECONOMY", "BUSINESS", "FIRST");
+    private static final Pattern DATE_RANGE = Pattern.compile(
+            "(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])\\s*(?:到|至|-|~|—)\\s*(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])");
+    private static final Pattern MULTI_WEEKDAY = Pattern.compile(
+            "(?:周|星期)[一二三四五六日天].*(?:周|星期)[一二三四五六日天].*(?:都可以|均可|都行|任选)");
 
     private final LlmChatClient llmChatClient;
     private final ObjectMapper objectMapper;
@@ -43,10 +48,11 @@ public class LlmIntentParserService {
         String departureCity = text(root, "departureCity");
         String arrivalCity = text(root, "arrivalCity");
         LocalDate departureDate = date(root, "departureDate");
-        Integer passengerCount = passengerCount(root, "passengerCount");
-        if (passengerCount == null) {
-            passengerCount = 1;
+        boolean ambiguousDateExpression = hasAmbiguousDateExpression(message);
+        if (ambiguousDateExpression) {
+            departureDate = null;
         }
+        Integer passengerCount = passengerCount(root, "passengerCount");
         String cabinClass = cabin(root, "cabinClass");
         String airlineRaw = text(root, "airlineRaw");
         if (airlineRaw == null) {
@@ -63,7 +69,9 @@ public class LlmIntentParserService {
         List<String> missing = missingFields(departureCity, arrivalCity, departureDate);
         String followUpQuestion = text(root, "followUpQuestion");
         if (!missing.isEmpty() && followUpQuestion == null) {
-            followUpQuestion = "请问您想从哪个城市出发，飞往哪个城市，什么时间出发？";
+            followUpQuestion = ambiguousDateExpression && missing.contains("departureDate")
+                    ? "目前一次只能查询一个出发日期，请您选择一个具体日期。"
+                    : "请问您想从哪个城市出发，飞往哪个城市，什么时间出发？";
         }
 
         return ParsedCondition.builder()
@@ -243,6 +251,16 @@ public class LlmIntentParserService {
             if (labels.size() >= 5) break;
         }
         return labels;
+    }
+
+    private boolean hasAmbiguousDateExpression(String text) {
+        return text.contains("最近几天")
+                || text.contains("这几天")
+                || text.contains("未来几天")
+                || text.contains("近两天")
+                || text.contains("未来一周")
+                || DATE_RANGE.matcher(text).find()
+                || MULTI_WEEKDAY.matcher(text).find();
     }
 
     private String systemPrompt() {

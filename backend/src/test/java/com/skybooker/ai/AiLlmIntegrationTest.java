@@ -79,7 +79,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                 """.formatted(tomorrowStr));
 
         AiChatRequest request = new AiChatRequest();
-        request.setMessage("帮我订一张上海到北京的票");
+        request.setMessage("查上海到北京机票");
 
         MvcResult result = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -122,6 +122,48 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_llmTravelAdviceUnsafeFlightFactsFallsBackToTemplate() throws Exception {
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("明天 CZ3101 还有 9 个座位，价格 580 元，可以访问 /booking/1 预订。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("北京有什么好玩");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        String replyText = (String) ((Map<String, Object>) response.getData()).get("replyText");
+        assertThat(replyText).doesNotContain("CZ3101");
+        assertThat(replyText).doesNotContain("580");
+        assertThat(replyText).doesNotContain("/booking/");
+    }
+
+    @Test
+    void chat_platformHelpDoesNotCallLlmForPolicyFacts() throws Exception {
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("可以随便退票，系统一定全额退款。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("退票怎么操作");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("BOOKING_HELP"))
+                .andExpect(jsonPath("$.data.replyText").value(org.hamcrest.Matchers.containsString("订单详情")));
+
+        verify(llmChatClient, never()).complete(anyString(), anyString(), any());
+    }
+
+    @Test
     void chat_llmMultiTurnContextMerge_doesNotCallLlmForInternalBlankFollowUp() throws Exception {
         when(llmChatClient.complete(anyString(), anyString(), any()))
                 .thenReturn("""
@@ -139,7 +181,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         """.formatted(tomorrowStr));
 
         AiChatRequest first = new AiChatRequest();
-        first.setMessage("我要从上海到北京");
+        first.setMessage("查上海到北京机票");
 
         MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -188,7 +230,6 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.parsedCondition.passengerCount").value(1))
                 .andReturn();
 
         ApiResponse<Map> response = objectMapper.readValue(
@@ -196,11 +237,12 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         Map<String, Object> data = (Map<String, Object>) response.getData();
 
         assertThat(data.get("replyType")).isEqualTo("FLIGHT_RECOMMENDATION");
+        assertThat(((Map<String, Object>) data.get("parsedCondition")).get("passengerCount")).isEqualTo(1);
         List<Map<String, Object>> flights = (List<Map<String, Object>>) data.get("flights");
         assertThat(flights).isNotEmpty();
         assertThat(flights)
                 .extracting(flight -> flight.get("flightNo"))
-                .doesNotContain("CZ3101");
+                .doesNotContain("FAKE-002");
         assertThat(flights)
                 .extracting(flight -> ((Number) flight.get("remainingSeats")).intValue())
                 .allMatch(remainingSeats -> remainingSeats > 0);
@@ -215,8 +257,32 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         assertThat(parsedNode.path("departureCity").asText()).isEqualTo("上海");
         assertThat(parsedNode.path("arrivalCity").asText()).isEqualTo("北京");
         assertThat(parsedNode.path("departureDate").asText()).isEqualTo(tomorrowStr);
+        // parser/merge 阶段允许 null；进入最终查询前归一化为 1，并写入响应/推荐记录。
         assertThat(parsedNode.path("passengerCount").asInt()).isEqualTo(1);
         assertThat(parsedJson).doesNotContain("FAKE-002");
         assertThat(parsedNode.has("price")).isFalse();
+    }
+
+    @Test
+    void chat_travelChatUnsafeScheduleFactsFallsBackToTemplate() throws Exception {
+        // LLM 在 TRAVEL_CHAT 里编造航班时刻（“航班 9:00 起飞 / 14:30 到达”）→ 安全校验拒绝 → 回退模板
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenReturn("明天航班 9:00 起飞，14:30 到达，很适合出行。");
+
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("北京有什么好玩");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        String replyText = (String) ((Map<String, Object>) response.getData()).get("replyText");
+        assertThat(replyText).doesNotContain("9:00");
+        assertThat(replyText).doesNotContain("14:30");
     }
 }

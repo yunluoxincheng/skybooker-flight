@@ -99,7 +99,7 @@ class LlmIntentParserServiceTest {
     }
 
     @Test
-    void parse_missingPassengerCount_defaultsToOne() {
+    void parse_missingPassengerCount_keepsNullUntilSearchNormalization() {
         LlmIntentParserService parser = parserReturning("""
                 {
                   "departureCity": "上海",
@@ -110,7 +110,7 @@ class LlmIntentParserServiceTest {
 
         var result = parser.parse("上海到北京机票", cfg());
 
-        assertThat(result.getPassengerCount()).isEqualTo(1);
+        assertThat(result.getPassengerCount()).isNull();
     }
 
     @Test

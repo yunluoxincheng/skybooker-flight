@@ -29,8 +29,19 @@ public class CompositeIntentParser implements IntentParser {
         try {
             return llmIntentParserService.parse(message, cfg);
         } catch (LlmIntentParseException e) {
-            log.warn("LLM intent parsing failed, falling back to rule parser: {}", e.getMessage());
+            log.warn("LLM intent parsing failed, falling back to rule parser: {}", sanitizeErrorMessage(e.getMessage()));
             return ruleIntentParserService.parse(message);
         }
+    }
+
+    private String sanitizeErrorMessage(String message) {
+        if (message == null) {
+            return "";
+        }
+        return message
+                .replaceAll("(?i)(Authorization\\s*:\\s*)(Bearer\\s+)?[A-Za-z0-9._~+/=-]+", "$1***")
+                .replaceAll("(?i)((?:x-)?api-key\\s*[:=]?\\s*)[A-Za-z0-9._~+/=-]+", "$1***")
+                .replaceAll("(?i)Bearer\\s+[A-Za-z0-9._~+/=-]+", "Bearer ***")
+                .replaceAll("sk-[A-Za-z0-9._-]+", "sk-***");
     }
 }

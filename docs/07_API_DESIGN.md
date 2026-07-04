@@ -537,7 +537,16 @@ POST /api/ai/chat
   "data": {
     "sessionId": "01JZ8X9K7M2Q3R4S5T6V7W8XYZ",
     "replyType": "FLIGHT_RECOMMENDATION",
+    "intent": "FLIGHT_QUERY",
     "replyText": "已为你找到 3 个从上海飞往北京的可购买航班，已按价格从低到高排序。",
+    "parsedCondition": {
+      "departureCity": "上海",
+      "arrivalCity": "北京",
+      "departureDate": "2026-05-26",
+      "sort": "PRICE_ASC"
+    },
+    "missingFields": [],
+    "followUpQuestion": null,
     "searchUrl": "/flights?departureCity=上海&arrivalCity=北京&departureDate=2026-05-26&sort=price_asc",
     "flights": [
       {
@@ -559,12 +568,21 @@ POST /api/ai/chat
     "quickActions": [
       {
         "label": "查看全部结果",
-        "url": "/flights?departureCity=上海&arrivalCity=北京&departureDate=2026-05-26&sort=price_asc"
+        "value": "查看全部结果"
       }
     ]
   }
 }
 ```
+
+`replyType` 取值：
+
+- 搜索链路：`FOLLOW_UP`、`FLIGHT_RECOMMENDATION`、`NO_RESULT`；
+- 非搜索会话：`TRAVEL_CHAT`、`BOOKING_HELP`、`OUT_OF_SCOPE`。
+
+`intent` 取值：`TRAVEL_CHAT`、`FLIGHT_QUERY`、`FLIGHT_QUERY_CONTINUATION`、`BOOKING_HELP`、`OUT_OF_SCOPE`。
+
+非搜索会话回复仍返回稳定字段：`parsedCondition` 为空对象、`missingFields` 为空数组、`followUpQuestion` 为 `null`、`searchUrl` 为 `null`、`flights` 为空数组。快捷操作保持文本建议契约，每项只包含 `label` 和 `value`；页面跳转继续使用 `searchUrl`、航班卡片 `detailUrl` 或 `bookingUrl`。
 
 ### 获取会话消息
 
