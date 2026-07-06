@@ -16,9 +16,16 @@ IMAGE_SOURCE="${SKYBOOKER_IMAGE_SOURCE:-ghcr}"
 IMAGE_NAMESPACE="${SKYBOOKER_IMAGE_NAMESPACE:-}"
 DOCKERHUB_NAMESPACE="${SKYBOOKER_DOCKERHUB_NAMESPACE:-}"
 IMAGE_TAG="${SKYBOOKER_IMAGE_TAG:-}"
+IMAGE_SOURCE_EXPLICIT="false"
+IMAGE_NAMESPACE_EXPLICIT="false"
+DOCKERHUB_NAMESPACE_EXPLICIT="false"
 REGENERATE_SECRETS="false"
 PREPARE_ONLY="false"
 SKIP_PULL="false"
+
+[[ -n "${SKYBOOKER_IMAGE_SOURCE:-}" ]] && IMAGE_SOURCE_EXPLICIT="true"
+[[ -n "${SKYBOOKER_IMAGE_NAMESPACE:-}" ]] && IMAGE_NAMESPACE_EXPLICIT="true"
+[[ -n "${SKYBOOKER_DOCKERHUB_NAMESPACE:-}" ]] && DOCKERHUB_NAMESPACE_EXPLICIT="true"
 
 usage() {
   cat <<'EOF'
@@ -150,6 +157,27 @@ env_has_key() {
   [[ -f "$ENV_FILE" ]] && grep -Eq "^[[:space:]]*${key}=" "$ENV_FILE"
 }
 
+env_value() {
+  local key="$1"
+  [[ -f "$ENV_FILE" ]] || return 1
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key "=" {
+      sub("^[[:space:]]*" key "=", "")
+      print
+      exit
+    }
+  ' "$ENV_FILE"
+}
+
+env_has_non_empty_value() {
+  local key="$1"
+  local value
+  value="$(env_value "$key" || true)"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  [[ -n "$value" && "$value" != '""' && "$value" != "''" ]]
+}
+
 append_env_if_missing() {
   local key="$1"
   local value="$2"
@@ -185,6 +213,29 @@ set_env_value() {
   rm -f "$tmp"
 }
 
+image_overrides_explicit() {
+  [[ "$IMAGE_SOURCE_EXPLICIT" == "true" || "$IMAGE_NAMESPACE_EXPLICIT" == "true" || "$DOCKERHUB_NAMESPACE_EXPLICIT" == "true" ]]
+}
+
+mysql_volume_exists() {
+  command -v docker >/dev/null 2>&1 || return 1
+
+  local project
+  project="$(env_value COMPOSE_PROJECT_NAME || true)"
+  project="${project:-$APP_NAME}"
+  docker volume inspect "${project}_mysql_data" >/dev/null 2>&1
+}
+
+guard_regenerate_secrets() {
+  if [[ "$REGENERATE_SECRETS" != "true" ]]; then
+    return
+  fi
+
+  if mysql_volume_exists; then
+    fail "--regenerate-secrets is blocked because an existing MySQL volume was found. Changing MYSQL_PASSWORD does not update the password stored inside the initialized MySQL data directory. Back up data and rotate credentials manually, or remove the volume intentionally before regenerating."
+  fi
+}
+
 prepare_env() {
   local namespace
   prepare_image_source
@@ -192,14 +243,18 @@ prepare_env() {
 
   umask 077
   touch "$ENV_FILE"
+  guard_regenerate_secrets
 
   append_env_if_missing COMPOSE_PROJECT_NAME "$APP_NAME"
   append_env_if_missing BACKEND_IMAGE "$namespace/skybooker-backend"
   append_env_if_missing FRONTEND_IMAGE "$namespace/skybooker-frontend"
+  if image_overrides_explicit; then
+    set_env_value BACKEND_IMAGE "$namespace/skybooker-backend"
+    set_env_value FRONTEND_IMAGE "$namespace/skybooker-frontend"
+  fi
   append_env_if_missing IMAGE_TAG "${IMAGE_TAG:-latest}"
   append_env_if_missing PUBLIC_HTTP_PORT "8088"
   append_env_if_missing MYSQL_DB "flight_booking"
-  append_env_if_missing MYSQL_USER "root"
   append_env_if_missing JWT_ACCESS_MS "3600000"
   append_env_if_missing JWT_REFRESH_MS "1209600000"
   append_env_if_missing OPENAPI_ENABLED "false"
@@ -217,13 +272,13 @@ prepare_env() {
   append_env_if_missing DB_USE_SSL "false"
   append_env_if_missing DB_ALLOW_PUBLIC_KEY_RETRIEVAL "true"
 
-  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_key MYSQL_PASSWORD; then
+  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_non_empty_value MYSQL_PASSWORD; then
     set_env_value MYSQL_PASSWORD "$(random_b64 32)"
   fi
-  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_key JWT_SECRET; then
+  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_non_empty_value JWT_SECRET; then
     set_env_value JWT_SECRET "$(random_b64 48)"
   fi
-  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_key AI_CONFIG_ENC_KEY; then
+  if [[ "$REGENERATE_SECRETS" == "true" ]] || ! env_has_non_empty_value AI_CONFIG_ENC_KEY; then
     set_env_value AI_CONFIG_ENC_KEY "$(random_b64 32)"
   fi
 
@@ -321,14 +376,17 @@ parse_args() {
         ;;
       --image-source)
         parse_image_source "$2"
+        IMAGE_SOURCE_EXPLICIT="true"
         shift 2
         ;;
       --dockerhub-namespace)
         DOCKERHUB_NAMESPACE="$2"
+        DOCKERHUB_NAMESPACE_EXPLICIT="true"
         shift 2
         ;;
       --image-namespace)
         IMAGE_NAMESPACE="$2"
+        IMAGE_NAMESPACE_EXPLICIT="true"
         shift 2
         ;;
       --tag)

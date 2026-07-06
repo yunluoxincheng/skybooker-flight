@@ -9,6 +9,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "deploy/**"
+      - "scripts/deploy.sh"
       - ".github/workflows/docker-images.yml"
   push:
     branches:

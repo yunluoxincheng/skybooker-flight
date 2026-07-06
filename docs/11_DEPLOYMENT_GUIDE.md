@@ -155,7 +155,7 @@ FRONTEND_IMAGE=docker.io/<dockerhub-namespace>/skybooker-frontend
 IMAGE_TAG=latest
 ```
 
-## 4. 一键安装
+## 4. 安全安装
 
 默认安装目录：
 
@@ -163,11 +163,14 @@ IMAGE_TAG=latest
 /opt/skybooker
 ```
 
-一键安装命令：
+生产环境不建议直接执行 `curl | sudo bash`。推荐先下载脚本，检查内容，再执行；上线时优先把 URL 中的 `main` 替换为已发布 tag 或 commit SHA。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo bash
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+less deploy.sh
+chmod +x deploy.sh
+sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
 ```
 
 脚本会：
@@ -182,73 +185,89 @@ curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/mai
 指定不可变镜像 tag 首次部署：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo bash -s -- install --tag sha-<commit-sha>
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
 ```
 
 自定义目录、仓库、模板分支或镜像命名：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo bash -s -- install \
-      --dir /srv/skybooker \
-      --repo yunluoxincheng/skybooker-flight \
-      --ref main \
-      --image-namespace ghcr.io/yunluoxincheng/skybooker-flight
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo ./deploy.sh install \
+  --dir /srv/skybooker \
+  --repo yunluoxincheng/skybooker-flight \
+  --ref "$DEPLOY_REF" \
+  --image-namespace ghcr.io/yunluoxincheng/skybooker-flight
 ```
 
 使用 Docker Hub 镜像源：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo bash -s -- install \
-      --image-source dockerhub \
-      --dockerhub-namespace <dockerhub-namespace>
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo ./deploy.sh install \
+  --ref "$DEPLOY_REF" \
+  --image-source dockerhub \
+  --dockerhub-namespace <dockerhub-namespace>
 ```
 
 也可以直接指定完整镜像命名空间：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo bash -s -- install \
-      --image-namespace docker.io/<dockerhub-namespace>
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo ./deploy.sh install \
+  --ref "$DEPLOY_REF" \
+  --image-namespace docker.io/<dockerhub-namespace>
 ```
 
 在 clean server 上也可以用环境变量传递同样的覆盖项：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo env SKYBOOKER_DEPLOY_DIR=/srv/skybooker \
-      SKYBOOKER_REPO=yunluoxincheng/skybooker-flight \
-      SKYBOOKER_REF=main \
-      SKYBOOKER_IMAGE_NAMESPACE=ghcr.io/yunluoxincheng/skybooker-flight \
-      bash -s -- install
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo env SKYBOOKER_DEPLOY_DIR=/srv/skybooker \
+  SKYBOOKER_REPO=yunluoxincheng/skybooker-flight \
+  SKYBOOKER_REF="$DEPLOY_REF" \
+  SKYBOOKER_IMAGE_NAMESPACE=ghcr.io/yunluoxincheng/skybooker-flight \
+  ./deploy.sh install
 ```
 
 Docker Hub 环境变量示例：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo env SKYBOOKER_IMAGE_SOURCE=dockerhub \
-      SKYBOOKER_DOCKERHUB_NAMESPACE=<dockerhub-namespace> \
-      bash -s -- install
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+chmod +x deploy.sh
+sudo env SKYBOOKER_IMAGE_SOURCE=dockerhub \
+  SKYBOOKER_DOCKERHUB_NAMESPACE=<dockerhub-namespace> \
+  SKYBOOKER_REF="$DEPLOY_REF" \
+  ./deploy.sh install
 ```
 
 ## 5. 手动安装备选
 
-不使用 curl-pipe 时，可以手动下载资产：
+需要手动下载全部部署资产时，可以执行：
 
 ```bash
+DEPLOY_REF=<tag-or-commit-sha>
 sudo install -d -m 0755 /opt/skybooker/nginx
 cd /opt/skybooker
-sudo curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/deploy/docker-compose.prod.yml \
+sudo curl -fsSL "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/deploy/docker-compose.prod.yml" \
   -o docker-compose.yml
-sudo curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/deploy/nginx/prod.conf \
+sudo curl -fsSL "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/deploy/nginx/prod.conf" \
   -o nginx/default.conf
-sudo curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+sudo curl -fsSL "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh" \
   -o deploy.sh
 sudo chmod +x deploy.sh
-sudo ./deploy.sh install
+sudo ./deploy.sh install --ref "$DEPLOY_REF"
 ```
 
 如果需要先只生成文件和 `.env`，不启动容器：
@@ -270,6 +289,11 @@ sudo ./deploy.sh update
 # 更新到指定不可变 tag
 sudo ./deploy.sh update --tag sha-<commit-sha>
 
+# 切换到 Docker Hub 镜像源并更新 .env 中的 BACKEND_IMAGE/FRONTEND_IMAGE
+sudo ./deploy.sh update \
+  --image-source dockerhub \
+  --dockerhub-namespace <dockerhub-namespace>
+
 # 回滚到上一个已知正常 tag
 sudo ./deploy.sh rollback --tag sha-<previous-commit-sha>
 
@@ -286,11 +310,13 @@ sudo ./deploy.sh logs -f backend
 sudo ./deploy.sh down
 ```
 
-`update` 和 `rollback` 都不会删除 `mysql_data` volume。数据库结构变更由 backend 启动时的 Flyway 自动执行；上线前仍应先备份数据库。
+`update` 和 `rollback` 都不会删除 `mysql_data` volume。数据库结构变更由 backend 启动时的 Flyway 自动执行；上线前仍应先备份数据库。显式传入 `--image-source`、`--dockerhub-namespace` 或 `--image-namespace` 时，脚本会同步更新 `.env` 中的 `BACKEND_IMAGE` 和 `FRONTEND_IMAGE`，用于在 GHCR 和 Docker Hub 等镜像源之间切换。
 
 ## 7. 生产 `.env`
 
-脚本首次安装会创建权限为 `600` 的 `.env`。重复运行时保留已有值，只追加缺失键。只有显式使用 `--regenerate-secrets` 时才会替换生成类 secret；该选项会导致已签发 token 失效，可能使数据库密码和已加密的 AI provider key 不再匹配，生产环境不要随意使用。
+脚本首次安装会创建权限为 `600` 的 `.env`。重复运行时保留已有值，只追加缺失键；`MYSQL_PASSWORD=`、`JWT_SECRET=""`、`AI_CONFIG_ENC_KEY=''` 这类空值会被视为缺失并重新生成。
+
+只有显式使用 `--regenerate-secrets` 时才会替换生成类 secret；该选项会导致已签发 token 失效，并且已有 `mysql_data` volume 时不会自动修改 MySQL 数据目录中已初始化的 root 密码。脚本检测到已有 MySQL volume 会拒绝执行 `--regenerate-secrets`，需要先备份数据并按数据库运维流程手动轮换凭据。
 
 核心变量：
 
@@ -302,7 +328,6 @@ IMAGE_TAG=latest
 PUBLIC_HTTP_PORT=8088
 
 MYSQL_DB=flight_booking
-MYSQL_USER=root
 MYSQL_PASSWORD=<generated>
 JWT_SECRET=<generated>
 AI_CONFIG_ENC_KEY=<generated-base64-32-bytes>
@@ -314,6 +339,8 @@ RESEND_API_KEY=
 AI_LLM_ENABLED=false
 AI_LLM_API_KEY=
 ```
+
+生产 all-in-one Compose 内置 MySQL 第一版固定使用 root 账号，`MYSQL_PASSWORD` 同时作为 MySQL root 密码和 backend 连接密码。不要在生产 `.env` 中配置非 root `MYSQL_USER`；外部数据库和独立应用用户属于后续 app-only 部署设计。
 
 `AI_CONFIG_ENC_KEY` 必须妥善备份。丢失后，数据库中已加密保存的 AI provider key 无法解密，只能回退到环境变量配置或重新写入。
 

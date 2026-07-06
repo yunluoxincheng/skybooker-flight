@@ -39,7 +39,7 @@ services:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_DB: ${MYSQL_DB:-flight_booking}
-      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_USER: root
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       REDIS_HOST: redis
       REDIS_PORT: 6379
