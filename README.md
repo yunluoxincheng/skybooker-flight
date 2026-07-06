@@ -40,12 +40,13 @@
 
 - 前端：Next.js App Router、React、TypeScript、Tailwind CSS、shadcn/ui、lucide-react、React Hook Form、Zod
 - 后端：Java 21、Spring Boot 3.3、Spring MVC、Spring Security、MyBatis、MySQL 8、Redis 7、Flyway、JWT、Bean Validation、Knife4j / OpenAPI、Resend
-- 部署与测试：Docker、Docker Compose、Nginx、Maven、JUnit / Spring Boot Test、JMeter、Shell smoke scripts
+- 部署与测试：Docker、Docker Compose、Nginx、GitHub Actions、GHCR / Docker Hub、Maven、JUnit / Spring Boot Test、JMeter、Shell smoke scripts
 
 ## 项目结构
 
 ```text
 skybooker-flight/
+├── .github/workflows/           # CI 与镜像构建发布工作流
 ├── backend/                     # Spring Boot 后端
 │   ├── Dockerfile
 │   └── src/main/
@@ -54,21 +55,33 @@ skybooker-flight/
 │           ├── mapper/          # MyBatis XML
 │           └── db/migration/    # Flyway 迁移
 ├── frontend/                    # Next.js 前端应用
-├── deploy/nginx/                # Nginx 配置
+│   ├── Dockerfile
+│   └── src/
+├── deploy/                      # 生产部署模板
+│   ├── docker-compose.prod.yml
+│   └── nginx/prod.conf
 ├── docs/                        # 需求、架构、API、部署、测试、展示文档
 ├── appendices/                  # 错误码、响应、SQL、Git 规范
-├── scripts/                     # 烟测、并发测试、演示数据脚本
-├── docker-compose.yml
+├── scripts/                     # 部署脚本、烟测、并发测试、演示数据脚本
+│   └── deploy.sh
+├── docker-compose.yml           # 本地开发 / 演示 Compose
 └── README.md
 ```
 
-后端按业务模块纵向分包，每个模块按需包含 `controller/`、`service/`、`mapper/`、`entity/`、`dto/`、`vo/` 和 `enums/`。
+后端按业务模块纵向分包，每个模块按需包含 `controller/`、`service/`、`mapper/`、`entity/`、`dto/`、`vo` 和 `enums/`。
 
 ## 快速启动
 
-推荐使用 Docker Compose 启动。源码开发时再额外安装 JDK 21、Maven 3.8+、Node.js 20+ 和 pnpm。
+SkyBooker 当前支持两条 Docker 路径：
 
-### 1. 准备环境变量
+- 本地开发 / 演示：使用仓库根目录 `docker-compose.yml`，本地构建后端并启动 MySQL、Redis、backend、nginx；前端可单独本地运行。
+- 生产部署：使用 `scripts/deploy.sh` 下载维护中的生产模板，拉取已发布镜像，启动 MySQL、Redis、backend、frontend、nginx all-in-one 栈。
+
+### 1. 本地开发 / 演示启动
+
+源码开发建议安装 JDK 21、Maven 3.8+、Node.js 24+、pnpm 10+、Docker Engine 或 Docker Desktop。
+
+准备环境变量：
 
 ```bash
 cp .env.example .env
@@ -114,7 +127,7 @@ NGINX_PORT=8088
 
 `MYSQL_PASSWORD`、`JWT_SECRET`、`RESEND_API_KEY` 和 `AI_CONFIG_ENC_KEY`（后台写入 LLM 配置时必需）应使用真实安全值，并只保存在本地 `.env`、服务器环境变量或部署平台密钥中。默认 `MAIL_PROVIDER=log` 不需要 Resend 凭据；生产发送邮件时再改为 `MAIL_PROVIDER=resend`。
 
-### 2. 启动服务
+启动本地 Compose：
 
 ```bash
 docker compose up -d --build
@@ -153,48 +166,81 @@ http://localhost:8088/swagger-ui.html
 http://localhost:8088/v3/api-docs
 ```
 
-### 3. 使用 Docker Hub 镜像
+### 2. 生产 Docker 部署
 
-使用已发布到 Docker Hub 的后端镜像时，可将 Compose 中的 `backend` 服务切换为：
+生产部署推荐使用固定 tag 或 commit SHA。不要直接执行 `curl | sudo bash`；建议先下载脚本、检查内容，再执行。
 
-```yaml
-services:
-  backend:
-    image: yunluoxincheng/skybooker-backend:latest
-    container_name: skybooker-backend
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DB: ${MYSQL_DB:-flight_booking}
-      MYSQL_USER: ${MYSQL_USER:-root}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      JWT_ACCESS_MS: ${JWT_ACCESS_MS:-3600000}
-      JWT_REFRESH_MS: ${JWT_REFRESH_MS:-1209600000}
-      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
-      MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
-      MAIL_FROM: ${MAIL_FROM:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
-      AI_LLM_ENABLED: ${AI_LLM_ENABLED:-false}
-      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-}
-      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
-      AI_LLM_MODEL: ${AI_LLM_MODEL:-}
-      AI_LLM_TIMEOUT_MS: ${AI_LLM_TIMEOUT_MS:-8000}
-      AI_LLM_MAX_RETRIES: ${AI_LLM_MAX_RETRIES:-1}
-      AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:-}
-    ports:
-      - "${BACKEND_PORT:-127.0.0.1:8080}:8080"
+```bash
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+less deploy.sh
+chmod +x deploy.sh
+sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
 ```
 
-完整部署说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
+默认安装目录：
+
+```text
+/opt/skybooker
+```
+
+脚本会创建部署目录、下载生产 Compose 与 nginx 模板、生成 `.env`、拉取镜像并启动：
+
+```text
+mysql
+redis
+backend
+frontend
+nginx
+```
+
+默认镜像源是 GHCR：
+
+```text
+ghcr.io/yunluoxincheng/skybooker-flight/skybooker-backend
+ghcr.io/yunluoxincheng/skybooker-flight/skybooker-frontend
+```
+
+如果 GHCR 镜像是 private，需要先在服务器登录 GHCR。也可以切换到 Docker Hub：
+
+```bash
+sudo ./deploy.sh update \
+  --image-source dockerhub \
+  --dockerhub-namespace <dockerhub-namespace>
+```
+
+生产入口默认是：
+
+```text
+http://<server-ip>:8088
+```
+
+域名和 HTTPS 推荐由宿主机 nginx、云负载均衡或其他边缘代理负责，再反代到 `127.0.0.1:8088`。
+
+常用运维命令：
+
+```bash
+cd /opt/skybooker
+
+# 更新到当前 IMAGE_TAG，默认 latest
+sudo ./deploy.sh update
+
+# 更新到指定不可变镜像 tag
+sudo ./deploy.sh update --tag sha-<commit-sha>
+
+# 回滚到上一个已知正常 tag
+sudo ./deploy.sh rollback --tag sha-<previous-commit-sha>
+
+# 查看状态和日志
+sudo ./deploy.sh status
+sudo ./deploy.sh logs --tail=100
+sudo ./deploy.sh logs -f backend
+
+# 停止服务但保留数据库 volume
+sudo ./deploy.sh down
+```
+
+完整部署、备份、回滚和安全说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
 
 ## 数据库与演示账号
 
@@ -247,6 +293,13 @@ cd backend
 mvn test
 ```
 
+前端构建：
+
+```bash
+cd frontend
+pnpm build
+```
+
 部署烟测：
 
 ```bash
@@ -258,45 +311,4 @@ SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 ```text
 scripts/jmeter/same-seat-order-race.jmx
 scripts/jmeter/run-same-seat-concurrency-report.sh
-scripts/concurrency/verify-same-seat-order-race.sh
 ```
-
-测试策略和报告生成说明见 `docs/12_TESTING_GUIDE.md`。
-
-## 文档索引
-
-- `docs/01_REQUIREMENTS.md`：需求分析
-- `docs/02_FEATURE_SPEC.md`：功能细化
-- `docs/03_TECH_SELECTION.md`：技术选型
-- `docs/04_ARCHITECTURE.md`：整体架构
-- `docs/05_PROJECT_STRUCTURE.md`：项目结构
-- `docs/06_DATABASE_DESIGN.md`：数据库设计
-- `docs/07_API_DESIGN.md`：接口设计
-- `docs/08_AI_CUSTOMER_SERVICE.md`：AI 智能购票助手
-- `docs/09_FRONTEND_DESIGN.md`：前端工程设计
-- `docs/10_BACKEND_DESIGN.md`：后端工程设计
-- `docs/11_DEPLOYMENT_GUIDE.md`：部署指南
-- `docs/12_TESTING_GUIDE.md`：测试指南
-- `docs/13_DEVELOPMENT_PLAN.md`：开发计划
-- `docs/14_PRESENTATION_GUIDE.md`：展示指南
-- `docs/15_AUTH_DESIGN.md`：认证与登录注册设计
-- `docs/16_STATE_MACHINE.md`：核心状态机
-- `appendices/api-response-convention.md`：统一响应约定
-- `appendices/error-code.md`：错误码约定
-- `appendices/git-convention.md`：Git 协作约定
-- `appendices/sql-convention.md`：SQL 规范
-- `frontend/DESIGN.md`：前端 UI/UX 设计规范
-
-## 开发规范
-
-- 后端遵循 `docs/10_BACKEND_DESIGN.md`；
-- Controller 负责请求、校验和统一响应；
-- Service 负责业务规则、权限上下文和事务边界；
-- Mapper 只负责数据库访问；
-- Flyway 是唯一的数据库结构和初始化数据来源；
-- API 字段使用 `camelCase`，数据库表和字段使用 `lower_snake_case`；
-- 金额使用 `DECIMAL` / `BigDecimal`，不使用浮点数。
-
-## 许可证
-
-本项目基于 [MIT License](./LICENSE) 开源。
