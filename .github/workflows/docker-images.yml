@@ -23,8 +23,10 @@ on:
         type: string
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: ${{ github.repository }}
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE_NAMESPACE: ${{ github.repository }}
+  DOCKERHUB_REGISTRY: docker.io
+  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
   DEFAULT_DEPLOY_BRANCH: main
 
 permissions:
@@ -57,21 +59,50 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Prepare image tags
-        id: image
+      - name: Detect Docker Hub publishing
+        id: dockerhub
         shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          registry="${REGISTRY:-ghcr.io}"
-          namespace="${IMAGE_NAMESPACE:-${GITHUB_REPOSITORY}}"
-          namespace="${namespace,,}"
-          image="${registry}/${namespace}/${{ matrix.image_suffix }}"
+          enabled="false"
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" && -n "${DOCKERHUB_NAMESPACE:-}" ]]; then
+            if [[ -n "${DOCKERHUB_USERNAME:-}" && -n "${DOCKERHUB_TOKEN:-}" ]]; then
+              enabled="true"
+            else
+              echo "::notice::DOCKERHUB_NAMESPACE is set, but DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is missing; Docker Hub publishing will be skipped."
+            fi
+          fi
+
+          echo "enabled=${enabled}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare image tags
+        id: image
+        shell: bash
+        env:
+          DOCKERHUB_ENABLED: ${{ steps.dockerhub.outputs.enabled }}
+        run: |
+          set -euo pipefail
+
+          ghcr_registry="${GHCR_REGISTRY:-ghcr.io}"
+          ghcr_namespace="${GHCR_IMAGE_NAMESPACE:-${GITHUB_REPOSITORY}}"
+          ghcr_namespace="${ghcr_namespace,,}"
+          ghcr_image="${ghcr_registry}/${ghcr_namespace}/${{ matrix.image_suffix }}"
+
+          dockerhub_namespace="${DOCKERHUB_NAMESPACE:-}"
+          dockerhub_namespace="${dockerhub_namespace,,}"
+          dockerhub_image=""
+          if [[ -n "$dockerhub_namespace" ]]; then
+            dockerhub_image="${DOCKERHUB_REGISTRY:-docker.io}/${dockerhub_namespace}/${{ matrix.image_suffix }}"
+          fi
+
           sha_tag="sha-${GITHUB_SHA}"
 
-          {
-            echo "image=${image}"
-            echo "tags<<EOF"
+          emit_tags_for_image() {
+            local image="$1"
             echo "${image}:${sha_tag}"
 
             if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && -n "${{ inputs.image_tag }}" ]]; then
@@ -85,17 +116,37 @@ jobs:
             if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
               echo "${image}:${GITHUB_REF_NAME}"
             fi
+          }
+
+          {
+            echo "image=${ghcr_image}"
+            echo "tags<<EOF"
+            emit_tags_for_image "$ghcr_image"
+
+            if [[ -n "$dockerhub_image" ]]; then
+              if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
+                emit_tags_for_image "$dockerhub_image"
+              fi
+            fi
 
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log in to registry
+      - name: Log in to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKERHUB_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and optionally push image
         uses: docker/build-push-action@v6

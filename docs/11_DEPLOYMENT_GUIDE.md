@@ -86,11 +86,18 @@ GitHub Actions 工作流：
 .github/workflows/docker-images.yml
 ```
 
-该工作流独立构建并推送两个镜像：
+该工作流独立构建并推送两个镜像。默认推送到 GitHub Container Registry（GHCR）：
 
 ```text
 ghcr.io/yunluoxincheng/skybooker-flight/skybooker-backend
 ghcr.io/yunluoxincheng/skybooker-flight/skybooker-frontend
+```
+
+如果仓库配置了 Docker Hub 发布变量和密钥，同一批 tag 也会额外推送到 Docker Hub：
+
+```text
+docker.io/<dockerhub-namespace>/skybooker-backend
+docker.io/<dockerhub-namespace>/skybooker-frontend
 ```
 
 默认分支 `main` 发布：
@@ -103,25 +110,48 @@ Release tag（例如 `v1.2.3`）发布：
 - `v1.2.3`
 - `sha-<commit-sha>`
 
-Pull request 只验证镜像构建，不推送镜像。工作流默认用 `GITHUB_TOKEN` 登录 GHCR，仓库需要允许 Actions 写入 packages。若镜像保持 private，部署服务器需要提前登录 GHCR：
+Pull request 只验证镜像构建，不推送镜像。工作流默认用 `GITHUB_TOKEN` 登录 GHCR，仓库需要允许 Actions 写入 packages。若 GHCR 镜像保持 private，部署服务器需要提前登录 GHCR：
 
 ```bash
 echo '<github-token-with-read-packages>' | docker login ghcr.io -u '<github-user>' --password-stdin
 ```
 
+Docker Hub 推送是可选的。要启用 Docker Hub，同仓库配置：
+
+```text
+Repository variable:
+DOCKERHUB_NAMESPACE=<dockerhub-username-or-org>
+
+Repository secrets:
+DOCKERHUB_USERNAME=<dockerhub-username>
+DOCKERHUB_TOKEN=<dockerhub-access-token>
+```
+
+如果只配置 `DOCKERHUB_NAMESPACE` 但缺少 username/token，推送任务会跳过 Docker Hub tag 并继续推 GHCR。
+
 可通过工作流环境变量调整默认命名：
 
 ```yaml
-REGISTRY: ghcr.io
-IMAGE_NAMESPACE: ${{ github.repository }}
+GHCR_REGISTRY: ghcr.io
+GHCR_IMAGE_NAMESPACE: ${{ github.repository }}
+DOCKERHUB_REGISTRY: docker.io
+DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
 DEFAULT_DEPLOY_BRANCH: main
 ```
 
-部署服务器可在 `.env` 中覆盖：
+部署服务器默认使用 GHCR，也可在 `.env` 中覆盖到任意镜像源：
 
 ```env
 BACKEND_IMAGE=ghcr.io/<owner>/<repo>/skybooker-backend
 FRONTEND_IMAGE=ghcr.io/<owner>/<repo>/skybooker-frontend
+IMAGE_TAG=latest
+```
+
+Docker Hub 示例：
+
+```env
+BACKEND_IMAGE=docker.io/<dockerhub-namespace>/skybooker-backend
+FRONTEND_IMAGE=docker.io/<dockerhub-namespace>/skybooker-frontend
 IMAGE_TAG=latest
 ```
 
@@ -167,14 +197,40 @@ curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/mai
       --image-namespace ghcr.io/yunluoxincheng/skybooker-flight
 ```
 
+使用 Docker Hub 镜像源：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+  | sudo bash -s -- install \
+      --image-source dockerhub \
+      --dockerhub-namespace <dockerhub-namespace>
+```
+
+也可以直接指定完整镜像命名空间：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+  | sudo bash -s -- install \
+      --image-namespace docker.io/<dockerhub-namespace>
+```
+
 在 clean server 上也可以用环境变量传递同样的覆盖项：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
-  | sudo SKYBOOKER_DEPLOY_DIR=/srv/skybooker \
+  | sudo env SKYBOOKER_DEPLOY_DIR=/srv/skybooker \
       SKYBOOKER_REPO=yunluoxincheng/skybooker-flight \
       SKYBOOKER_REF=main \
       SKYBOOKER_IMAGE_NAMESPACE=ghcr.io/yunluoxincheng/skybooker-flight \
+      bash -s -- install
+```
+
+Docker Hub 环境变量示例：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+  | sudo env SKYBOOKER_IMAGE_SOURCE=dockerhub \
+      SKYBOOKER_DOCKERHUB_NAMESPACE=<dockerhub-namespace> \
       bash -s -- install
 ```
 

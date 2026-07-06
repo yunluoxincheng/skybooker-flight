@@ -12,7 +12,9 @@ REPO="${SKYBOOKER_REPO:-$DEFAULT_REPO}"
 REF="${SKYBOOKER_REF:-$DEFAULT_REF}"
 TEMPLATE_BASE_URL="${SKYBOOKER_TEMPLATE_BASE_URL:-}"
 TEMPLATE_SOURCE_DIR="${SKYBOOKER_TEMPLATE_SOURCE_DIR:-}"
+IMAGE_SOURCE="${SKYBOOKER_IMAGE_SOURCE:-ghcr}"
 IMAGE_NAMESPACE="${SKYBOOKER_IMAGE_NAMESPACE:-}"
+DOCKERHUB_NAMESPACE="${SKYBOOKER_DOCKERHUB_NAMESPACE:-}"
 IMAGE_TAG="${SKYBOOKER_IMAGE_TAG:-}"
 REGENERATE_SECRETS="false"
 PREPARE_ONLY="false"
@@ -37,7 +39,11 @@ Options:
   --ref REF                    Git ref for templates (default: main)
   --template-base-url URL      Override raw template base URL
   --template-source-dir DIR    Copy templates from a local checkout instead of curl
+  --image-source ghcr|dockerhub
+                               Built-in image namespace preset (default: ghcr)
+  --dockerhub-namespace NAME   Docker Hub namespace used with --image-source dockerhub
   --image-namespace PATH       Registry namespace, e.g. ghcr.io/acme/skybooker-flight
+                               or docker.io/acme; overrides --image-source
   --tag TAG                    Image tag for install/update/rollback
   --regenerate-secrets         Replace generated secret values in .env
   --prepare-only               Prepare files and .env, then exit before Docker actions
@@ -83,8 +89,44 @@ template_base_url() {
 default_image_namespace() {
   if [[ -n "$IMAGE_NAMESPACE" ]]; then
     printf '%s\n' "${IMAGE_NAMESPACE%/}"
-  else
-    printf 'ghcr.io/%s\n' "$REPO" | tr '[:upper:]' '[:lower:]'
+    return
+  fi
+
+  case "$IMAGE_SOURCE" in
+    ghcr)
+      printf 'ghcr.io/%s\n' "$REPO" | tr '[:upper:]' '[:lower:]'
+      ;;
+    dockerhub)
+      local namespace
+      namespace="${DOCKERHUB_NAMESPACE:-${REPO%%/*}}"
+      [[ -n "$namespace" ]] || fail "Docker Hub namespace is required. Use --dockerhub-namespace or --image-namespace."
+      printf 'docker.io/%s\n' "$namespace" | tr '[:upper:]' '[:lower:]'
+      ;;
+    *)
+      fail "Unknown image source '$IMAGE_SOURCE'. Use 'ghcr' or 'dockerhub'."
+      ;;
+  esac
+}
+
+normalize_image_source() {
+  case "$IMAGE_SOURCE" in
+    ghcr|dockerhub)
+      ;;
+    *)
+      fail "Unknown image source '$IMAGE_SOURCE'. Use 'ghcr' or 'dockerhub'."
+      ;;
+  esac
+}
+
+parse_image_source() {
+  IMAGE_SOURCE="$1"
+  normalize_image_source
+}
+
+prepare_image_source() {
+  normalize_image_source
+  if [[ -n "$IMAGE_NAMESPACE" && -n "$DOCKERHUB_NAMESPACE" ]]; then
+    log "--image-namespace overrides --dockerhub-namespace."
   fi
 }
 
@@ -145,6 +187,7 @@ set_env_value() {
 
 prepare_env() {
   local namespace
+  prepare_image_source
   namespace="$(default_image_namespace)"
 
   umask 077
@@ -274,6 +317,14 @@ parse_args() {
         ;;
       --template-source-dir)
         TEMPLATE_SOURCE_DIR="$2"
+        shift 2
+        ;;
+      --image-source)
+        parse_image_source "$2"
+        shift 2
+        ;;
+      --dockerhub-namespace)
+        DOCKERHUB_NAMESPACE="$2"
         shift 2
         ;;
       --image-namespace)
