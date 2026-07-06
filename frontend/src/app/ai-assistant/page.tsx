@@ -207,7 +207,7 @@ export default function AiAssistantPage() {
 
         <ScrollArea className="min-h-0 flex-1 overflow-hidden py-5" ref={scrollRef}>
           {showWelcome ? (
-            <div className="grid min-h-[54vh] place-items-center px-1 py-10">
+            <div className="grid min-h-[54vh] place-items-center py-10 pl-1 pr-4">
               <div className="w-full max-w-2xl text-center">
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-100 bg-white shadow-sm">
                   <Sparkles className="h-7 w-7 text-cyan-700" />
@@ -239,7 +239,7 @@ export default function AiAssistantPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-5 pl-1 pr-4">
               {messages.map((msg) => {
                 const isLegacyReply = msg.replyType === undefined
                 const isNonSearchReply = isNonSearch(msg.replyType)
