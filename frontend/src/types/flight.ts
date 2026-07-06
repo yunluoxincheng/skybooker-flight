@@ -28,7 +28,8 @@ export interface FlightCabinVO {
   cabinClass: CabinClass
   price: number
   totalSeats: number
-  remainingSeats: number
+  availableSeats?: number
+  remainingSeats?: number
 }
 
 /** 航班 VO */
