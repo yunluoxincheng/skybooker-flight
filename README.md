@@ -165,7 +165,7 @@ ghcr.io/yunluoxincheng/skybooker-flight/skybooker-backend
 ghcr.io/yunluoxincheng/skybooker-flight/skybooker-frontend
 ```
 
-默认发布 `latest` 和 `sha-<commit-sha>`，release tag 也会生成对应版本 tag。配置 Docker Hub 变量和密钥后，也可同步发布 Docker Hub 镜像。
+默认发布 `latest` 和 `sha-<full-40-char-commit-sha>`，release tag 也会生成对应版本 tag。配置 Docker Hub 变量和密钥后，也可同步发布 Docker Hub 镜像。
 
 生产 all-in-one Compose 栈包含 MySQL、Redis、backend、frontend 和 nginx：
 
@@ -175,6 +175,8 @@ deploy/nginx/prod.conf
 scripts/deploy.sh
 ```
 
+`deploy/nginx/prod.conf` 会由 `scripts/deploy.sh` 安装到部署目录的 `nginx/default.conf`；手动部署时需要按同样路径复制或改名。
+
 推荐安装方式是先下载脚本并检查内容，再执行；上线时优先使用 tag 或 commit SHA 固定脚本和模板版本：
 
 ```bash
@@ -182,7 +184,7 @@ DEPLOY_REF=<tag-or-commit-sha>
 curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
 less deploy.sh
 chmod +x deploy.sh
-sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
+sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<full-40-char-commit-sha>
 ```
 
 常用运维命令：
@@ -190,8 +192,8 @@ sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
 ```bash
 cd /opt/skybooker
 sudo ./deploy.sh status
-sudo ./deploy.sh update --tag sha-<commit-sha>
-sudo ./deploy.sh rollback --tag sha-<previous-commit-sha>
+sudo ./deploy.sh update --tag sha-<full-40-char-commit-sha>
+sudo ./deploy.sh rollback --tag sha-<previous-full-40-char-commit-sha>
 sudo ./deploy.sh logs -f backend
 sudo ./deploy.sh down
 ```
