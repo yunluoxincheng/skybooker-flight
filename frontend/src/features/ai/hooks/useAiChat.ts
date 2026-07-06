@@ -2,10 +2,23 @@
 
 import { useState, useCallback, useEffect } from "react"
 import * as aiApi from "@/services/aiApi"
-import type { ChatMessage, AiChatReplyVO } from "@/types/ai"
+import type { ChatMessage, AiChatReplyVO, QuickAction } from "@/types/ai"
 import type { ApiError } from "@/lib/request"
 
 const SESSION_KEY = "skybooker_ai_session"
+
+function formatQuickActions(
+  quickActions?: Array<Record<string, string> | QuickAction>
+): QuickAction[] | undefined {
+  if (!quickActions?.length) {
+    return undefined
+  }
+
+  return quickActions.map((qa) => ({
+    label: qa.label,
+    value: qa.value || qa.label,
+  }))
+}
 
 export function useAiChat() {
   const [sessionId, setSessionId] = useState<string | null>(() => {
@@ -58,8 +71,9 @@ export function useAiChat() {
           role: "assistant",
           content: reply.replyText,
           replyType: reply.replyType,
+          intent: reply.intent,
           flights: reply.flights,
-          quickActions: reply.quickActions,
+          quickActions: formatQuickActions(reply.quickActions),
           missingFields: reply.missingFields,
           followUpQuestion: reply.followUpQuestion,
           searchUrl: reply.searchUrl,
@@ -84,8 +98,9 @@ export function useAiChat() {
         role: m.role === "USER" ? "user" : "assistant",
         content: m.content,
         replyType: m.extra?.replyType,
+        intent: m.extra?.intent,
         flights: m.extra?.flights,
-        quickActions: m.extra?.quickActions,
+        quickActions: formatQuickActions(m.extra?.quickActions),
         missingFields: m.extra?.missingFields,
         followUpQuestion: m.extra?.followUpQuestion,
         searchUrl: m.extra?.searchUrl,

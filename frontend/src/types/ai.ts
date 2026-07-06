@@ -1,11 +1,16 @@
 /** AI 回复类型 */
-export type AiReplyType = "FLIGHT_RECOMMENDATION" | "FOLLOW_UP" | "NO_RESULT"
+export type AiReplyType =
+  | "TRAVEL_CHAT"
+  | "BOOKING_HELP"
+  | "OUT_OF_SCOPE"
+  | "FLIGHT_RECOMMENDATION"
+  | "FOLLOW_UP"
+  | "NO_RESULT"
 
 /** 快捷操作 */
 export interface QuickAction {
   label: string
-  action: string
-  payload?: Record<string, string>
+  value: string
 }
 
 /** AI 推荐航班卡片 — 匹配后端 AIChatReplyVO.flights 的轻量 Map 结构 */
@@ -29,6 +34,7 @@ export interface AiFlightCardVO {
 export interface AiChatReplyVO {
   sessionId: string
   replyType: AiReplyType
+  intent?: string
   replyText: string
   parsedCondition?: Record<string, string>
   missingFields?: string[]
@@ -41,6 +47,7 @@ export interface AiChatReplyVO {
 /** AI 历史消息的 extra 字段（后端扁平存储） */
 export interface AiSessionMessageExtra {
   replyType?: AiReplyType
+  intent?: string
   parsedCondition?: Record<string, string>
   missingFields?: string[]
   followUpQuestion?: string
@@ -71,6 +78,7 @@ export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   replyType?: AiReplyType
+  intent?: string
   flights?: AiFlightCardVO[]
   quickActions?: QuickAction[]
   missingFields?: string[]
