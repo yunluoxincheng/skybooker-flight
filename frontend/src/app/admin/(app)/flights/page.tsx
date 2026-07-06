@@ -32,7 +32,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
-import { getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import * as adminApi from "@/services/adminApi"
 import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER, type CabinClass, type FlightVO } from "@/types/flight"
 import type { FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
@@ -66,9 +66,15 @@ function buildCabinForm(flight: FlightVO): CabinFormItem[] {
       cabinClass,
       price: cabin?.price ?? getFallbackCabinPrice(flight.basePrice, cabinClass),
       totalSeats: cabin?.totalSeats ?? (cabinClass === "ECONOMY" ? flight.totalSeats : 0),
-      remainingSeats: cabin?.remainingSeats ?? (cabinClass === "ECONOMY" ? flight.remainingSeats : 0),
+      remainingSeats: cabin ? getCabinAvailableSeats(cabin) : (cabinClass === "ECONOMY" ? flight.remainingSeats : 0),
     }
   })
+}
+
+function hasValidCabinConfig(flight: FlightVO) {
+  const configuredCabins = (flight.cabins ?? []).filter((cabin) => cabin.totalSeats > 0)
+  const totalConfiguredSeats = configuredCabins.reduce((sum, cabin) => sum + cabin.totalSeats, 0)
+  return configuredCabins.length > 0 && totalConfiguredSeats === flight.totalSeats
 }
 
 export default function AdminFlightsPage() {
@@ -180,9 +186,16 @@ export default function AdminFlightsPage() {
     }
   }
 
-  const doGenerateSeats = async (id: number) => {
+  const doGenerateSeats = async (flight: FlightVO) => {
+    if (!hasValidCabinConfig(flight)) {
+      setActionErr("请先完成舱位库存设置，再生成座位")
+      openCabinDialog(flight, "请先配置各舱位库存与票价，保存后再生成座位")
+      return
+    }
+
     try {
-      await adminApi.generateSeats(id)
+      setActionErr(null)
+      await adminApi.generateSeats(flight.id)
       setIsLoading(true)
       fetchFlights()
     } catch (err) {
@@ -190,10 +203,10 @@ export default function AdminFlightsPage() {
     }
   }
 
-  const openCabinDialog = (f: FlightVO) => {
+  const openCabinDialog = (f: FlightVO, message?: string) => {
     setCabinFlight(f)
     setCabinForm(buildCabinForm(f))
-    setCabinErr(null)
+    setCabinErr(message ?? null)
     setCabinDialogOpen(true)
   }
 
@@ -338,7 +351,7 @@ export default function AdminFlightsPage() {
                               <><Eye className="h-3.5 w-3.5 mr-2" /> 上架</>
                             )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => doGenerateSeats(f.id)}>
+                          <DropdownMenuItem onClick={() => doGenerateSeats(f)}>
                             <ArmchairIcon className="h-3.5 w-3.5 mr-2" /> 生成座位
                           </DropdownMenuItem>
                         </DropdownMenuContent>

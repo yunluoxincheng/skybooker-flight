@@ -44,6 +44,7 @@ import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { SeatMap } from "@/features/booking/components/SeatMap"
 import { useBooking } from "@/features/booking/hooks/useBooking"
 import { CABIN_CLASS_LABEL } from "@/types/flight"
+import { getCabinAvailableSeats } from "@/lib/cabin-utils"
 import { useAuth } from "@/contexts/AuthContext"
 import * as passengerApi from "@/services/passengerApi"
 import type { ApiError } from "@/lib/request"
@@ -355,7 +356,7 @@ export default function BookingPage() {
                 <div className="grid gap-3 mb-5 sm:grid-cols-3">
                   {booking.cabins.map((cabin) => {
                     const isActive = cabin.cabinClass === booking.selectedCabinClass
-                    const isSoldOut = cabin.remainingSeats <= 0
+                    const isSoldOut = getCabinAvailableSeats(cabin) <= 0
 
                     return (
                       <button
@@ -372,7 +373,7 @@ export default function BookingPage() {
                           <div>
                             <p className="font-medium">{CABIN_CLASS_LABEL[cabin.cabinClass]}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {isSoldOut ? "当前无可售座位" : `剩余 ${cabin.remainingSeats} / ${cabin.totalSeats} 座`}
+                              {isSoldOut ? "当前无可售座位" : `剩余 ${getCabinAvailableSeats(cabin)} / ${cabin.totalSeats} 座`}
                             </p>
                           </div>
                           {isActive && <Badge>已选</Badge>}
@@ -386,7 +387,7 @@ export default function BookingPage() {
 
               {selectedCabin && (
                 <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-muted-foreground mb-4">
-                  当前舱位：{CABIN_CLASS_LABEL[selectedCabin.cabinClass]}，票价 ¥{selectedCabin.price.toLocaleString()}，剩余 {selectedCabin.remainingSeats} 座
+                  当前舱位：{CABIN_CLASS_LABEL[selectedCabin.cabinClass]}，票价 ¥{selectedCabin.price.toLocaleString()}，剩余 {getCabinAvailableSeats(selectedCabin)} 座
                 </div>
               )}
 

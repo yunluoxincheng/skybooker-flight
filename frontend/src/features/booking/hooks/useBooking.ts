@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as orderApi from "@/services/orderApi"
-import { getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import {
   CABIN_CLASS_ORDER,
   type CabinClass,
@@ -38,30 +38,29 @@ function deriveFlightCabins(flight: FlightVO, seats: FlightSeatVO[]): FlightCabi
   const configuredCabins = new Map((flight.cabins ?? []).map((cabin) => [cabin.cabinClass, cabin]))
 
   return CABIN_CLASS_ORDER
-    .map((cabinClass) => {
+    .flatMap((cabinClass): FlightCabinVO[] => {
       const configured = configuredCabins.get(cabinClass)
       const cabinSeats = seats.filter((seat) => seat.cabinClass === cabinClass)
 
       if (!configured && cabinSeats.length === 0) {
-        return null
+        return []
       }
 
       const seatPrice = cabinSeats[0]?.price
       const availableSeats = cabinSeats.filter((seat) => seat.status === "AVAILABLE").length
 
-      return {
+      return [{
         cabinClass,
         price: configured?.price ?? seatPrice ?? getFallbackCabinPrice(flight.basePrice, cabinClass),
         totalSeats: configured?.totalSeats ?? cabinSeats.length,
-        remainingSeats: configured?.remainingSeats ?? availableSeats,
-      }
+        availableSeats: configured ? getCabinAvailableSeats(configured) : availableSeats,
+      }]
     })
-    .filter((cabin): cabin is FlightCabinVO => cabin !== null)
 }
 
 function getDefaultCabinClass(flight: FlightVO, seats: FlightSeatVO[]): CabinClass | null {
   const cabins = deriveFlightCabins(flight, seats)
-  return cabins.find((cabin) => cabin.remainingSeats > 0)?.cabinClass ?? cabins[0]?.cabinClass ?? null
+  return cabins.find((cabin) => getCabinAvailableSeats(cabin) > 0)?.cabinClass ?? cabins[0]?.cabinClass ?? null
 }
 
 export function useBooking(flightId: number) {

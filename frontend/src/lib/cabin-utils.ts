@@ -1,4 +1,4 @@
-import type { CabinClass } from "@/types/flight"
+import type { CabinClass, FlightCabinVO } from "@/types/flight"
 
 export function getFallbackCabinPrice(basePrice: number, cabinClass: CabinClass) {
   switch (cabinClass) {
@@ -9,4 +9,8 @@ export function getFallbackCabinPrice(basePrice: number, cabinClass: CabinClass)
     default:
       return basePrice
   }
+}
+
+export function getCabinAvailableSeats(cabin?: Partial<FlightCabinVO> | null) {
+  return cabin?.availableSeats ?? cabin?.remainingSeats ?? 0
 }
