@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Bot, Send, Sparkles, Trash2, Loader2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,13 @@ const QUICK_PROMPTS = [
   "推荐最便宜的直飞三亚航班",
   "下周一到杭州，上午出发",
 ]
+
+const isNonSearch = (replyType?: string) =>
+  replyType === "TRAVEL_CHAT" || replyType === "BOOKING_HELP" || replyType === "OUT_OF_SCOPE"
+
+const isFollowUp = (replyType?: string) => replyType === "FOLLOW_UP"
+
+const isRecommendation = (replyType?: string) => replyType === "FLIGHT_RECOMMENDATION"
 
 export default function AiAssistantPage() {
   const router = useRouter()
@@ -38,7 +45,7 @@ export default function AiAssistantPage() {
     setInput("")
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -107,95 +114,115 @@ export default function AiAssistantPage() {
           ) : (
             /* 消息列表 */
             <div className="space-y-4">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : ""}`}>
-                    {/* 用户消息 */}
-                    {msg.role === "user" && (
-                      <div className="rounded-2xl rounded-br-md bg-primary text-primary-foreground px-4 py-2.5 text-sm">
-                        {msg.content}
-                      </div>
-                    )}
+              {messages.map((msg) => {
+                const isLegacyReply = msg.replyType === undefined
+                const isNonSearchReply = isNonSearch(msg.replyType)
+                const showFollowUpQuestion =
+                  Boolean(msg.followUpQuestion) &&
+                  msg.followUpQuestion !== msg.content &&
+                  !isNonSearchReply &&
+                  (isLegacyReply || isRecommendation(msg.replyType) || msg.replyType === "NO_RESULT")
+                const showMissingFields =
+                  Boolean(msg.missingFields?.length) &&
+                  !isNonSearchReply &&
+                  (isLegacyReply || isFollowUp(msg.replyType))
+                const showQuickActions = Boolean(msg.quickActions?.length)
+                const showSearchUrl =
+                  Boolean(msg.searchUrl) &&
+                  !isNonSearchReply &&
+                  (isLegacyReply || isRecommendation(msg.replyType))
+                const showFlights =
+                  Boolean(msg.flights?.length) &&
+                  !isNonSearchReply &&
+                  (isLegacyReply || isRecommendation(msg.replyType))
 
-                    {/* AI 消息 */}
-                    {msg.role === "assistant" && (
-                      <div className="space-y-3">
-                        {/* 文字回复 */}
-                        <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm">
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : ""}`}>
+                      {/* 用户消息 */}
+                      {msg.role === "user" && (
+                        <div className="rounded-2xl rounded-br-md bg-primary text-primary-foreground px-4 py-2.5 text-sm">
+                          {msg.content}
+                        </div>
+                      )}
 
-                          {/* 追问 */}
-                          {msg.followUpQuestion && (
-                            <p className="mt-2 text-primary font-medium text-sm">{msg.followUpQuestion}</p>
-                          )}
+                      {/* AI 消息 */}
+                      {msg.role === "assistant" && (
+                        <div className="space-y-3">
+                          {/* 文字回复 */}
+                          <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm">
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
 
-                          {/* 缺失信息 */}
-                          {msg.missingFields && msg.missingFields.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {msg.missingFields.map((f) => (
-                                <span key={f} className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-200">
-                                  请补充：{f}
-                                </span>
+                            {/* 追问 */}
+                            {showFollowUpQuestion && (
+                              <p className="mt-2 text-primary font-medium text-sm">{msg.followUpQuestion}</p>
+                            )}
+
+                            {/* 缺失信息 */}
+                            {showMissingFields && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {msg.missingFields?.map((f) => (
+                                  <span
+                                    key={f}
+                                    className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-600"
+                                  >
+                                    请补充：{f}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* 快捷操作 */}
+                            {showQuickActions && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {msg.quickActions?.map((qa, i) => (
+                                  <Button
+                                    key={i}
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => sendMessage(qa.value)}
+                                  >
+                                    {qa.label} <ArrowRight className="ml-1 h-3 w-3" />
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* 搜索链接 */}
+                            {showSearchUrl && (
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="mt-1 h-auto p-0 text-xs"
+                                onClick={() => router.push(msg.searchUrl!)}
+                              >
+                                查看全部搜索结果 →
+                              </Button>
+                            )}
+                          </div>
+
+                          {/* 航班推荐卡片 */}
+                          {showFlights && (
+                            <div className="space-y-2 border-l-2 border-primary/30 pl-4">
+                              {msg.flights?.map((f) => (
+                                <AiFlightCard
+                                  key={f.flightId}
+                                  flight={f}
+                                  className="border-slate-200 shadow-none"
+                                />
                               ))}
                             </div>
-                          )}
-
-                          {/* 快捷操作 */}
-                          {msg.quickActions && msg.quickActions.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {msg.quickActions.map((qa, i) => (
-                                <Button
-                                  key={i}
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  onClick={() => {
-                                    if (qa.action === "search_flights" && qa.payload?.params) {
-                                      router.push(`/flights?${qa.payload.params}`)
-                                    } else {
-                                      sendMessage(qa.label)
-                                    }
-                                  }}
-                                >
-                                  {qa.label} <ArrowRight className="h-3 w-3 ml-1" />
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* 搜索链接 */}
-                          {msg.searchUrl && (
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="mt-1 h-auto p-0 text-xs"
-                              onClick={() => router.push(msg.searchUrl!)}
-                            >
-                              查看全部搜索结果 →
-                            </Button>
                           )}
                         </div>
-
-                        {/* 航班推荐卡片 */}
-                        {msg.flights && msg.flights.length > 0 && (
-                          <div className="space-y-2 pl-4 border-l-2 border-primary/30">
-                            {msg.flights.map((f) => (
-                              <AiFlightCard
-                                key={f.flightId}
-                                flight={f}
-                                className="shadow-none border-slate-200"
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
 
               {/* Loading */}
               {isLoading && (
