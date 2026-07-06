@@ -21,4 +21,7 @@ USER skybooker
 EXPOSE 8080
 
 ENV JAVA_OPTS=""
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
+    CMD curl -fsS 'http://localhost:8080/api/flights?page=1&size=1' >/dev/null || exit 1
+
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/skybooker-backend.jar"]
