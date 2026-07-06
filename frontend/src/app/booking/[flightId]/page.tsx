@@ -44,6 +44,7 @@ import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { SeatMap } from "@/features/booking/components/SeatMap"
 import { useBooking } from "@/features/booking/hooks/useBooking"
 import { CABIN_CLASS_LABEL } from "@/types/flight"
+import { getCabinAvailableSeats } from "@/lib/cabin-utils"
 import { useAuth } from "@/contexts/AuthContext"
 import * as passengerApi from "@/services/passengerApi"
 import type { ApiError } from "@/lib/request"
@@ -355,7 +356,7 @@ export default function BookingPage() {
                 <div className="grid gap-3 mb-5 sm:grid-cols-3">
                   {booking.cabins.map((cabin) => {
                     const isActive = cabin.cabinClass === booking.selectedCabinClass
-                    const isSoldOut = cabin.remainingSeats <= 0
+                    const isSoldOut = getCabinAvailableSeats(cabin) <= 0
 
                     return (
                       <button
