@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1031,6 +1032,118 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(expectedDate));
     }
 
+    @Test
+    void chat_directFlightQueryParsesRouteAndSearchesDatabaseOnly() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("广州到北京明天机票");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.flights").isEmpty());
+    }
+
+    @Test
+    void chat_destinationRecommendRemembersPrimaryCity() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("我想周末看海，预算别太高");
+
+        MvcResult result = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.replyText").value(containsString("三亚")))
+                .andReturn();
+
+        ApiResponse<Map> response = objectMapper.readValue(
+                result.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) response.getData()).get("sessionId");
+
+        mockMvc.perform(get("/api/ai/sessions/" + sessionId + "/messages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.messages[1].extra.conversationState.recommendedDestinationCity")
+                        .value("三亚"));
+    }
+
+    @Test
+    void chat_recommendedDestinationSurvivesLaterAssistantWithoutState() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("我想周末看海，预算别太高");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("订单在哪看");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("BOOKING_HELP"));
+
+        jdbcTemplate.update("""
+                UPDATE ai_chat_message
+                SET extra_json = '{"replyType":"BOOKING_HELP","intent":"BOOKING_HELP","parsedCondition":{},"missingFields":[]}'
+                WHERE id = (
+                    SELECT id FROM (
+                        SELECT m.id
+                        FROM ai_chat_message m
+                        JOIN ai_chat_session s ON s.id = m.session_id
+                        WHERE s.public_session_id = ?
+                          AND m.role = 'ASSISTANT'
+                        ORDER BY m.created_at DESC, m.id DESC
+                        LIMIT 1
+                    ) latest
+                )
+                """, sessionId);
+
+        AiChatRequest third = new AiChatRequest();
+        third.setSessionId(sessionId);
+        third.setMessage("那就去三亚吧，广州出发，下周五");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(third)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("三亚"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(nextIsoWeekday(java.time.DayOfWeek.FRIDAY)));
+    }
+
+    @Test
+    void chat_mixedDestinationAndFlightNeedRecommendsDestinationAndAsksRemainingSlots() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("推荐一个适合三天玩的地方，并帮我看看机票");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.replyText").value(containsString("可以优先考虑")))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").exists())
+                .andExpect(jsonPath("$.data.missingFields", hasItems("departureCity", "departureDate")));
+    }
+
     private String startRouteFollowUpSession(String message) throws Exception {
         AiChatRequest firstRequest = new AiChatRequest();
         firstRequest.setMessage(message);
@@ -1045,6 +1158,13 @@ class AiIntegrationTest extends AbstractIntegrationTest {
         ApiResponse<Map> firstResponse = objectMapper.readValue(
                 firstResult.getResponse().getContentAsString(), ApiResponse.class);
         return (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+    }
+
+    private String nextIsoWeekday(java.time.DayOfWeek dayOfWeek) {
+        LocalDate today = LocalDate.now();
+        LocalDate nextWeekMonday = today.plusWeeks(1)
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        return nextWeekMonday.plusDays(dayOfWeek.getValue() - java.time.DayOfWeek.MONDAY.getValue()).toString();
     }
 
     @Test

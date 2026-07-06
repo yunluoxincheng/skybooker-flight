@@ -82,7 +82,7 @@ public class IntentParserService implements IntentParser {
     private static final Pattern DESTINATION_ONLY = Pattern.compile(
             "(?:我想|想|我要|帮我)?(?:去|飞往|飞)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DEPARTURE_CITY_ONLY = Pattern.compile(
-            "(?:从|自)([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
+            "(?:从|自)?([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
     private static final Pattern ARRIVAL_CITY_ONLY = Pattern.compile(
             "(?:目的地|到达|飞往|去)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DATE_PATTERN = Pattern.compile(
@@ -180,7 +180,10 @@ public class IntentParserService implements IntentParser {
         if (departureCity == null) {
             Matcher departureOnly = DEPARTURE_CITY_ONLY.matcher(text);
             if (departureOnly.find()) {
-                departureCity = resolveCity(departureOnly.group(1).trim());
+                String candidate = departureOnly.group(1).trim();
+                if (isKnownCityMention(candidate)) {
+                    departureCity = resolveCity(candidate);
+                }
             }
         }
 
@@ -627,6 +630,19 @@ public class IntentParserService implements IntentParser {
             }
         }
         return trimmed;
+    }
+
+    private boolean isKnownCityMention(String text) {
+        String trimmed = text.trim();
+        if (CITY_ALIASES.containsKey(trimmed)) {
+            return true;
+        }
+        for (String city : CITY_ALIASES.keySet()) {
+            if (trimmed.contains(city)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String buildFollowUpQuestion(List<String> missingFields) {
