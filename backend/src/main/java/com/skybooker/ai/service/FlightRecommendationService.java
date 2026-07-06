@@ -48,23 +48,30 @@ public class FlightRecommendationService {
     }
 
     public String buildSearchUrl(ParsedCondition condition) {
+        return buildSearchUrl(condition, null);
+    }
+
+    public String buildSearchUrl(ParsedCondition condition, Long resolvedAirlineId) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/flights");
-        if (condition.getDepartureCity() != null) {
-            builder.queryParam("departureCity", condition.getDepartureCity());
+        if (condition == null) {
+            return builder.build().encode().toUriString();
         }
-        if (condition.getArrivalCity() != null) {
-            builder.queryParam("arrivalCity", condition.getArrivalCity());
-        }
-        if (condition.getDepartureDate() != null) {
-            builder.queryParam("departureDate", condition.getDepartureDate().toString());
-        }
-        if (condition.getDepartureDateStart() != null && condition.getDepartureDateEnd() != null) {
-            builder.queryParam("departureDateStart", condition.getDepartureDateStart().toString());
-            builder.queryParam("departureDateEnd", condition.getDepartureDateEnd().toString());
-        }
-        if (condition.getSort() != null) {
-            builder.queryParam("sort", condition.getSort());
-        }
+        addQueryParam(builder, "departureCity", condition.getDepartureCity());
+        addQueryParam(builder, "arrivalCity", condition.getArrivalCity());
+        addQueryParam(builder, "departureDate", condition.getDepartureDate());
+        addQueryParam(builder, "departureDateStart", condition.getDepartureDateStart());
+        addQueryParam(builder, "departureDateEnd", condition.getDepartureDateEnd());
+        addQueryParam(builder, "airlineId", resolvedAirlineId);
+        addQueryParam(builder, "airlineRaw", condition.getAirlineRaw());
+        addQueryParam(builder, "minPrice", condition.getMinPrice());
+        addQueryParam(builder, "maxPrice", condition.getMaxPrice());
+        addQueryParam(builder, "departureTimeStart", condition.getDepartureTimeStart());
+        addQueryParam(builder, "departureTimeEnd", condition.getDepartureTimeEnd());
+        addQueryParam(builder, "maxDurationMinutes", condition.getMaxDurationMinutes());
+        addQueryParam(builder, "directOnly", condition.getDirectOnly());
+        addQueryParam(builder, "sort", condition.getSort());
+        addQueryParam(builder, "passengerCount", condition.getPassengerCount());
+        addQueryParam(builder, "cabinClass", condition.getCabinClass());
         return builder.build().encode().toUriString();
     }
 
@@ -99,6 +106,16 @@ public class FlightRecommendationService {
         card.put("detailUrl", buildDetailUrl(flight.getId()));
         card.put("bookingUrl", buildBookingUrl(flight.getId()));
         return card;
+    }
+
+    private void addQueryParam(UriComponentsBuilder builder, String name, Object value) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof String text && text.isBlank()) {
+            return;
+        }
+        builder.queryParam(name, value.toString());
     }
 
     private String resolveOrderBy(String sort, String cabinClass) {

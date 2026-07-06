@@ -10,6 +10,7 @@ import com.skybooker.ai.enums.DomainIntent;
 import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.parser.LlmChatClient;
 import com.skybooker.ai.parser.ParsedCondition;
+import com.skybooker.ai.state.ConversationState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -81,11 +82,21 @@ public class DomainIntentRouter {
 
     public RouteResult route(String message, AiChatMessage previousAssistant) {
         LlmEffectiveConfig cfg = configProvider.getConfig();
+        return routeInternal(message, cfg, hasPendingFollowUp(previousAssistant), null);
+    }
+
+    public RouteResult routeWithState(String message, ConversationState state) {
+        LlmEffectiveConfig cfg = configProvider.getConfig();
+        return routeInternal(message, cfg, state != null && state.hasPendingFlightQuery(), state);
+    }
+
+    private RouteResult routeInternal(String message, LlmEffectiveConfig cfg,
+                                      boolean hasPendingFollowUp, ConversationState state) {
         String text = message == null ? "" : message.trim();
 
         // 多轮缺槽优先：上一条助手消息是 FOLLOW_UP 且带 missingFields 时，先看用户是否明确切换到
         // 非搜索意图；否则任何“在补全航班查询条件”的回复都应继续走 FLIGHT_QUERY_CONTINUATION。
-        if (hasPendingFollowUp(previousAssistant)) {
+        if (hasPendingFollowUp) {
             DomainIntent explicitNonSearch = explicitNonSearchRoute(text);
             if (explicitNonSearch != null) {
                 return new RouteResult(explicitNonSearch, cfg, false);
@@ -93,6 +104,18 @@ public class DomainIntentRouter {
             if (isContinuationSlotFill(text)) {
                 return new RouteResult(DomainIntent.FLIGHT_QUERY_CONTINUATION, cfg, false);
             }
+        }
+
+        if (isDestinationSwitchAfterRecommendation(text, state)) {
+            ParsedCondition parsed = ruleIntentParserService.parse(text);
+            if (hasFlightSearchSignal(text) || hasParsedSearchSignal(parsed)) {
+                return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
+            }
+            return new RouteResult(DomainIntent.TRAVEL_CHAT, cfg, false);
+        }
+
+        if (isFlightSearchAfterDestinationRecommendation(text, state)) {
+            return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
         }
 
         DomainIntent deterministic = deterministicRoute(text);
@@ -344,6 +367,34 @@ public class DomainIntentRouter {
         return parsed != null
                 && parsed.getFollowUpQuestion() != null
                 && parsed.getFollowUpQuestion().contains("一个出发日期");
+    }
+
+    private boolean isFlightSearchAfterDestinationRecommendation(String text, ConversationState state) {
+        if (state == null || state.getRecommendedDestinationCity() == null || text.isBlank()) {
+            return false;
+        }
+        ParsedCondition parsed = ruleIntentParserService.parse(text);
+        if (hasFlightSearchSignal(text)) {
+            return true;
+        }
+        return parsed.getDepartureCity() != null
+                || parsed.getDepartureDate() != null
+                || parsed.getDepartureDateStart() != null
+                || parsed.getDepartureDateEnd() != null
+                || parsed.getCabinClass() != null
+                || parsed.getAirlineRaw() != null
+                || parsed.getMaxPrice() != null
+                || parsed.getDepartureTimeStart() != null
+                || parsed.getDepartureTimeEnd() != null
+                || parsed.getMaxDurationMinutes() != null
+                || parsed.getDirectOnly() != null
+                || parsed.getSort() != null;
+    }
+
+    private boolean isDestinationSwitchAfterRecommendation(String text, ConversationState state) {
+        return state != null
+                && state.getRecommendedDestinationCity() != null
+                && ruleIntentParserService.parseDestinationSwitchCity(text) != null;
     }
 
     private boolean hasPendingFollowUp(AiChatMessage previousAssistant) {

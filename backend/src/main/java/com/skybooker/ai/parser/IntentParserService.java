@@ -82,7 +82,7 @@ public class IntentParserService implements IntentParser {
     private static final Pattern DESTINATION_ONLY = Pattern.compile(
             "(?:我想|想|我要|帮我)?(?:去|飞往|飞)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DEPARTURE_CITY_ONLY = Pattern.compile(
-            "(?:从|自)([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
+            "(?:从|自)?([\\u4e00-\\u9fa5]{2,8})(?:出发|走|起飞)");
     private static final Pattern ARRIVAL_CITY_ONLY = Pattern.compile(
             "(?:目的地|到达|飞往|去)([\\u4e00-\\u9fa5]{2,8})");
     private static final Pattern DATE_PATTERN = Pattern.compile(
@@ -105,8 +105,14 @@ public class IntentParserService implements IntentParser {
             "([一二两三四五六七八九十])(?:个?人|位)");
     private static final Pattern PRICE_PATTERN = Pattern.compile(
             "(?:低于|不超过|最高|最多|预算)[^\\d]?(\\d+)");
+    private static final Pattern PRICE_CEILING_PATTERN = Pattern.compile(
+            "(\\d+)\\s*(?:以内|以下|内)");
     private static final Pattern DURATION_PATTERN = Pattern.compile(
             "(?:不超过|最多|短于|小于)[^\\d]?(\\d+)(小时|分钟|min)");
+    private static final List<Pattern> DESTINATION_SWITCH_PATTERNS = List.of(
+            Pattern.compile("(?:不去|不要|别去)[\\u4e00-\\u9fa5]{2,8}.*?(?:换成|改成|改为|换到|改到|改去|换去|去)([\\u4e00-\\u9fa5]{2,8})"),
+            Pattern.compile("(?:目的地)?(?:换成|改成|改为|换到|改到|改去|换去)([\\u4e00-\\u9fa5]{2,8})")
+    );
 
     private Clock clock = Clock.systemDefaultZone();
 
@@ -180,7 +186,10 @@ public class IntentParserService implements IntentParser {
         if (departureCity == null) {
             Matcher departureOnly = DEPARTURE_CITY_ONLY.matcher(text);
             if (departureOnly.find()) {
-                departureCity = resolveCity(departureOnly.group(1).trim());
+                String candidate = departureOnly.group(1).trim();
+                if (isKnownCityMention(candidate)) {
+                    departureCity = resolveCity(candidate);
+                }
             }
         }
 
@@ -254,6 +263,11 @@ public class IntentParserService implements IntentParser {
         Matcher priceMatcher = PRICE_PATTERN.matcher(text);
         if (priceMatcher.find()) {
             maxPrice = new BigDecimal(priceMatcher.group(1));
+        } else {
+            Matcher priceCeilingMatcher = PRICE_CEILING_PATTERN.matcher(text);
+            if (priceCeilingMatcher.find()) {
+                maxPrice = new BigDecimal(priceCeilingMatcher.group(1));
+            }
         }
 
         // Duration preference
@@ -548,6 +562,22 @@ public class IntentParserService implements IntentParser {
         return bestCity;
     }
 
+    public String parseDestinationSwitchCity(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        for (Pattern pattern : DESTINATION_SWITCH_PATTERNS) {
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                String candidate = matcher.group(1).trim();
+                if (isKnownCityMention(candidate)) {
+                    return resolveCity(candidate);
+                }
+            }
+        }
+        return null;
+    }
+
     private boolean looksLikeDepartureMention(String text, int index, int length) {
         int beforeStart = Math.max(0, index - 2);
         String before = text.substring(beforeStart, index);
@@ -627,6 +657,19 @@ public class IntentParserService implements IntentParser {
             }
         }
         return trimmed;
+    }
+
+    private boolean isKnownCityMention(String text) {
+        String trimmed = text.trim();
+        if (CITY_ALIASES.containsKey(trimmed)) {
+            return true;
+        }
+        for (String city : CITY_ALIASES.keySet()) {
+            if (trimmed.contains(city)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String buildFollowUpQuestion(List<String> missingFields) {
