@@ -378,7 +378,6 @@ public class DomainIntentRouter {
             return true;
         }
         return parsed.getDepartureCity() != null
-                || parsed.getArrivalCity() != null
                 || parsed.getDepartureDate() != null
                 || parsed.getDepartureDateStart() != null
                 || parsed.getDepartureDateEnd() != null

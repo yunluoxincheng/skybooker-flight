@@ -1198,6 +1198,40 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_afterDestinationRecommendationTravelQuestionStaysTravelChat() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("我想周末看海，预算别太高");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.replyText").value(containsString("三亚")))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("去三亚怎么玩？");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.missingFields").isArray())
+                .andExpect(jsonPath("$.data.missingFields").isEmpty())
+                .andExpect(jsonPath("$.data.searchUrl").isEmpty())
+                .andExpect(jsonPath("$.data.flights").isArray())
+                .andExpect(jsonPath("$.data.flights").isEmpty());
+    }
+
+    @Test
     void chat_searchUrlIncludesMainFlightFilters() throws Exception {
         AiChatRequest request = new AiChatRequest();
         request.setMessage("从上海到北京" + tomorrowStr + "南航早上两个人经济舱直飞1000以内");
