@@ -54,10 +54,13 @@ skybooker-flight/
 │           ├── mapper/          # MyBatis XML
 │           └── db/migration/    # Flyway 迁移
 ├── frontend/                    # Next.js 前端应用
-├── deploy/nginx/                # Nginx 配置
+├── deploy/                      # 生产 Compose 与 Nginx 模板
+│   ├── docker-compose.prod.yml
+│   └── nginx/
 ├── docs/                        # 需求、架构、API、部署、测试、展示文档
 ├── appendices/                  # 错误码、响应、SQL、Git 规范
-├── scripts/                     # 烟测、并发测试、演示数据脚本
+├── scripts/                     # 部署、烟测、并发测试、演示数据脚本
+│   └── deploy.sh
 ├── docker-compose.yml
 └── README.md
 ```
@@ -153,48 +156,49 @@ http://localhost:8088/swagger-ui.html
 http://localhost:8088/v3/api-docs
 ```
 
-### 3. 使用 Docker Hub 镜像
+## 生产 Docker 部署
 
-使用已发布到 Docker Hub 的后端镜像时，可将 Compose 中的 `backend` 服务切换为：
+生产部署使用预构建镜像和独立模板，不需要在服务器上从源码构建应用镜像。GitHub Actions 会分别构建并发布：
 
-```yaml
-services:
-  backend:
-    image: yunluoxincheng/skybooker-backend:latest
-    container_name: skybooker-backend
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DB: ${MYSQL_DB:-flight_booking}
-      MYSQL_USER: ${MYSQL_USER:-root}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      JWT_ACCESS_MS: ${JWT_ACCESS_MS:-3600000}
-      JWT_REFRESH_MS: ${JWT_REFRESH_MS:-1209600000}
-      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
-      MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
-      MAIL_FROM: ${MAIL_FROM:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
-      AI_LLM_ENABLED: ${AI_LLM_ENABLED:-false}
-      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-}
-      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
-      AI_LLM_MODEL: ${AI_LLM_MODEL:-}
-      AI_LLM_TIMEOUT_MS: ${AI_LLM_TIMEOUT_MS:-8000}
-      AI_LLM_MAX_RETRIES: ${AI_LLM_MAX_RETRIES:-1}
-      AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:-}
-    ports:
-      - "${BACKEND_PORT:-127.0.0.1:8080}:8080"
+```text
+ghcr.io/yunluoxincheng/skybooker-flight/skybooker-backend
+ghcr.io/yunluoxincheng/skybooker-flight/skybooker-frontend
 ```
 
-完整部署说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
+默认发布 `latest` 和 `sha-<full-40-char-commit-sha>`，release tag 也会生成对应版本 tag。配置 Docker Hub 变量和密钥后，也可同步发布 Docker Hub 镜像。
+
+生产 all-in-one Compose 栈包含 MySQL、Redis、backend、frontend 和 nginx：
+
+```text
+deploy/docker-compose.prod.yml
+deploy/nginx/prod.conf
+scripts/deploy.sh
+```
+
+`deploy/nginx/prod.conf` 会由 `scripts/deploy.sh` 安装到部署目录的 `nginx/default.conf`；手动部署时需要按同样路径复制或改名。
+
+推荐安装方式是先下载脚本并检查内容，再执行；上线时优先使用 tag 或 commit SHA 固定脚本和模板版本：
+
+```bash
+DEPLOY_REF=<tag-or-commit-sha>
+curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
+less deploy.sh
+chmod +x deploy.sh
+sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<full-40-char-commit-sha>
+```
+
+常用运维命令：
+
+```bash
+cd /opt/skybooker
+sudo ./deploy.sh status
+sudo ./deploy.sh update --tag sha-<full-40-char-commit-sha>
+sudo ./deploy.sh rollback --tag sha-<previous-full-40-char-commit-sha>
+sudo ./deploy.sh logs -f backend
+sudo ./deploy.sh down
+```
+
+完整部署、镜像源切换、`.env` 生成/保留、备份、回滚和安全说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
 
 ## 数据库与演示账号
 
