@@ -4,3 +4,11 @@ target/
 .idea/
 .vscode/
 *.log
+logs/
+reports/
+.env
+.env.*
+.git/
+.gitignore
+Dockerfile
+README.md

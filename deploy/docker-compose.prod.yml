@@ -1,0 +1,121 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DB:-flight_booking}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - skybooker
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - skybooker
+
+  backend:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .env}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: ${MYSQL_DB:-flight_booking}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_ACCESS_MS: ${JWT_ACCESS_MS:-3600000}
+      JWT_REFRESH_MS: ${JWT_REFRESH_MS:-1209600000}
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
+      MAIL_FROM: ${MAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_BASE_URL: ${RESEND_BASE_URL:-https://api.resend.com}
+      AI_LLM_ENABLED: ${AI_LLM_ENABLED:-false}
+      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-}
+      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-}
+      AI_LLM_TIMEOUT_MS: ${AI_LLM_TIMEOUT_MS:-8000}
+      AI_LLM_MAX_RETRIES: ${AI_LLM_MAX_RETRIES:-1}
+      AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:?Set AI_CONFIG_ENC_KEY in .env}
+      DB_USE_SSL: ${DB_USE_SSL:-false}
+      DB_ALLOW_PUBLIC_KEY_RETRIEVAL: ${DB_ALLOW_PUBLIC_KEY_RETRIEVAL:-true}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:8080/api/flights?page=1&size=1' >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks:
+      - skybooker
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?Set FRONTEND_IMAGE in .env}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - skybooker
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    ports:
+      - "${PUBLIC_HTTP_PORT:-8088}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    networks:
+      - skybooker
+
+volumes:
+  mysql_data:
+
+networks:
+  skybooker:
+    driver: bridge
