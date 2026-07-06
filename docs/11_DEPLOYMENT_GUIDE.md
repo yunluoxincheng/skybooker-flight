@@ -7,6 +7,49 @@ SkyBooker 支持两条 Docker 路径：
 
 当前第一版生产部署只支持 all-in-one 单机拓扑：MySQL、Redis、backend、frontend、nginx 在同一个 Docker Compose 项目中运行。使用外部 MySQL/Redis 的 app-only 部署是后续工作。
 
+## 0. 最快启动（演示/测试）
+
+如果你只是想在一台已经安装 Docker 的 Linux 服务器上最快跑起完整系统，直接执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+  | sudo bash
+```
+
+这条命令适合课程演示、临时测试环境、个人服务器快速验证。它会自动完成这些事：
+
+1. 创建部署目录 `/opt/skybooker`。
+2. 下载生产 Compose 模板到 `/opt/skybooker/docker-compose.yml`。
+3. 下载 nginx 配置到 `/opt/skybooker/nginx/default.conf`。
+4. 保存一份部署脚本到 `/opt/skybooker/deploy.sh`。
+5. 首次生成 `/opt/skybooker/.env`，并自动生成数据库密码、JWT 密钥和 AI 配置加密密钥。
+6. 拉取后端、前端、MySQL、Redis、nginx 镜像。
+7. 启动完整 all-in-one 服务栈。
+
+启动完成后访问：
+
+```text
+http://<server-ip>:8088
+```
+
+在服务器上验证：
+
+```bash
+cd /opt/skybooker
+sudo ./deploy.sh status
+curl http://localhost:8088/healthz
+curl 'http://localhost:8088/api/flights?page=1&size=1'
+```
+
+如果服务没有全部变成 healthy，先看后端日志：
+
+```bash
+cd /opt/skybooker
+sudo ./deploy.sh logs --tail=200 backend
+```
+
+正式上线时不建议长期依赖 `main` 和 `latest`。推荐按第 4 节的“安全安装”方式固定 `DEPLOY_REF` 和镜像 tag，这样升级和回滚更可控。
+
 ## 1. 本地开发
 
 需要安装：
@@ -52,6 +95,8 @@ pnpm dev
 
 推荐 64 位 Linux 主机，例如 Ubuntu 22.04/24.04、Debian 12、Rocky Linux 9。最低建议 2 CPU、4 GB 内存、20 GB 磁盘；演示或长期运行建议至少 40 GB 磁盘并预留备份空间。
 
+如果你用的是云服务器，还需要确认安全组或防火墙放行对外访问端口。默认只需要放行 `8088/tcp`；如果前面还有宿主机 nginx、负载均衡或 HTTPS 网关，则由它们监听 80/443，再转发到 `8088`。
+
 服务器必须已安装：
 
 - Docker Engine
@@ -77,6 +122,14 @@ docker compose version
 ```
 
 公网只需要开放 nginx 入口端口。默认 `PUBLIC_HTTP_PORT=8088`，生产域名场景可由宿主机 nginx 或云负载均衡监听 80/443 后代理到该端口。MySQL、Redis、backend、frontend 在生产 Compose 中不映射宿主机端口。
+
+换句话说，外部访问路径是：
+
+```text
+浏览器/用户 -> 服务器 PUBLIC_HTTP_PORT -> nginx 容器 -> frontend/backend
+```
+
+MySQL、Redis、backend、frontend 只在 Docker 内部网络中互相通信，默认不会直接暴露到公网。
 
 ## 3. 镜像发布
 
@@ -165,6 +218,13 @@ IMAGE_TAG=latest
 
 生产环境不建议直接执行 `curl | sudo bash`。推荐先下载脚本，检查内容，再执行；上线时优先把 URL 中的 `main` 替换为已发布 tag 或 commit SHA。
 
+这里有两个不同的版本概念：
+
+- `DEPLOY_REF`：用来下载部署脚本、Compose 模板和 nginx 配置的 Git ref，可以是 `main`、tag 或 commit SHA。
+- `IMAGE_TAG`：用来拉取 backend/frontend 镜像的 tag，例如 `latest`、`v1.0.0` 或 `sha-<commit-sha>`。
+
+演示环境可以用 `main` + `latest`，生产环境建议固定两者，避免脚本模板和镜像在你不知情时变化。
+
 ```bash
 DEPLOY_REF=<tag-or-commit-sha>
 curl -fsSLO "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/deploy.sh"
@@ -181,6 +241,19 @@ sudo ./deploy.sh install --ref "$DEPLOY_REF" --tag sha-<commit-sha>
 4. 首次生成 `.env`，包括强随机 `MYSQL_PASSWORD`、`JWT_SECRET`、`AI_CONFIG_ENC_KEY`。
 5. 拉取 backend/frontend 镜像和基础设施镜像。
 6. 启动 MySQL、Redis、backend、frontend、nginx。
+
+部署完成后，脚本落地的目录长这样：
+
+```text
+/opt/skybooker/
+├── .env
+├── deploy.sh
+├── docker-compose.yml
+└── nginx/
+    └── default.conf
+```
+
+其中 `.env` 是服务器本地配置和密钥文件，不要提交到 Git，也不要贴到公开 issue、聊天记录或 PR 评论中。
 
 指定不可变镜像 tag 首次部署：
 
@@ -311,6 +384,25 @@ sudo ./deploy.sh down
 ```
 
 `update` 和 `rollback` 都不会删除 `mysql_data` volume。数据库结构变更由 backend 启动时的 Flyway 自动执行；上线前仍应先备份数据库。显式传入 `--image-source`、`--dockerhub-namespace` 或 `--image-namespace` 时，脚本会同步更新 `.env` 中的 `BACKEND_IMAGE` 和 `FRONTEND_IMAGE`，用于在 GHCR 和 Docker Hub 等镜像源之间切换。
+
+常用排查命令：
+
+```bash
+cd /opt/skybooker
+
+# 查看所有容器状态
+sudo docker compose --env-file .env -f docker-compose.yml ps
+
+# 查看后端最近日志
+sudo ./deploy.sh logs --tail=200 backend
+
+# 查看 MySQL / Redis 日志
+sudo ./deploy.sh logs --tail=100 mysql
+sudo ./deploy.sh logs --tail=100 redis
+
+# 重新拉取镜像并启动
+sudo ./deploy.sh update
+```
 
 ## 7. 生产 `.env`
 
@@ -473,6 +565,39 @@ sudo ./deploy.sh install --prepare-only
 ```
 
 检查 `/opt/skybooker/.env` 是否包含 `BACKEND_IMAGE`、`FRONTEND_IMAGE`、`IMAGE_TAG`、`MYSQL_PASSWORD`、`JWT_SECRET`、`AI_CONFIG_ENC_KEY`。
+
+### Backend unhealthy 或反复重启
+
+先看后端日志：
+
+```bash
+cd /opt/skybooker
+sudo ./deploy.sh logs --tail=200 backend
+```
+
+如果日志中出现：
+
+```text
+FlywayValidateException
+Detected failed migration
+```
+
+说明数据库初始化迁移曾经中途失败，MySQL volume 中留下了失败记录。首次部署且没有重要数据时，可以重置数据库 volume 后重试：
+
+```bash
+cd /opt/skybooker
+sudo docker compose --env-file .env -f docker-compose.yml down -v
+sudo ./deploy.sh update
+```
+
+`down -v` 会删除数据库 volume，已有业务数据会丢失。生产环境不要直接执行，必须先备份并确认失败原因。
+
+如果没有 Flyway 错误，再检查健康检查详情：
+
+```bash
+sudo docker inspect skybooker-backend-1 \
+  --format '{{json .State.Health}}'
+```
 
 ### 镜像拉取失败
 

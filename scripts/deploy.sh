@@ -255,6 +255,7 @@ prepare_env() {
   append_env_if_missing IMAGE_TAG "${IMAGE_TAG:-latest}"
   append_env_if_missing PUBLIC_HTTP_PORT "8088"
   append_env_if_missing MYSQL_DB "flight_booking"
+  append_env_if_missing MYSQL_USER "root"
   append_env_if_missing JWT_ACCESS_MS "3600000"
   append_env_if_missing JWT_REFRESH_MS "1209600000"
   append_env_if_missing OPENAPI_ENABLED "false"
