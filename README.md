@@ -72,6 +72,21 @@ skybooker-flight/
 
 ## 快速启动
 
+如果只是想在一台已经安装 Docker 的 Linux 服务器上最快跑起完整系统，可以直接执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/deploy.sh \
+  | sudo bash
+```
+
+脚本会自动在 `/opt/skybooker` 准备生产 `docker-compose.yml`、nginx 配置和 `.env`，生成 `MYSQL_PASSWORD`、`JWT_SECRET`、`AI_CONFIG_ENC_KEY`，然后拉取镜像并启动 MySQL、Redis、backend、frontend、nginx。默认访问：
+
+```text
+http://<server-ip>:8088
+```
+
+生产正式上线建议使用固定 tag 或 commit SHA，完整说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
+
 SkyBooker 当前支持两条 Docker 路径：
 
 - 本地开发 / 演示：使用仓库根目录 `docker-compose.yml`，本地构建后端并启动 MySQL、Redis、backend、nginx；前端可单独本地运行。
