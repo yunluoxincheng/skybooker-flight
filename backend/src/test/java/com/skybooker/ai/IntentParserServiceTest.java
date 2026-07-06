@@ -151,6 +151,20 @@ class IntentParserServiceTest {
     }
 
     @Test
+    void parseFirstKnownDestinationCity_usesFirstMentionedRecommendation() {
+        String text = "推荐旅游目的地取决于您的偏好和季节。如果您喜欢海滩，可以考虑三亚、青岛；钟情历史，西安、南京很值得。";
+
+        assertThat(parser.parseFirstKnownDestinationCity(text)).isEqualTo("三亚");
+    }
+
+    @Test
+    void parseFirstKnownDestinationCity_skipsDepartureCityCue() {
+        String text = "如果从广州出发，可以考虑三亚、青岛这类海滨目的地。";
+
+        assertThat(parser.parseFirstKnownDestinationCity(text)).isEqualTo("三亚");
+    }
+
+    @Test
     void parse_ambiguousDateRange_asksForSpecificDepartureDate() {
         parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
 

@@ -524,6 +524,39 @@ public class IntentParserService implements IntentParser {
         return null;
     }
 
+    public String parseFirstKnownDestinationCity(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+
+        String bestCity = null;
+        int bestIndex = Integer.MAX_VALUE;
+        for (Map.Entry<String, String> entry : PLACE_CITY_ALIASES.entrySet()) {
+            int index = text.indexOf(entry.getKey());
+            if (index >= 0 && index < bestIndex && !looksLikeDepartureMention(text, index, entry.getKey().length())) {
+                bestIndex = index;
+                bestCity = entry.getValue();
+            }
+        }
+        for (Map.Entry<String, String> entry : CITY_ALIASES.entrySet()) {
+            int index = text.indexOf(entry.getKey());
+            if (index >= 0 && index < bestIndex && !looksLikeDepartureMention(text, index, entry.getKey().length())) {
+                bestIndex = index;
+                bestCity = entry.getValue();
+            }
+        }
+        return bestCity;
+    }
+
+    private boolean looksLikeDepartureMention(String text, int index, int length) {
+        int beforeStart = Math.max(0, index - 2);
+        String before = text.substring(beforeStart, index);
+        int afterEnd = Math.min(text.length(), index + length + 3);
+        String after = text.substring(index + length, afterEnd);
+        return before.endsWith("从") || before.endsWith("自")
+                || after.startsWith("出发") || after.startsWith("起飞") || after.startsWith("走");
+    }
+
     private DateRange buildDateRange(int month, int startDay, int endDay) {
         LocalDate start = resolveMonthDay(month, startDay);
         if (start == null || endDay < startDay) {

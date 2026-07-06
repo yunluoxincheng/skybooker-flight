@@ -496,6 +496,9 @@ public class AiChatService {
         ParsedCondition parsed = ruleIntentParserService.parse(message);
         String destinationCity = parsed.getArrivalCity();
         if (destinationCity == null || destinationCity.isBlank()) {
+            destinationCity = ruleIntentParserService.parseFirstKnownDestinationCity(reply.getReplyText());
+        }
+        if (destinationCity == null || destinationCity.isBlank()) {
             destinationCity = destinationCityFromTravelContext(prevAssistant);
         }
         if (destinationCity == null || destinationCity.isBlank()) {
