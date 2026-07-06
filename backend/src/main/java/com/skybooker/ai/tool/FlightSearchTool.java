@@ -19,7 +19,7 @@ public class FlightSearchTool {
     public FlightSearchResult search(ParsedCondition condition) {
         Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
         List<Map<String, Object>> flights = flightRecommendationService.recommend(condition, resolvedAirlineId);
-        return new FlightSearchResult(flights, flightRecommendationService.buildSearchUrl(condition));
+        return new FlightSearchResult(flights, flightRecommendationService.buildSearchUrl(condition, resolvedAirlineId));
     }
 
     private Long resolveAirlineId(String airlineRaw) {

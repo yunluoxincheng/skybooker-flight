@@ -57,7 +57,8 @@ public class ConversationStateService {
     public ConversationState nextState(ConversationState previous, AiChatReplyVO reply,
                                        ParsedCondition condition,
                                        DestinationRecommendation destinationRecommendation,
-                                       TravelPlanResult travelPlanResult) {
+                                       TravelPlanResult travelPlanResult,
+                                       String explicitDestinationCity) {
         ConversationState.ConversationStateBuilder builder = previous == null
                 ? ConversationState.empty().toBuilder()
                 : previous.toBuilder();
@@ -79,6 +80,9 @@ public class ConversationStateService {
         if (destinationRecommendation != null && destinationRecommendation.primaryCity() != null) {
             builder.recommendedDestinationCity(destinationRecommendation.primaryCity());
             builder.recommendedDestinationCandidates(new ArrayList<>(destinationRecommendation.candidateCities()));
+        } else if (explicitDestinationCity != null) {
+            builder.recommendedDestinationCity(explicitDestinationCity);
+            builder.recommendedDestinationCandidates(List.of(explicitDestinationCity));
         } else if (travelPlanResult != null && travelPlanResult.destinationCity() != null) {
             builder.recommendedDestinationCity(travelPlanResult.destinationCity());
         }

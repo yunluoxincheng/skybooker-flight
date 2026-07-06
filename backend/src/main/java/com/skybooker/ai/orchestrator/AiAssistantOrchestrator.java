@@ -48,7 +48,8 @@ public class AiAssistantOrchestrator {
     public AssistantTurnResult handle(AiChatSession session, String message, List<AiChatMessage> history) {
         ConversationState state = conversationStateService.load(history);
         SemanticParseResult semantic = semanticParser.parse(message, state);
-        ParsedCondition condition = prepareCondition(message, semantic, state);
+        String explicitDestinationCity = ruleIntentParserService.parseDestinationSwitchCity(message);
+        ParsedCondition condition = prepareCondition(message, semantic, state, explicitDestinationCity);
         DialogueAction action = dialoguePolicy.decide(message, semantic.intent(), condition, state);
 
         DestinationRecommendation destinationRecommendation = null;
@@ -87,7 +88,14 @@ public class AiAssistantOrchestrator {
                 case BOOKING_HELP -> reply = buildConversationalReply(session.getPublicSessionId(),
                         DomainIntent.BOOKING_HELP, bookingHelpTool.answer(message), bookingHelpQuickActions());
                 case TRAVEL_PLAN -> {
-                    travelPlanResult = travelPlanTool.advise(message, semantic.llmConfig());
+                    if (isDestinationSwitch(state, explicitDestinationCity)) {
+                        travelPlanResult = new TravelPlanResult(
+                                "好的，已把目的地切换为" + explicitDestinationCity
+                                        + "。需要查机票时，请告诉我出发城市和出发日期。",
+                                explicitDestinationCity);
+                    } else {
+                        travelPlanResult = travelPlanTool.advise(message, semantic.llmConfig());
+                    }
                     reply = buildTravelReply(session.getPublicSessionId(), semantic.intent(),
                             travelPlanResult.replyText(), travelQuickActions());
                 }
@@ -98,17 +106,19 @@ public class AiAssistantOrchestrator {
         }
 
         ConversationState nextState = conversationStateService.nextState(state, reply, condition,
-                destinationRecommendation, travelPlanResult);
+                destinationRecommendation, travelPlanResult, explicitDestinationCity);
         Map<String, Object> extraJson = buildExtraJson(reply, nextState);
         return new AssistantTurnResult(reply, extraJson, recommendationLog);
     }
 
-    private ParsedCondition prepareCondition(String message, SemanticParseResult semantic, ConversationState state) {
+    private ParsedCondition prepareCondition(String message, SemanticParseResult semantic,
+                                             ConversationState state, String explicitDestinationCity) {
         if (semantic.condition() == null) {
             return null;
         }
 
-        ParsedCondition condition = applyBareSlotFill(message, semantic.condition(), state);
+        ParsedCondition condition = applyBareSlotFill(message, semantic.condition(), state, explicitDestinationCity);
+        condition = withDestination(condition, explicitDestinationCity);
         condition = withDestination(condition, state.getRecommendedDestinationCity());
         if (semantic.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION || state.hasPendingFlightQuery()) {
             condition = ParsedConditionMaps.mergePending(state.getPendingFlightCondition(), condition);
@@ -116,8 +126,10 @@ public class AiAssistantOrchestrator {
         return ParsedConditionMaps.recomputeRequiredFields(condition);
     }
 
-    private ParsedCondition applyBareSlotFill(String message, ParsedCondition condition, ConversationState state) {
+    private ParsedCondition applyBareSlotFill(String message, ParsedCondition condition,
+                                              ConversationState state, String explicitDestinationCity) {
         if (!state.hasPendingFlightQuery()
+                || explicitDestinationCity != null
                 || condition.getDepartureCity() != null
                 || condition.getArrivalCity() != null) {
             return condition;
@@ -134,6 +146,13 @@ public class AiAssistantOrchestrator {
             builder.departureCity(city);
         }
         return builder.build();
+    }
+
+    private boolean isDestinationSwitch(ConversationState state, String explicitDestinationCity) {
+        return state != null
+                && state.getRecommendedDestinationCity() != null
+                && explicitDestinationCity != null
+                && !explicitDestinationCity.equals(state.getRecommendedDestinationCity());
     }
 
     private ParsedCondition withDestination(ParsedCondition condition, String destinationCity) {

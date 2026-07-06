@@ -92,7 +92,9 @@ public final class ParsedConditionMaps {
         }
 
         String question = condition.getFollowUpQuestion();
-        if (question == null || question.isBlank()) {
+        if (question == null || question.isBlank()
+                || (missingFieldsChanged(condition.getMissingFields(), missing)
+                && !isSpecificDateFollowUp(question, missing))) {
             question = buildFollowUpQuestion(missing);
         }
         return condition.toBuilder()
@@ -148,6 +150,17 @@ public final class ParsedConditionMaps {
             }
         }
         return "请问您的" + String.join("、", parts) + "是什么？";
+    }
+
+    private static boolean missingFieldsChanged(List<String> previous, List<String> current) {
+        List<String> normalizedPrevious = previous == null ? List.of() : previous;
+        return !normalizedPrevious.equals(current);
+    }
+
+    private static boolean isSpecificDateFollowUp(String question, List<String> missingFields) {
+        return List.of("departureDate").equals(missingFields)
+                && question != null
+                && question.contains("一个出发日期");
     }
 
     @SuppressWarnings("unchecked")

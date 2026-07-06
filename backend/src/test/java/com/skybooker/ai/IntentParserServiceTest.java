@@ -143,6 +143,19 @@ class IntentParserServiceTest {
     }
 
     @Test
+    void parseDestinationSwitchCity_prefersReplacementCity() {
+        assertThat(parser.parseDestinationSwitchCity("不要三亚，换成厦门")).isEqualTo("厦门");
+        assertThat(parser.parseDestinationSwitchCity("目的地改成青岛吧")).isEqualTo("青岛");
+    }
+
+    @Test
+    void parse_priceCeilingPhrase_setsMaxPrice() {
+        ParsedCondition result = parser.parse("上海到北京明天，两个人，经济舱，直飞，1000以内");
+
+        assertThat(result.getMaxPrice()).isEqualByComparingTo("1000");
+    }
+
+    @Test
     void parse_supportedDateRanges_areCompleteDateConditions() {
         parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
 

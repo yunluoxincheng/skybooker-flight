@@ -106,6 +106,14 @@ public class DomainIntentRouter {
             }
         }
 
+        if (isDestinationSwitchAfterRecommendation(text, state)) {
+            ParsedCondition parsed = ruleIntentParserService.parse(text);
+            if (hasFlightSearchSignal(text) || hasParsedSearchSignal(parsed)) {
+                return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
+            }
+            return new RouteResult(DomainIntent.TRAVEL_CHAT, cfg, false);
+        }
+
         if (isFlightSearchAfterDestinationRecommendation(text, state)) {
             return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
         }
@@ -370,6 +378,7 @@ public class DomainIntentRouter {
             return true;
         }
         return parsed.getDepartureCity() != null
+                || parsed.getArrivalCity() != null
                 || parsed.getDepartureDate() != null
                 || parsed.getDepartureDateStart() != null
                 || parsed.getDepartureDateEnd() != null
@@ -381,6 +390,12 @@ public class DomainIntentRouter {
                 || parsed.getMaxDurationMinutes() != null
                 || parsed.getDirectOnly() != null
                 || parsed.getSort() != null;
+    }
+
+    private boolean isDestinationSwitchAfterRecommendation(String text, ConversationState state) {
+        return state != null
+                && state.getRecommendedDestinationCity() != null
+                && ruleIntentParserService.parseDestinationSwitchCity(text) != null;
     }
 
     private boolean hasPendingFollowUp(AiChatMessage previousAssistant) {

@@ -105,8 +105,14 @@ public class IntentParserService implements IntentParser {
             "([一二两三四五六七八九十])(?:个?人|位)");
     private static final Pattern PRICE_PATTERN = Pattern.compile(
             "(?:低于|不超过|最高|最多|预算)[^\\d]?(\\d+)");
+    private static final Pattern PRICE_CEILING_PATTERN = Pattern.compile(
+            "(\\d+)\\s*(?:以内|以下|内)");
     private static final Pattern DURATION_PATTERN = Pattern.compile(
             "(?:不超过|最多|短于|小于)[^\\d]?(\\d+)(小时|分钟|min)");
+    private static final List<Pattern> DESTINATION_SWITCH_PATTERNS = List.of(
+            Pattern.compile("(?:不去|不要|别去)[\\u4e00-\\u9fa5]{2,8}.*?(?:换成|改成|改为|换到|改到|改去|换去|去)([\\u4e00-\\u9fa5]{2,8})"),
+            Pattern.compile("(?:目的地)?(?:换成|改成|改为|换到|改到|改去|换去)([\\u4e00-\\u9fa5]{2,8})")
+    );
 
     private Clock clock = Clock.systemDefaultZone();
 
@@ -257,6 +263,11 @@ public class IntentParserService implements IntentParser {
         Matcher priceMatcher = PRICE_PATTERN.matcher(text);
         if (priceMatcher.find()) {
             maxPrice = new BigDecimal(priceMatcher.group(1));
+        } else {
+            Matcher priceCeilingMatcher = PRICE_CEILING_PATTERN.matcher(text);
+            if (priceCeilingMatcher.find()) {
+                maxPrice = new BigDecimal(priceCeilingMatcher.group(1));
+            }
         }
 
         // Duration preference
@@ -549,6 +560,22 @@ public class IntentParserService implements IntentParser {
             }
         }
         return bestCity;
+    }
+
+    public String parseDestinationSwitchCity(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        for (Pattern pattern : DESTINATION_SWITCH_PATTERNS) {
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                String candidate = matcher.group(1).trim();
+                if (isKnownCityMention(candidate)) {
+                    return resolveCity(candidate);
+                }
+            }
+        }
+        return null;
     }
 
     private boolean looksLikeDepartureMention(String text, int index, int length) {
