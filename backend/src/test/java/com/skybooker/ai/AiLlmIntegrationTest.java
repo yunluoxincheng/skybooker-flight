@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Map;
 
@@ -284,5 +285,55 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         String replyText = (String) ((Map<String, Object>) response.getData()).get("replyText");
         assertThat(replyText).doesNotContain("9:00");
         assertThat(replyText).doesNotContain("14:30");
+    }
+
+    @Test
+    void chat_llmRecommendedDestinationSuppliesLaterFlightQuery() throws Exception {
+        String nextFriday = LocalDate.now()
+                .with(TemporalAdjusters.next(java.time.DayOfWeek.FRIDAY))
+                .toString();
+        when(llmChatClient.complete(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    String userPrompt = invocation.getArgument(1);
+                    if (userPrompt.contains("下周五")) {
+                        return """
+                                {
+                                  "departureCity": "广州",
+                                  "departureDate": "%s",
+                                  "missingFields": ["arrivalCity"]
+                                }
+                                """.formatted(nextFriday);
+                    }
+                    return "推荐旅游目的地取决于您的偏好和季节。如果您喜欢海滩，可以考虑三亚、青岛；钟情历史，西安、南京很值得。";
+                });
+
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("有哪些地方推荐去玩");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.replyText").value(org.hamcrest.Matchers.containsString("三亚")))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("我打算下周五去，有机票吗，广州出发");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("三亚"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(nextFriday))
+                .andExpect(jsonPath("$.data.missingFields").isEmpty());
     }
 }
