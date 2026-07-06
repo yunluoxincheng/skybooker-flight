@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as orderApi from "@/services/orderApi"
-import { getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import {
   CABIN_CLASS_ORDER,
   type CabinClass,
@@ -53,7 +53,7 @@ function deriveFlightCabins(flight: FlightVO, seats: FlightSeatVO[]): FlightCabi
         cabinClass,
         price: configured?.price ?? seatPrice ?? getFallbackCabinPrice(flight.basePrice, cabinClass),
         totalSeats: configured?.totalSeats ?? cabinSeats.length,
-        remainingSeats: configured?.remainingSeats ?? availableSeats,
+        remainingSeats: configured ? getCabinAvailableSeats(configured) : availableSeats,
       }
     })
     .filter((cabin): cabin is FlightCabinVO => cabin !== null)
