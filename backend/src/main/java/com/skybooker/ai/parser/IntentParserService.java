@@ -31,6 +31,15 @@ public class IntentParserService implements IntentParser {
             Map.entry("拉萨", "拉萨"), Map.entry("银川", "银川"), Map.entry("西宁", "西宁"),
             Map.entry("石家庄", "石家庄")
     );
+    private static final Map<String, String> PLACE_CITY_ALIASES = Map.ofEntries(
+            Map.entry("上海迪士尼", "上海"), Map.entry("迪士尼", "上海"),
+            Map.entry("北京环球影城", "北京"), Map.entry("环球影城", "北京"),
+            Map.entry("外滩", "上海"), Map.entry("东方明珠", "上海"),
+            Map.entry("故宫", "北京"), Map.entry("天安门", "北京"),
+            Map.entry("长隆", "广州"), Map.entry("广州塔", "广州"),
+            Map.entry("宽窄巷子", "成都"), Map.entry("大熊猫基地", "成都"),
+            Map.entry("西湖", "杭州"), Map.entry("鼓浪屿", "厦门")
+    );
 
     private static final List<String[]> AIRLINE_PATTERNS = List.of(
             // short names -> full name
@@ -82,6 +91,12 @@ public class IntentParserService implements IntentParser {
             "(\\d{1,2})[月/-](\\d{1,2})[日号]?");
     private static final Pattern DATE_RANGE = Pattern.compile(
             "(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])\\s*(?:到|至|-|~|—)\\s*(\\d{1,2}[月/-]\\d{1,2}[日号]?|\\d{4}[年/-]\\d{1,2}[月/-]\\d{1,2}[日号]?|(?:下|这|本)?(?:周|星期)[一二三四五六日天])");
+    private static final Pattern FULL_MONTH_DAY_RANGE = Pattern.compile(
+            "(\\d{1,2})[月/-](\\d{1,2})[日号]?\\s*(?:到|至|-|~|—)\\s*(\\d{1,2})[月/-](\\d{1,2})[日号]?");
+    private static final Pattern MONTH_DAY_RANGE = Pattern.compile(
+            "(\\d{1,2})[月/-](\\d{1,2})[日号]?\\s*(?:到|至|-|~|—)\\s*(\\d{1,2})[日号]?");
+    private static final Pattern CONTEXT_DAY_RANGE = Pattern.compile(
+            "(\\d{1,2})\\s*(?:到|至|-|~|—)\\s*(\\d{1,2})[日号]");
     private static final Pattern MULTI_WEEKDAY = Pattern.compile(
             "(?:周|星期)[一二三四五六日天].*(?:周|星期)[一二三四五六日天].*(?:都可以|均可|都行|任选)");
     private static final Pattern PASSENGER_PATTERN = Pattern.compile(
@@ -110,11 +125,14 @@ public class IntentParserService implements IntentParser {
         }
 
         String text = message.trim();
-        boolean ambiguousDateExpression = hasAmbiguousDateExpression(text);
+        DateRange dateRange = parseDateRange(text);
+        boolean ambiguousDateExpression = dateRange == null && hasAmbiguousDateExpression(text);
 
         String departureCity = null;
         String arrivalCity = null;
         LocalDate departureDate = null;
+        LocalDate departureDateStart = dateRange == null ? null : dateRange.start();
+        LocalDate departureDateEnd = dateRange == null ? null : dateRange.end();
         Integer passengerCount = null;
         String cabinClass = null;
         String airlineRaw = null;
@@ -149,8 +167,12 @@ public class IntentParserService implements IntentParser {
         }
 
         if (arrivalCity == null) {
+            arrivalCity = parseKnownDestinationPlace(text);
+        }
+
+        if (arrivalCity == null) {
             Matcher destinationOnly = DESTINATION_ONLY.matcher(text);
-            if (destinationOnly.matches()) {
+            if (destinationOnly.find()) {
                 arrivalCity = resolveCity(destinationOnly.group(1).trim());
             }
         }
@@ -162,6 +184,10 @@ public class IntentParserService implements IntentParser {
             }
         }
 
+        if (departureCity == null) {
+            departureCity = parseCurrentLocationCity(text);
+        }
+
         if (arrivalCity == null) {
             Matcher arrivalOnly = ARRIVAL_CITY_ONLY.matcher(text);
             if (arrivalOnly.find()) {
@@ -170,7 +196,7 @@ public class IntentParserService implements IntentParser {
         }
 
         // Date parsing - explicit first
-        if (!ambiguousDateExpression) {
+        if (dateRange == null && !ambiguousDateExpression) {
             Matcher dateMatcher = DATE_PATTERN.matcher(text);
             if (dateMatcher.find()) {
                 int year = Integer.parseInt(dateMatcher.group(1));
@@ -276,7 +302,7 @@ public class IntentParserService implements IntentParser {
         List<String> missingFields = new ArrayList<>();
         if (departureCity == null) missingFields.add("departureCity");
         if (arrivalCity == null) missingFields.add("arrivalCity");
-        if (departureDate == null) missingFields.add("departureDate");
+        if (departureDate == null && dateRange == null) missingFields.add("departureDate");
 
         boolean complete = missingFields.isEmpty();
 
@@ -294,6 +320,8 @@ public class IntentParserService implements IntentParser {
                 .departureCity(departureCity)
                 .arrivalCity(arrivalCity)
                 .departureDate(departureDate)
+                .departureDateStart(departureDateStart)
+                .departureDateEnd(departureDateEnd)
                 .passengerCount(passengerCount)
                 .cabinClass(cabinClass)
                 .airlineRaw(airlineRaw)
@@ -437,6 +465,98 @@ public class IntentParserService implements IntentParser {
         return null;
     }
 
+    private String parseKnownDestinationPlace(String text) {
+        for (Map.Entry<String, String> entry : PLACE_CITY_ALIASES.entrySet()) {
+            if (text.contains(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private String parseCurrentLocationCity(String text) {
+        for (Map.Entry<String, String> entry : CITY_ALIASES.entrySet()) {
+            String city = entry.getKey();
+            if (text.contains("现在在" + city)
+                    || text.contains("目前在" + city)
+                    || text.contains("我在" + city)
+                    || text.contains("人在" + city)
+                    || text.contains("位于" + city)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    public DateRange parseDateRange(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+
+        Matcher fullMonthDayRange = FULL_MONTH_DAY_RANGE.matcher(text);
+        if (fullMonthDayRange.find()) {
+            int startMonth = Integer.parseInt(fullMonthDayRange.group(1));
+            int startDay = Integer.parseInt(fullMonthDayRange.group(2));
+            int endMonth = Integer.parseInt(fullMonthDayRange.group(3));
+            int endDay = Integer.parseInt(fullMonthDayRange.group(4));
+            if (startMonth == endMonth) {
+                return buildDateRange(startMonth, startDay, endDay);
+            }
+        }
+
+        Matcher monthDayRange = MONTH_DAY_RANGE.matcher(text);
+        if (monthDayRange.find()) {
+            int month = Integer.parseInt(monthDayRange.group(1));
+            int startDay = Integer.parseInt(monthDayRange.group(2));
+            int endDay = Integer.parseInt(monthDayRange.group(3));
+            return buildDateRange(month, startDay, endDay);
+        }
+
+        Integer monthContext = parseMonthContext(text);
+        if (monthContext != null) {
+            Matcher contextDayRange = CONTEXT_DAY_RANGE.matcher(text);
+            if (contextDayRange.find()) {
+                int startDay = Integer.parseInt(contextDayRange.group(1));
+                int endDay = Integer.parseInt(contextDayRange.group(2));
+                return buildDateRange(monthContext, startDay, endDay);
+            }
+        }
+        return null;
+    }
+
+    private DateRange buildDateRange(int month, int startDay, int endDay) {
+        LocalDate start = resolveMonthDay(month, startDay);
+        if (start == null || endDay < startDay) {
+            return null;
+        }
+        LocalDate end = safeDate(start.getYear(), month, endDay);
+        if (end == null) {
+            return null;
+        }
+        return new DateRange(start, end);
+    }
+
+    private Integer parseMonthContext(String text) {
+        Matcher numericMonth = Pattern.compile("(\\d{1,2})月").matcher(text);
+        if (numericMonth.find()) {
+            return Integer.parseInt(numericMonth.group(1));
+        }
+
+        if (text.contains("十二月")) return 12;
+        if (text.contains("十一月")) return 11;
+        if (text.contains("十月")) return 10;
+        if (text.contains("九月")) return 9;
+        if (text.contains("八月")) return 8;
+        if (text.contains("七月")) return 7;
+        if (text.contains("六月")) return 6;
+        if (text.contains("五月")) return 5;
+        if (text.contains("四月")) return 4;
+        if (text.contains("三月")) return 3;
+        if (text.contains("二月") || text.contains("两月")) return 2;
+        if (text.contains("一月")) return 1;
+        return null;
+    }
+
     private Integer parseChinesePassengerCount(String text) {
         return switch (text) {
             case "一" -> 1;
@@ -503,5 +623,8 @@ public class IntentParserService implements IntentParser {
     }
 
     private record WeekdayPhrase(DayOfWeek dayOfWeek, boolean nextWeek, boolean explicitThisWeek) {
+    }
+
+    public record DateRange(LocalDate start, LocalDate end) {
     }
 }

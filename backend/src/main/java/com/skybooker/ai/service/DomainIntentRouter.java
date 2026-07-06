@@ -195,7 +195,8 @@ public class DomainIntentRouter {
                 || text.contains("多远")
                 || text.contains("距离")
                 || text.contains("玩几天")
-                || text.contains("怎么安排");
+                || text.contains("怎么安排")
+                || (CITY_DESTINATION.matcher(text).find() && text.contains("玩"));
     }
 
     private boolean isTravelPlanningSignal(String text) {
@@ -299,6 +300,8 @@ public class DomainIntentRouter {
         return parsed.getDepartureCity() != null
                 || parsed.getArrivalCity() != null
                 || parsed.getDepartureDate() != null
+                || parsed.getDepartureDateStart() != null
+                || parsed.getDepartureDateEnd() != null
                 || parsed.getCabinClass() != null
                 || parsed.getAirlineRaw() != null
                 || parsed.getMaxPrice() != null
@@ -324,6 +327,7 @@ public class DomainIntentRouter {
         boolean ambiguousDateFollowUp = parsed.getFollowUpQuestion() != null
                 && parsed.getFollowUpQuestion().contains("一个出发日期");
         return parsed.getDepartureDate() != null
+                || (parsed.getDepartureDateStart() != null && parsed.getDepartureDateEnd() != null)
                 || parsed.getCabinClass() != null
                 || parsed.getAirlineRaw() != null
                 || parsed.getMaxPrice() != null

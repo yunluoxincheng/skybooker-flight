@@ -125,7 +125,7 @@ class LlmIntentParserServiceTest {
                       "departureDate": "2026-06-13"
                     }
                     """;
-        }, objectMapper);
+        }, objectMapper, ruleParser);
         ZoneId zone = ZoneId.of("Asia/Shanghai");
         parser.setClock(Clock.fixed(LocalDate.of(2026, 6, 12).atStartOfDay(zone).toInstant(), zone));
 
@@ -144,7 +144,7 @@ class LlmIntentParserServiceTest {
         LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             calls.incrementAndGet();
             return "{}";
-        }, objectMapper);
+        }, objectMapper, ruleParser);
         CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
@@ -161,7 +161,7 @@ class LlmIntentParserServiceTest {
         LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             calls.incrementAndGet();
             return "{}";
-        }, objectMapper);
+        }, objectMapper, ruleParser);
         CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
@@ -175,7 +175,7 @@ class LlmIntentParserServiceTest {
     void composite_providerFailure_fallsBackToRuleParser() {
         LlmIntentParserService llmParser = new LlmIntentParserService((system, user, cfg) -> {
             throw new LlmIntentParseException("timeout");
-        }, objectMapper);
+        }, objectMapper, ruleParser);
         CompositeIntentParser composite = new CompositeIntentParser(providerFromProperties(properties), llmParser, ruleParser);
 
         var result = composite.parse("从上海到北京明天出发");
@@ -247,7 +247,7 @@ class LlmIntentParserServiceTest {
     }
 
     private LlmIntentParserService parserReturning(String content) {
-        return new LlmIntentParserService((system, user, cfg) -> content, objectMapper);
+        return new LlmIntentParserService((system, user, cfg) -> content, objectMapper, ruleParser);
     }
 
     /** 单测用配置快照（字段值不影响 parse 的 JSON 解析逻辑，仅用于满足方法签名）。 */

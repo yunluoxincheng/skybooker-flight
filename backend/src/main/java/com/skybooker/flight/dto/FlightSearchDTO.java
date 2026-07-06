@@ -16,6 +16,12 @@ public class FlightSearchDTO {
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate departureDate;
 
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    private LocalDate departureDateStart;
+
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    private LocalDate departureDateEnd;
+
     private Long airlineId;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;

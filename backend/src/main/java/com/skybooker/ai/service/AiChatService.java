@@ -12,6 +12,7 @@ import com.skybooker.ai.enums.MessageType;
 import com.skybooker.ai.enums.SessionStatus;
 import com.skybooker.ai.mapper.AiMapper;
 import com.skybooker.ai.parser.IntentParser;
+import com.skybooker.ai.parser.IntentParserService;
 import com.skybooker.ai.parser.ParsedCondition;
 import com.skybooker.ai.ratelimit.AiRateLimiter;
 import com.skybooker.ai.vo.AiChatReplyVO;
@@ -37,9 +38,12 @@ import java.util.stream.Collectors;
 public class AiChatService {
 
     private static final int MAX_PUBLIC_ID_RETRIES = 10;
+    private static final String TRAVEL_CONTEXT = "travelContext";
+    private static final String DESTINATION_CITY = "destinationCity";
 
     private final AiMapper aiMapper;
     private final IntentParser intentParser;
+    private final IntentParserService ruleIntentParserService;
     private final FlightRecommendationService flightRecommendationService;
     private final DomainIntentRouter domainIntentRouter;
     private final DomainReplyComposer domainReplyComposer;
@@ -79,6 +83,7 @@ public class AiChatService {
         AiChatReplyVO reply;
         if (route.intent() == DomainIntent.FLIGHT_QUERY || route.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION) {
             ParsedCondition condition = intentParser.parse(message);
+            condition = mergeWithTravelContext(previousAssistant, condition);
             if (route.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION) {
                 condition = mergeWithPreviousContext(previousAssistant, condition);
             }
@@ -109,7 +114,7 @@ public class AiChatService {
         assistantMsg.setMessageType(
                 AiReplyType.FLIGHT_RECOMMENDATION.name().equals(reply.getReplyType())
                         ? MessageType.RECOMMENDATION.name() : MessageType.TEXT.name());
-        assistantMsg.setExtraJson(toJson(buildExtraJson(reply)));
+        assistantMsg.setExtraJson(toJson(buildExtraJson(reply, message, previousAssistant)));
         aiMapper.insertMessage(assistantMsg);
 
         return reply;
@@ -178,6 +183,19 @@ public class AiChatService {
         return session;
     }
 
+    private ParsedCondition mergeWithTravelContext(AiChatMessage prevAssistant, ParsedCondition current) {
+        if (current.getArrivalCity() != null) {
+            return current;
+        }
+
+        String city = destinationCityFromTravelContext(prevAssistant);
+        if (city != null) {
+            ParsedCondition merged = current.toBuilder().arrivalCity(city).build();
+            return withRecomputedRequiredFields(merged, current.getFollowUpQuestion());
+        }
+        return current;
+    }
+
     @SuppressWarnings("unchecked")
     private ParsedCondition mergeWithPreviousContext(AiChatMessage prevAssistant, ParsedCondition current) {
         if (prevAssistant == null || prevAssistant.getExtraJson() == null) return current;
@@ -209,6 +227,12 @@ public class AiChatService {
         if (current.getDepartureDate() == null && prevCondition.get("departureDate") != null) {
             merged.departureDate(LocalDate.parse((String) prevCondition.get("departureDate")));
         }
+        if (current.getDepartureDateStart() == null && prevCondition.get("departureDateStart") != null) {
+            merged.departureDateStart(LocalDate.parse((String) prevCondition.get("departureDateStart")));
+        }
+        if (current.getDepartureDateEnd() == null && prevCondition.get("departureDateEnd") != null) {
+            merged.departureDateEnd(LocalDate.parse((String) prevCondition.get("departureDateEnd")));
+        }
         // 可选筛选字段：多轮补全时从上一轮继承，避免丢条件（舱位/航司/价格/时段/时长/直飞/排序/人数）。
         // 即使 current 已经补齐必填字段，也要继续继承未被当前轮覆盖的可选条件。
         // passengerCount 未提及为 null，避免“当前默认 1”覆盖上一轮用户明确说的“两个人”。
@@ -234,22 +258,31 @@ public class AiChatService {
             merged.sort((String) prevCondition.get("sort"));
 
         ParsedCondition result = merged.build();
-        // Recompute missing fields（仅必填项）
+        return withRecomputedRequiredFields(result, current.getFollowUpQuestion());
+    }
+
+    private ParsedCondition withRecomputedRequiredFields(ParsedCondition condition, String followUpQuestion) {
         List<String> missing = new ArrayList<>();
-        if (result.getDepartureCity() == null) missing.add("departureCity");
-        if (result.getArrivalCity() == null) missing.add("arrivalCity");
-        if (result.getDepartureDate() == null) missing.add("departureDate");
-        if (!missing.isEmpty()) {
-            String followUpQuestion = current.getFollowUpQuestion();
-            if (followUpQuestion == null || followUpQuestion.isBlank()) {
-                followUpQuestion = buildFollowUpQuestion(missing);
-            }
-            return result.toBuilder().missingFields(missing)
-                    .followUpQuestion(followUpQuestion)
+        if (condition.getDepartureCity() == null) missing.add("departureCity");
+        if (condition.getArrivalCity() == null) missing.add("arrivalCity");
+        if (!condition.hasDepartureDateCondition()) missing.add("departureDate");
+        if (missing.isEmpty()) {
+            return condition.toBuilder()
+                    .missingFields(Collections.emptyList())
+                    .followUpQuestion(null)
                     .quickActionLabels(List.of())
                     .build();
         }
-        return result;
+
+        String question = followUpQuestion;
+        if (question == null || question.isBlank()) {
+            question = buildFollowUpQuestion(missing);
+        }
+        return condition.toBuilder()
+                .missingFields(missing)
+                .followUpQuestion(question)
+                .quickActionLabels(List.of())
+                .build();
     }
 
     private ParsedCondition normalizeForSearch(ParsedCondition condition) {
@@ -424,6 +457,8 @@ public class AiChatService {
         if (condition.getDepartureCity() != null) map.put("departureCity", condition.getDepartureCity());
         if (condition.getArrivalCity() != null) map.put("arrivalCity", condition.getArrivalCity());
         if (condition.getDepartureDate() != null) map.put("departureDate", condition.getDepartureDate().toString());
+        if (condition.getDepartureDateStart() != null) map.put("departureDateStart", condition.getDepartureDateStart().toString());
+        if (condition.getDepartureDateEnd() != null) map.put("departureDateEnd", condition.getDepartureDateEnd().toString());
         if (condition.getPassengerCount() != null) map.put("passengerCount", condition.getPassengerCount());
         if (condition.getCabinClass() != null) map.put("cabinClass", condition.getCabinClass());
         if (condition.getAirlineRaw() != null) map.put("airlineRaw", condition.getAirlineRaw());
@@ -436,7 +471,7 @@ public class AiChatService {
         return map;
     }
 
-    private Map<String, Object> buildExtraJson(AiChatReplyVO reply) {
+    private Map<String, Object> buildExtraJson(AiChatReplyVO reply, String message, AiChatMessage prevAssistant) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("replyType", reply.getReplyType());
         extra.put("intent", reply.getIntent());
@@ -446,7 +481,52 @@ public class AiChatService {
         extra.put("searchUrl", reply.getSearchUrl());
         extra.put("flights", reply.getFlights() == null ? Collections.emptyList() : reply.getFlights());
         extra.put("quickActions", reply.getQuickActions() == null ? Collections.emptyList() : reply.getQuickActions());
+        Map<String, Object> travelContext = buildTravelContext(reply, message, prevAssistant);
+        if (!travelContext.isEmpty()) {
+            extra.put(TRAVEL_CONTEXT, travelContext);
+        }
         return extra;
+    }
+
+    private Map<String, Object> buildTravelContext(AiChatReplyVO reply, String message, AiChatMessage prevAssistant) {
+        if (!AiReplyType.TRAVEL_CHAT.name().equals(reply.getReplyType())) {
+            return Collections.emptyMap();
+        }
+
+        ParsedCondition parsed = ruleIntentParserService.parse(message);
+        String destinationCity = parsed.getArrivalCity();
+        if (destinationCity == null || destinationCity.isBlank()) {
+            destinationCity = destinationCityFromTravelContext(prevAssistant);
+        }
+        if (destinationCity == null || destinationCity.isBlank()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put(DESTINATION_CITY, destinationCity);
+        return context;
+    }
+
+    private String destinationCityFromTravelContext(AiChatMessage assistant) {
+        if (assistant == null || assistant.getExtraJson() == null || assistant.getExtraJson().isBlank()) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> extra = objectMapper.readValue(
+                    assistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
+            Object travelContext = extra.get(TRAVEL_CONTEXT);
+            if (!(travelContext instanceof Map<?, ?> context)) {
+                return null;
+            }
+            Object destinationCity = context.get(DESTINATION_CITY);
+            if (destinationCity instanceof String city && !city.isBlank()) {
+                return city;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse travel context", e);
+        }
+        return null;
     }
 
     private AiSessionMessageVO toMessageVO(AiChatMessage msg) {

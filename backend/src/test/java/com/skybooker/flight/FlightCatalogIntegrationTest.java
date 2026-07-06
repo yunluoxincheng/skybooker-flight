@@ -72,6 +72,32 @@ class FlightCatalogIntegrationTest {
     }
 
     @Test
+    void searchFlights_byRouteAndDateRange() throws Exception {
+        jdbcTemplate.update(
+                "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id = 2",
+                "2026-08-02", "2026-08-02");
+        jdbcTemplate.update(
+                "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
+                        "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id = 3",
+                "2026-08-05", "2026-08-05");
+
+        mockMvc.perform(get("/api/flights")
+                        .param("departureCity", "上海")
+                        .param("arrivalCity", "北京")
+                        .param("departureDateStart", "2026-08-02")
+                        .param("departureDateEnd", "2026-08-05")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.records[*].flightNo",
+                        containsInAnyOrder("CZ3101", "CA1502")))
+                .andExpect(jsonPath("$.data.records[*].departureTime",
+                        everyItem(anyOf(startsWith("2026-08-02"), startsWith("2026-08-05")))));
+    }
+
+    @Test
     void getFlightDetail_success() throws Exception {
         mockMvc.perform(get("/api/flights/1"))
                 .andExpect(status().isOk())

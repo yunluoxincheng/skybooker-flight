@@ -59,10 +59,16 @@
         <if test="arrivalCity != null and arrivalCity != ''">
             AND aa.city = #{arrivalCity}
         </if>
-        <if test="departureDate != null">
-            AND f.departure_time >= #{departureDate}
-            AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
-        </if>
+        <choose>
+            <when test="departureDateStart != null and departureDateEnd != null">
+                AND f.departure_time >= #{departureDateStart}
+                AND f.departure_time &lt; #{departureDateEnd} + INTERVAL 1 DAY
+            </when>
+            <when test="departureDate != null">
+                AND f.departure_time >= #{departureDate}
+                AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
+            </when>
+        </choose>
     </sql>
 
     <sql id="advancedFilters">
@@ -177,10 +183,16 @@
         <if test="arrivalCity != null and arrivalCity != ''">
             AND aa.city = #{arrivalCity}
         </if>
-        <if test="departureDate != null">
-            AND f.departure_time >= #{departureDate}
-            AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
-        </if>
+        <choose>
+            <when test="departureDateStart != null and departureDateEnd != null">
+                AND f.departure_time >= #{departureDateStart}
+                AND f.departure_time &lt; #{departureDateEnd} + INTERVAL 1 DAY
+            </when>
+            <when test="departureDate != null">
+                AND f.departure_time >= #{departureDate}
+                AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
+            </when>
+        </choose>
         <if test="airlineId != null">
             AND f.airline_id = #{airlineId}
         </if>

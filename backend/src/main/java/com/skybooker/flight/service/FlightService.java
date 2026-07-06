@@ -46,13 +46,15 @@ public class FlightService {
 
             List<FlightVO> records = flightMapper.searchFlightsAdvanced(
                     dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
-                    dto.getDepartureDate(), dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
+                    dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
+                    dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
                     dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
                     orderBy, offset, size);
             long total = flightMapper.countFlightsAdvanced(
                     dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
-                    dto.getDepartureDate(), dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
+                    dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
+                    dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
                     dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass());
 
@@ -61,10 +63,10 @@ public class FlightService {
 
         List<FlightVO> records = flightMapper.searchFlights(
                 dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
-                dto.getDepartureDate(), offset, size);
+                dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(), offset, size);
         long total = flightMapper.countFlights(
                 dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
-                dto.getDepartureDate());
+                dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd());
 
         return new PageResponse<>(records, total, page, size);
     }
