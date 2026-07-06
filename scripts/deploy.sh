@@ -313,6 +313,17 @@ run_up() {
     compose pull
   fi
   compose up -d
+  refresh_nginx
+}
+
+refresh_nginx() {
+  if [[ -z "$(compose ps -q nginx)" ]]; then
+    log "nginx service is not running; skipping nginx refresh."
+    return
+  fi
+
+  log "Refreshing nginx so upstream connections resolve the current containers."
+  compose restart nginx
 }
 
 install_or_update() {
