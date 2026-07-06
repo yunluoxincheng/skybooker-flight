@@ -31,6 +31,7 @@ public class LlmIntentParserService {
 
     private final LlmChatClient llmChatClient;
     private final ObjectMapper objectMapper;
+    private final IntentParserService ruleIntentParserService;
     private Clock clock = Clock.systemDefaultZone();
 
     public void setClock(Clock clock) {
@@ -48,8 +49,16 @@ public class LlmIntentParserService {
         String departureCity = text(root, "departureCity");
         String arrivalCity = text(root, "arrivalCity");
         LocalDate departureDate = date(root, "departureDate");
+        LocalDate departureDateStart = date(root, "departureDateStart");
+        LocalDate departureDateEnd = date(root, "departureDateEnd");
+        IntentParserService.DateRange ruleDateRange = ruleIntentParserService.parseDateRange(message);
+        if (ruleDateRange != null) {
+            departureDate = null;
+            departureDateStart = ruleDateRange.start();
+            departureDateEnd = ruleDateRange.end();
+        }
         boolean ambiguousDateExpression = hasAmbiguousDateExpression(message);
-        if (ambiguousDateExpression) {
+        if (ambiguousDateExpression && ruleDateRange == null) {
             departureDate = null;
         }
         Integer passengerCount = passengerCount(root, "passengerCount");
@@ -66,7 +75,8 @@ public class LlmIntentParserService {
         Boolean directOnly = bool(root, "directOnly");
         String sort = sort(root, "sort");
 
-        List<String> missing = missingFields(departureCity, arrivalCity, departureDate);
+        List<String> missing = missingFields(departureCity, arrivalCity,
+                departureDate, departureDateStart, departureDateEnd);
         String followUpQuestion = text(root, "followUpQuestion");
         if (!missing.isEmpty() && followUpQuestion == null) {
             followUpQuestion = ambiguousDateExpression && missing.contains("departureDate")
@@ -78,6 +88,8 @@ public class LlmIntentParserService {
                 .departureCity(departureCity)
                 .arrivalCity(arrivalCity)
                 .departureDate(departureDate)
+                .departureDateStart(departureDateStart)
+                .departureDateEnd(departureDateEnd)
                 .passengerCount(passengerCount)
                 .cabinClass(cabinClass)
                 .airlineRaw(airlineRaw)
@@ -225,11 +237,14 @@ public class LlmIntentParserService {
         return sort.name();
     }
 
-    private List<String> missingFields(String departureCity, String arrivalCity, LocalDate departureDate) {
+    private List<String> missingFields(String departureCity, String arrivalCity, LocalDate departureDate,
+                                       LocalDate departureDateStart, LocalDate departureDateEnd) {
         List<String> missing = new ArrayList<>();
         if (departureCity == null) missing.add("departureCity");
         if (arrivalCity == null) missing.add("arrivalCity");
-        if (departureDate == null) missing.add("departureDate");
+        if (departureDate == null && (departureDateStart == null || departureDateEnd == null)) {
+            missing.add("departureDate");
+        }
         return missing;
     }
 
@@ -271,11 +286,12 @@ public class LlmIntentParserService {
                 必须基于这个日期换算为具体 departureDate。
                 你不能编造航班、航班号、价格、库存、机场、航空公司、URL 或推荐卡片。
                 只输出这些字段，未知字段会被后端忽略：
-                departureCity, arrivalCity, departureDate, passengerCount, cabinClass,
+                departureCity, arrivalCity, departureDate, departureDateStart, departureDateEnd,
+                passengerCount, cabinClass,
                 airlineRaw, minPrice, maxPrice, departureTimeStart, departureTimeEnd,
                 maxDurationMinutes, directOnly, sort, missingFields, followUpQuestion,
                 quickActionLabels。
-                departureDate 使用 yyyy-MM-dd；time 字段使用 HH:mm；cabinClass 只能是 ECONOMY、BUSINESS、FIRST；
+                departureDate、departureDateStart、departureDateEnd 使用 yyyy-MM-dd；time 字段使用 HH:mm；cabinClass 只能是 ECONOMY、BUSINESS、FIRST；
                 sort 只能是 PRICE_ASC、DURATION_ASC、TIME_ASC、SEATS_DESC、PUNCTUAL_DESC 或 DEFAULT。
                 如果缺少 departureCity、arrivalCity 或 departureDate，请在 missingFields 中列出这些字段，
                 并给出 followUpQuestion。

@@ -125,18 +125,36 @@ class IntentParserServiceTest {
 
     @Test
     void parse_destinationOnlyPhrase_setsArrivalCityAndAsksForMissingFields() {
-        ParsedCondition result = parser.parse("我想去北京");
+        ParsedCondition result = parser.parse("你好，我想去上海迪士尼玩");
 
-        assertThat(result.getArrivalCity()).isEqualTo("北京");
+        assertThat(result.getArrivalCity()).isEqualTo("上海");
         assertThat(result.getMissingFields()).contains("departureCity", "departureDate");
         assertThat(result.getDepartureDate()).isNull();
+    }
+
+    @Test
+    void parse_supportedDateRanges_areCompleteDateConditions() {
+        parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
+
+        ParsedCondition explicitRange = parser.parse("上海到北京7月6日到7月8日机票");
+        assertThat(explicitRange.getDepartureDate()).isNull();
+        assertThat(explicitRange.getDepartureDateStart()).isEqualTo(LocalDate.of(2026, 7, 6));
+        assertThat(explicitRange.getDepartureDateEnd()).isEqualTo(LocalDate.of(2026, 7, 8));
+        assertThat(explicitRange.getMissingFields()).doesNotContain("departureDate");
+        assertThat(explicitRange.isComplete()).isTrue();
+
+        ParsedCondition contextualRange = parser.parse("我现在在广州，打算八月初去，大概2到5号这几天的机票");
+        assertThat(contextualRange.getDepartureDateStart()).isEqualTo(LocalDate.of(2026, 8, 2));
+        assertThat(contextualRange.getDepartureDateEnd()).isEqualTo(LocalDate.of(2026, 8, 5));
+        assertThat(contextualRange.getDepartureCity()).isEqualTo("广州");
+        assertThat(contextualRange.getMissingFields()).doesNotContain("departureDate");
     }
 
     @Test
     void parse_ambiguousDateRange_asksForSpecificDepartureDate() {
         parser.setClock(fixedClock(LocalDate.of(2026, 7, 2)));
 
-        for (String message : java.util.List.of("最近几天的机票", "未来一周机票", "7月6日到7月8日机票", "周一周二都可以")) {
+        for (String message : java.util.List.of("最近几天的机票", "未来一周机票", "周一周二都可以")) {
             ParsedCondition result = parser.parse("上海到北京" + message);
 
             assertThat(result.getDepartureDate()).as(message).isNull();

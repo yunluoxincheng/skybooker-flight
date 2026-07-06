@@ -27,6 +27,8 @@ public class FlightRecommendationService {
                 condition.getDepartureCity(),
                 condition.getArrivalCity(),
                 condition.getDepartureDate(),
+                condition.getDepartureDateStart(),
+                condition.getDepartureDateEnd(),
                 resolvedAirlineId,
                 condition.getMinPrice(),
                 condition.getMaxPrice(),
@@ -55,6 +57,10 @@ public class FlightRecommendationService {
         }
         if (condition.getDepartureDate() != null) {
             builder.queryParam("departureDate", condition.getDepartureDate().toString());
+        }
+        if (condition.getDepartureDateStart() != null && condition.getDepartureDateEnd() != null) {
+            builder.queryParam("departureDateStart", condition.getDepartureDateStart().toString());
+            builder.queryParam("departureDateEnd", condition.getDepartureDateEnd().toString());
         }
         if (condition.getSort() != null) {
             builder.queryParam("sort", condition.getSort());

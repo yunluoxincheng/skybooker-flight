@@ -14,6 +14,8 @@ public class ParsedCondition {
     private String departureCity;
     private String arrivalCity;
     private LocalDate departureDate;
+    private LocalDate departureDateStart;
+    private LocalDate departureDateEnd;
     private Integer passengerCount;
     private String cabinClass;
     private String airlineRaw;
@@ -27,7 +29,12 @@ public class ParsedCondition {
     private List<String> missingFields;
     private String followUpQuestion;
     private List<String> quickActionLabels;
+
     public boolean isComplete() {
-        return departureCity != null && arrivalCity != null && departureDate != null;
+        return departureCity != null && arrivalCity != null && hasDepartureDateCondition();
+    }
+
+    public boolean hasDepartureDateCondition() {
+        return departureDate != null || (departureDateStart != null && departureDateEnd != null);
     }
 }

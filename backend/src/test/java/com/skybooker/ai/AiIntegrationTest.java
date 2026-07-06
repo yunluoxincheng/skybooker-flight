@@ -422,6 +422,41 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_travelContextSuppliesDestinationForLaterFlightQuery() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("你好，我想去上海迪士尼玩");
+
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("TRAVEL_CHAT"))
+                .andExpect(jsonPath("$.data.intent").value("TRAVEL_CHAT"))
+                .andReturn();
+
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest second = new AiChatRequest();
+        second.setSessionId(sessionId);
+        second.setMessage("我现在在广州，准备八月初去，大概2到5号这几天，帮我看看这几天的机票");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
+                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").doesNotExist())
+                .andExpect(jsonPath("$.data.parsedCondition.departureDateStart").value("2026-08-02"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDateEnd").value("2026-08-05"))
+                .andExpect(jsonPath("$.data.missingFields").isEmpty());
+    }
+
+    @Test
     void chat_multiTurnKeepsOptionalPassengerAndCabinFilters() throws Exception {
         // 第一轮：路线+人数+舱位但缺日期 → FOLLOW_UP，parsedCondition 保留可选筛选条件
         AiChatRequest first = new AiChatRequest();
@@ -924,7 +959,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_ambiguousDateExpressionsAskForOneDepartureDate() throws Exception {
-        for (String message : java.util.List.of("最近几天的机票", "未来一周机票", "7月6日到7月8日机票", "周一周二都可以")) {
+        for (String message : java.util.List.of("最近几天的机票", "未来一周机票", "周一周二都可以")) {
             AiChatRequest request = new AiChatRequest();
             request.setMessage("上海到北京" + message);
 

@@ -63,6 +63,8 @@ public interface FlightMapper {
     List<FlightVO> searchRecommendationFlights(@Param("departureCity") String departureCity,
                                                 @Param("arrivalCity") String arrivalCity,
                                                 @Param("departureDate") LocalDate departureDate,
+                                                @Param("departureDateStart") LocalDate departureDateStart,
+                                                @Param("departureDateEnd") LocalDate departureDateEnd,
                                                 @Param("airlineId") Long airlineId,
                                                 @Param("minPrice") BigDecimal minPrice,
                                                 @Param("maxPrice") BigDecimal maxPrice,
