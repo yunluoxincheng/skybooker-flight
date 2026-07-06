@@ -19,18 +19,24 @@ public interface FlightMapper {
                                  @Param("departureCity") String departureCity,
                                  @Param("arrivalCity") String arrivalCity,
                                  @Param("departureDate") LocalDate departureDate,
+                                 @Param("departureDateStart") LocalDate departureDateStart,
+                                 @Param("departureDateEnd") LocalDate departureDateEnd,
                                  @Param("offset") int offset,
                                  @Param("size") int size);
 
     long countFlights(@Param("flightNo") String flightNo,
                       @Param("departureCity") String departureCity,
                       @Param("arrivalCity") String arrivalCity,
-                      @Param("departureDate") LocalDate departureDate);
+                      @Param("departureDate") LocalDate departureDate,
+                      @Param("departureDateStart") LocalDate departureDateStart,
+                      @Param("departureDateEnd") LocalDate departureDateEnd);
 
     List<FlightVO> searchFlightsAdvanced(@Param("flightNo") String flightNo,
                                           @Param("departureCity") String departureCity,
                                           @Param("arrivalCity") String arrivalCity,
                                           @Param("departureDate") LocalDate departureDate,
+                                          @Param("departureDateStart") LocalDate departureDateStart,
+                                          @Param("departureDateEnd") LocalDate departureDateEnd,
                                           @Param("airlineId") Long airlineId,
                                           @Param("minPrice") BigDecimal minPrice,
                                           @Param("maxPrice") BigDecimal maxPrice,
@@ -49,6 +55,8 @@ public interface FlightMapper {
                                @Param("departureCity") String departureCity,
                                @Param("arrivalCity") String arrivalCity,
                                @Param("departureDate") LocalDate departureDate,
+                               @Param("departureDateStart") LocalDate departureDateStart,
+                               @Param("departureDateEnd") LocalDate departureDateEnd,
                                @Param("airlineId") Long airlineId,
                                @Param("minPrice") BigDecimal minPrice,
                                @Param("maxPrice") BigDecimal maxPrice,

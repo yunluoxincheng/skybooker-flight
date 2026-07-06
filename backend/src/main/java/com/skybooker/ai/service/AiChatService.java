@@ -114,7 +114,7 @@ public class AiChatService {
         assistantMsg.setMessageType(
                 AiReplyType.FLIGHT_RECOMMENDATION.name().equals(reply.getReplyType())
                         ? MessageType.RECOMMENDATION.name() : MessageType.TEXT.name());
-        assistantMsg.setExtraJson(toJson(buildExtraJson(reply, message)));
+        assistantMsg.setExtraJson(toJson(buildExtraJson(reply, message, previousAssistant)));
         aiMapper.insertMessage(assistantMsg);
 
         return reply;
@@ -183,29 +183,17 @@ public class AiChatService {
         return session;
     }
 
-    @SuppressWarnings("unchecked")
     private ParsedCondition mergeWithTravelContext(AiChatMessage prevAssistant, ParsedCondition current) {
-        if (current.getArrivalCity() != null || prevAssistant == null || prevAssistant.getExtraJson() == null) {
+        if (current.getArrivalCity() != null) {
             return current;
         }
 
-        try {
-            Map<String, Object> extra = objectMapper.readValue(
-                    prevAssistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
-            Object travelContext = extra.get(TRAVEL_CONTEXT);
-            if (!(travelContext instanceof Map<?, ?> context)) {
-                return current;
-            }
-            Object destinationCity = context.get(DESTINATION_CITY);
-            if (!(destinationCity instanceof String city) || city.isBlank()) {
-                return current;
-            }
+        String city = destinationCityFromTravelContext(prevAssistant);
+        if (city != null) {
             ParsedCondition merged = current.toBuilder().arrivalCity(city).build();
             return withRecomputedRequiredFields(merged, current.getFollowUpQuestion());
-        } catch (Exception e) {
-            log.warn("Failed to parse travel context for merging", e);
-            return current;
         }
+        return current;
     }
 
     @SuppressWarnings("unchecked")
@@ -483,7 +471,7 @@ public class AiChatService {
         return map;
     }
 
-    private Map<String, Object> buildExtraJson(AiChatReplyVO reply, String message) {
+    private Map<String, Object> buildExtraJson(AiChatReplyVO reply, String message, AiChatMessage prevAssistant) {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("replyType", reply.getReplyType());
         extra.put("intent", reply.getIntent());
@@ -493,26 +481,52 @@ public class AiChatService {
         extra.put("searchUrl", reply.getSearchUrl());
         extra.put("flights", reply.getFlights() == null ? Collections.emptyList() : reply.getFlights());
         extra.put("quickActions", reply.getQuickActions() == null ? Collections.emptyList() : reply.getQuickActions());
-        Map<String, Object> travelContext = buildTravelContext(reply, message);
+        Map<String, Object> travelContext = buildTravelContext(reply, message, prevAssistant);
         if (!travelContext.isEmpty()) {
             extra.put(TRAVEL_CONTEXT, travelContext);
         }
         return extra;
     }
 
-    private Map<String, Object> buildTravelContext(AiChatReplyVO reply, String message) {
+    private Map<String, Object> buildTravelContext(AiChatReplyVO reply, String message, AiChatMessage prevAssistant) {
         if (!AiReplyType.TRAVEL_CHAT.name().equals(reply.getReplyType())) {
             return Collections.emptyMap();
         }
 
         ParsedCondition parsed = ruleIntentParserService.parse(message);
-        if (parsed.getArrivalCity() == null || parsed.getArrivalCity().isBlank()) {
+        String destinationCity = parsed.getArrivalCity();
+        if (destinationCity == null || destinationCity.isBlank()) {
+            destinationCity = destinationCityFromTravelContext(prevAssistant);
+        }
+        if (destinationCity == null || destinationCity.isBlank()) {
             return Collections.emptyMap();
         }
 
         Map<String, Object> context = new LinkedHashMap<>();
-        context.put(DESTINATION_CITY, parsed.getArrivalCity());
+        context.put(DESTINATION_CITY, destinationCity);
         return context;
+    }
+
+    private String destinationCityFromTravelContext(AiChatMessage assistant) {
+        if (assistant == null || assistant.getExtraJson() == null || assistant.getExtraJson().isBlank()) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> extra = objectMapper.readValue(
+                    assistant.getExtraJson(), new TypeReference<LinkedHashMap<String, Object>>() {});
+            Object travelContext = extra.get(TRAVEL_CONTEXT);
+            if (!(travelContext instanceof Map<?, ?> context)) {
+                return null;
+            }
+            Object destinationCity = context.get(DESTINATION_CITY);
+            if (destinationCity instanceof String city && !city.isBlank()) {
+                return city;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse travel context", e);
+        }
+        return null;
     }
 
     private AiSessionMessageVO toMessageVO(AiChatMessage msg) {

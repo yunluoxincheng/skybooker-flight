@@ -32,6 +32,8 @@ export function useFlightSearch(): UseFlightSearchReturn {
       const departureCity = searchParams.get("departureCity")
       const arrivalCity = searchParams.get("arrivalCity")
       const departureDate = searchParams.get("departureDate")
+      const departureDateStart = searchParams.get("departureDateStart")
+      const departureDateEnd = searchParams.get("departureDateEnd")
       const minPrice = searchParams.get("minPrice")
       const maxPrice = searchParams.get("maxPrice")
       const directOnly = searchParams.get("directOnly")
@@ -42,6 +44,10 @@ export function useFlightSearch(): UseFlightSearchReturn {
       if (departureCity) params.departureCity = departureCity
       if (arrivalCity) params.arrivalCity = arrivalCity
       if (departureDate) params.departureDate = departureDate
+      if (departureDateStart && departureDateEnd) {
+        params.departureDateStart = departureDateStart
+        params.departureDateEnd = departureDateEnd
+      }
       if (minPrice) params.minPrice = Number(minPrice)
       if (maxPrice) params.maxPrice = Number(maxPrice)
       if (directOnly === "true") params.directOnly = true
