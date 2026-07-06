@@ -255,6 +255,8 @@ sudo ./deploy.sh logs -f backend
 sudo ./deploy.sh down
 ```
 
+`install`、`update` 和 `rollback` 会在容器启动后自动刷新 nginx，镜像更新后通常不需要手动执行 `docker compose restart nginx`。
+
 完整部署、备份、回滚和安全说明见 `docs/11_DEPLOYMENT_GUIDE.md`。
 
 ## 数据库与演示账号

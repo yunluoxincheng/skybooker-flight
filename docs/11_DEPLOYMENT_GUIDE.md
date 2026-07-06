@@ -385,6 +385,8 @@ sudo ./deploy.sh down
 
 `update` 和 `rollback` 都不会删除 `mysql_data` volume。数据库结构变更由 backend 启动时的 Flyway 自动执行；上线前仍应先备份数据库。显式传入 `--image-source`、`--dockerhub-namespace` 或 `--image-namespace` 时，脚本会同步更新 `.env` 中的 `BACKEND_IMAGE` 和 `FRONTEND_IMAGE`，用于在 GHCR 和 Docker Hub 等镜像源之间切换。
 
+`install`、`update` 和 `rollback` 在 `docker compose up -d` 成功后会自动重启 nginx 容器，让 nginx 重新解析 backend/frontend upstream 并清理旧连接。镜像更新后通常不需要再手动执行 `docker compose restart nginx`。
+
 常用排查命令：
 
 ```bash
