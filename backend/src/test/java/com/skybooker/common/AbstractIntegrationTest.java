@@ -4,6 +4,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * 所有继承本类的集成测试在类结束后清理 Spring context,避免跨测试类复用同一个 context
@@ -12,6 +13,13 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+        "ai.llm.enabled=false",
+        "ai.llm.base-url=",
+        "ai.llm.api-key=",
+        "ai.llm.model=",
+        "mail.provider=log"
+})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class AbstractIntegrationTest {
 }
