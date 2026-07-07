@@ -10,6 +10,7 @@
 | REQ-AUTH-004 | 用户认证 | 管理员不能通过用户端登录 | 接口权限边界 | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-AUTH-005 | 用户认证 | 管理员只能通过管理端登录 | `/admin` + `/api/admin/auth/login` | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-AUTH-006 | 用户认证 | token 过期或无效时清理本地登录态并提示 | 手工构造过期/伪造 token | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
+| REQ-AUTH-007 | 用户认证 | 登录表单缺失或非法输入时展示字段错误，且不发生原生 GET 提交 | `/login` 空密码、空邮箱、非法邮箱浏览器验证 | `docs/09_FRONTEND_DESIGN.md` | 空密码未展示“请输入密码”，空邮箱未展示字段错误；部分场景 URL 出现表单字段，Issue #96 | 失败 |
 | REQ-FLT-001 | 航班 | 按日期 + 航班号查询 | `GET /api/flights` | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
 | REQ-FLT-002 | 航班 | 按日期 + 出发地 + 目的地查询 | 前端搜索 + 接口 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
 | REQ-FLT-003 | 航班 | 筛选航空公司、价格、时间、直飞、舱位、余票 | 前端筛选 + 接口参数 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
