@@ -267,6 +267,25 @@ sudo ./deploy.sh down
 backend/src/main/resources/db/migration/
 ```
 
+Flyway 只初始化 schema、默认管理员、默认普通用户和默认乘机人。航司、机场、航班、座位、订单、退票、改签、候补和 AI 演示数据使用可复现 seed 脚本按需生成：
+
+```bash
+# 生成并校验开发数据
+python3 scripts/generate_test_data.py --profile dev --seed 20260707
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
+
+# 生成并校验测试数据
+python3 scripts/generate_test_data.py --profile test --seed 20260707
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-test.sql
+
+# Docker Compose MySQL 导入示例
+docker exec -i skybooker-mysql sh -c \
+  'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
+  < backend/src/main/resources/db/seed/seed-dev.sql
+```
+
+完整说明见 `docs/17_TEST_DATA_GUIDE.md`。
+
 默认演示账号：
 
 ```text
@@ -276,7 +295,7 @@ backend/src/main/resources/db/migration/
 管理员资料邮箱：admin@skybooker.local
 ```
 
-首次部署后应修改默认管理员密码。演示日期过期时，可运行 `scripts/refresh-demo-flight-dates.sql` 刷新演示航班和订单日期。
+首次部署后应修改默认管理员密码。演示日期过期时，请重新运行 `scripts/generate_test_data.py --base-date <YYYY-MM-DD>` 生成新的 seed SQL，再导入数据库。
 
 ## 本地开发
 

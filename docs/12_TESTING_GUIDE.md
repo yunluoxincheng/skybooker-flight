@@ -4,6 +4,23 @@
 
 测试目标是保证系统核心业务流程可用，尤其是订票库存控制、订单状态流转、退票候补和 AI 推荐。
 
+## 1.1 测试数据准备
+
+测试数据不再由 Flyway 默认插入大量航司、机场、航班、座位和订单。Flyway 只保留 schema、默认管理员、默认普通用户和默认乘机人。
+
+按需生成并导入 seed 数据：
+
+```bash
+python3 scripts/generate_test_data.py --profile dev --seed 20260707
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
+
+docker exec -i skybooker-mysql sh -c \
+  'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
+  < backend/src/main/resources/db/seed/seed-dev.sql
+```
+
+`dev` 用于本地开发和演示，`test` 用于功能测试和集成测试。完整数据规模、重置方式、覆盖场景和一致性校验 SQL 见 `docs/17_TEST_DATA_GUIDE.md`。
+
 ## 2. 功能测试
 
 ### 用户认证
@@ -160,7 +177,7 @@ scripts/jmeter/same-seat-concurrency-report-template.md
 
 1. 启动 MySQL、Redis 和后端；
 2. 确认本机可执行 `jmeter`，或通过 `JMETER_BIN` 指向 JMeter 可执行文件；
-3. 如演示数据日期过期，执行 `scripts/refresh-demo-flight-dates.sql`；
+3. 如演示数据日期过期，重新生成并导入 `seed-dev.sql`，见 `docs/17_TEST_DATA_GUIDE.md`；
 4. 选择一个属于普通测试用户的 `passenger.id`；
 5. 选择一个未来已发布航班的 `AVAILABLE` 座位，记录 `flight_id` 和 `seat_id`，并确认该座位没有既有 `order_passenger` 绑定；
 6. 准备数据库校验所需的 `MYSQL_PASSWORD`，必要时配置 `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DB`、`MYSQL_USER` 或 `MYSQL_CONTAINER`。

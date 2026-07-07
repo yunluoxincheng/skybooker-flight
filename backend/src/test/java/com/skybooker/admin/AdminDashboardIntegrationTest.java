@@ -242,7 +242,7 @@ class AdminDashboardIntegrationTest {
                 SET status = 'SOLD', locked_by_order_id = 1
                 WHERE flight_id = 1 AND seat_no = '1A'
                 """);
-        jdbcTemplate.update("UPDATE flight SET remaining_seats = 29 WHERE id = 1");
+        jdbcTemplate.update("UPDATE flight SET remaining_seats = 28 WHERE id = 1");
     }
 
     private Long insertTicketOrder(String orderNo, Long flightId, String status, String totalAmount) {

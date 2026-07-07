@@ -7,6 +7,8 @@ backend/target/
 .env
 .codegraph/
 reports/
+backend/src/main/resources/db/seed/seed-*.sql
+backend/src/main/resources/db/seed/generated/
 *.jtl
 *.jmeter.log
 jmeter.log

@@ -492,25 +492,22 @@ SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 
 Smoke 覆盖公共航班查询、用户/管理员登录边界、订单、AI 聊天和管理员统计。更多测试重点见 `docs/12_TESTING_GUIDE.md`。
 
-如果演示数据日期过期，在确认目标数据库后刷新日期。无仓库 checkout 的服务器可临时下载 SQL 后执行：
+如果演示数据日期过期，在确认目标数据库后重新生成并导入 seed。不要使用 Flyway migration 承载大规模演示数据，也不要在生产库导入测试 seed。
 
 ```bash
-cd /opt/skybooker
-set -a; source ./.env; set +a
-DEPLOY_REF=<tag-or-commit-sha>
-curl -fsSL "https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/${DEPLOY_REF}/scripts/refresh-demo-flight-dates.sql" \
-  | docker compose --env-file .env -f docker-compose.yml exec -T mysql \
-      mysql -uroot -p"$MYSQL_PASSWORD" "$MYSQL_DB"
+cd /path/to/skybooker-flight
+python3 scripts/generate_test_data.py --profile dev --seed 20260707 --base-date <YYYY-MM-DD>
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
 ```
 
-如果服务器上已有仓库 checkout，也可以使用本地脚本文件：
+确认目标库是演示/测试库后导入：
 
 ```bash
 cd /path/to/skybooker-flight
 set -a; source /opt/skybooker/.env; set +a
 docker compose --env-file /opt/skybooker/.env -f /opt/skybooker/docker-compose.yml exec -T mysql \
-  mysql -uroot -p"$MYSQL_PASSWORD" "$MYSQL_DB" \
-  < scripts/refresh-demo-flight-dates.sql
+  mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_PASSWORD" "$MYSQL_DB" \
+  < backend/src/main/resources/db/seed/seed-dev.sql
 ```
 
 ## 10. 备份、升级和回滚安全

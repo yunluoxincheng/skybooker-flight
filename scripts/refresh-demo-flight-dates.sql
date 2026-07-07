@@ -1,15 +1,10 @@
--- Refresh demo flight and order dates to tomorrow before classroom demos.
--- Run against the local SkyBooker database after Flyway initialization.
+-- Legacy placeholder.
+-- Flyway no longer inserts demo flights or demo orders. Do not rewrite all flight
+-- dates in a seeded database because dev/test datasets intentionally span 7/30
+-- days and include same-day, cross-day, cancelled, delayed and sold-out cases.
+--
+-- Regenerate seed SQL instead:
+--   python3 scripts/generate_test_data.py --profile dev --seed 20260707 --base-date <YYYY-MM-DD>
+--   python3 scripts/generate_test_data.py --profile test --seed 20260707 --base-date <YYYY-MM-DD>
 
-SET @demo_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY);
-SET @order_pay_time = TIMESTAMP(CURDATE(), '12:00:00');
-
-UPDATE flight
-SET departure_time = TIMESTAMP(@demo_date, TIME(departure_time)),
-    arrival_time = TIMESTAMP(@demo_date, TIME(arrival_time));
-
-UPDATE ticket_order
-SET order_no = CONCAT('DEMO', DATE_FORMAT(@demo_date, '%Y%m%d'), LPAD(CAST(id AS CHAR), 6, '0')),
-    pay_time = @order_pay_time,
-    expire_time = DATE_ADD(@order_pay_time, INTERVAL 15 MINUTE)
-WHERE order_no LIKE 'DEMO%';
+SELECT 'Flyway demo flight dates are no longer refreshed; regenerate db/seed/seed-*.sql instead.' AS message;
