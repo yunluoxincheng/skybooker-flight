@@ -13,7 +13,7 @@
 | REQ-FLT-001 | 航班 | 按日期 + 航班号查询 | `GET /api/flights` | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
 | REQ-FLT-002 | 航班 | 按日期 + 出发地 + 目的地查询 | 前端搜索 + 接口 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
 | REQ-FLT-003 | 航班 | 筛选航空公司、价格、时间、直飞、舱位、余票 | 前端筛选 + 接口参数 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
-| REQ-FLT-004 | 航班 | 航班详情显示航司、机场、城市、时间、价格、状态 | `/flights/[id]` | `docs/09_FRONTEND_DESIGN.md` | 未执行 | 未执行 |
+| REQ-FLT-004 | 航班 | 航班详情显示航司、机场、城市、时间、价格、状态 | `/flights/[id]` | `docs/09_FRONTEND_DESIGN.md` | 详情页基础信息展示正常；列表卡片缺少日期，Issue #87 | 部分通过 |
 | REQ-PAX-001 | 乘机人 | 用户可新增成人/儿童/婴儿乘机人 | `/booking/[flightId]` + `/api/passengers` | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
 | REQ-PAX-002 | 乘机人 | 用户只能管理自己的乘机人 | 接口归属校验 | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
 | REQ-ORD-001 | 订单 | 选择航班、乘机人、座位后可创建订单 | `POST /api/orders` | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
@@ -26,7 +26,7 @@
 | REQ-REF-002 | 退票 | 起飞前不足 2 小时不可退票且提示明确 | 边界数据验证 | `docs/16_STATE_MACHINE.md` | 未执行 | 未执行 |
 | REQ-CHG-001 | 改签 | 已出票订单可查询同航线改签候选 | `GET /api/orders/{id}/change-options` | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
 | REQ-CHG-002 | 改签 | 起飞前不足 2 小时不可改签且提示明确 | 边界数据验证 | `docs/16_STATE_MACHINE.md` | 未执行 | 未执行 |
-| REQ-WL-001 | 候补 | 目标舱位无票时可提交候补 | `POST /api/waitlist` | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
+| REQ-WL-001 | 候补 | 目标舱位无票时可提交候补 | `POST /api/waitlist` | `docs/02_FEATURE_SPEC.md` | 售罄航班 `110007` 无前端候补入口，`/waitlist` 404，Issue #88 | 失败 |
 | REQ-WL-002 | 候补 | 退票释放座位后按规则兑现候补 | 集成流程 + 数据库校验 | `docs/16_STATE_MACHINE.md` | 未执行 | 未执行 |
 | REQ-AI-001 | AI 助手 | 可解析“明天广州到上海的便宜航班”并返回真实航班 | `POST /api/ai/chat` | `docs/08_AI_CUSTOMER_SERVICE.md` | 未执行 | 未执行 |
 | REQ-AI-002 | AI 助手 | 缺少日期时追问，不直接查单日 | 多轮对话 | `docs/12_TESTING_GUIDE.md` | 未执行 | 未执行 |
@@ -34,6 +34,7 @@
 | REQ-ADM-001 | 管理端 | 管理员可进入看板、用户、航班、订单、报表页面 | 浏览器验证 | `docs/09_FRONTEND_DESIGN.md` | 未执行 | 未执行 |
 | REQ-ADM-002 | 管理端 | 普通用户禁止访问 `/api/admin/**` | 接口权限边界 | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-ADM-003 | 管理端 | 航班管理支持舱位配置、发布、下架、生成座位 | 管理端页面 + 接口 | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
+| REQ-ADM-004 | 管理端 | 航司和机场可由管理员维护 | 管理端页面 + `/api/admin/airlines`、`/api/admin/airports` | `docs/01_REQUIREMENTS.md` | 后台无航司/机场管理入口；两个接口均返回 404，Issue #89 | 失败 |
 | REQ-DEP-001 | 部署 | README 可指导本地启动 | 从空环境按 README 执行 | `README.md` | 未执行 | 未执行 |
 | REQ-DEP-002 | 部署 | 空库启动后 Flyway 可完成 schema 初始化 | MySQL 空库 + 后端启动 | `docs/11_DEPLOYMENT_GUIDE.md` | 未执行 | 未执行 |
 | REQ-DATA-001 | 测试数据 | `generate_test_data.py` 可生成 dev/test seed | 生成 + 静态校验 | `docs/17_TEST_DATA_GUIDE.md` | 未执行 | 未执行 |

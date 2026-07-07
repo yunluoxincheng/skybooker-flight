@@ -34,8 +34,8 @@
 | 测试数据生成与静态校验 | 已执行，通过 |
 | 后端自动化测试基线 | 已执行，失败，已登记 Issue #85 |
 | 后端部署 smoke | 已执行，通过 |
-| 浏览器缺陷复现 | 已执行 KI-001 至 KI-006 |
-| GitHub 缺陷登记 | 已创建 Issue #79 至 #86 |
+| 浏览器缺陷复现 | 已执行 KI-001 至 KI-009 |
+| GitHub 缺陷登记 | 已创建 Issue #79 至 #89 |
 
 ## 4. 命令执行记录
 
@@ -59,9 +59,14 @@
 | `MYSQL_TEST_DB=flight_booking_test_codex_20260707133006 mvn test`（新测试库） | Flyway 10 个迁移成功；333 个测试中 8 个失败，已登记 Issue #85 |
 | `SKYBOOKER_BASE_URL=http://localhost:8088 SKYBOOKER_ADMIN_PASSWORD='SkyBooker@Init2026!' SKYBOOKER_SMOKE_OUTPUT_DIR=reports/smoke/final-system-test-20260707 scripts/smoke/backend-smoke.sh` | 通过；公开航班、用户登录、管理员登录、`/me`、角色隔离、订单列表、AI chat、管理端 dashboard 均符合脚本断言 |
 | Playwright 浏览器验证 `http://localhost:8088/` | 返回 gateway 占位页，未提供前端 UI，已登记 Issue #86 |
-| Playwright 浏览器验证 `http://localhost:3000` | 已用于 KI-001 至 KI-006 复现；该端口为已有 Next dev server |
-| `gh issue list --repo yunluoxincheng/skybooker-flight --state open --limit 50` | 创建前未发现 KI-001 至 KI-006 重复 issue |
+| Playwright 浏览器验证 `http://localhost:3000` | 已用于 KI-001 至 KI-009 复现；该端口为已有 Next dev server |
+| `gh issue list --repo yunluoxincheng/skybooker-flight --state open --limit 50` | 创建前未发现本轮缺陷重复 issue |
 | GitHub issue 创建 | 已创建 #79、#80、#81、#82、#83、#84、#85、#86 |
+| Playwright 浏览器验证 `/flights` 航班卡片 | 已确认列表卡片只显示起降时间和用时，不显示日期，Issue #87 |
+| Playwright 浏览器验证 `/flights/110007` 与 `/waitlist` | 已确认售罄航班缺少候补入口，`/waitlist` 返回 404，Issue #88 |
+| Playwright 浏览器验证 `/admin/flights` | 已确认后台无航司/机场管理菜单，新增航班只填写航司 ID 和机场 ID，Issue #89 |
+| `curl /api/admin/airlines`、`curl /api/admin/airports` | 均返回 404 `资源不存在`，Issue #89 |
+| GitHub issue 创建 | 已追加 #87、#88、#89 |
 
 ## 5. 已执行基线结果
 
@@ -89,6 +94,9 @@
 | 模拟支付 | 订单 `150121` | `POST /api/orders/150121/pay` 返回 200，订单状态变为 `ISSUED` | 通过 |
 | 过期航班下单 | 航班 `1`，2026-06-18，座位 `1B` | 页面允许走到提交订单，`POST /api/orders` 返回 400 `航班不可预订` | 未通过，Issue #82 |
 | 部署首页 | `http://localhost:8088/` | 返回 gateway 占位页，不是前端首页 | 未通过，Issue #86 |
+| 航班卡片日期 | `/flights` 首张卡片 | 卡片仅显示 `08:30 / 10:45 / 2时15分`，未显示日期 | 未通过，Issue #87 |
+| 售罄航班候补入口 | 航班 `110007 / KE8501` | 可售 0，页面只显示“已售罄”，无候补入口；`/waitlist` 404 | 未通过，Issue #88 |
+| 航司/机场管理 | `/admin/flights`、`/api/admin/airlines`、`/api/admin/airports` | 后台无管理入口，接口返回 404，新增航班依赖手工 ID | 未通过，Issue #89 |
 
 ## 6. 已知缺陷与 Issue
 
@@ -102,6 +110,9 @@
 | KI-006 | 已出票订单改签按钮固定禁用且规则提示不清 | S2 | 已复现 | #84 |
 | BASE-001 | 后端 `mvn test` 在新测试库仍有 8 个失败 | S1 | 已复现 | #85 |
 | DEP-001 | docker compose nginx 根路径未提供前端 UI | S1 | 已复现 | #86 |
+| KI-007 | 航班卡片未显示出发/到达日期 | S2 | 已复现 | #87 |
+| KI-008 | 售罄航班缺少候补入口且 `/waitlist` 页面不存在 | S1 | 已复现 | #88 |
+| KI-009 | 后台缺少航司和机场管理接口及页面 | S1 | 已复现 | #89 |
 
 ## 7. 尚未执行的测试
 
@@ -124,6 +135,9 @@
 - 默认航班列表：过期航班仍被展示为可预订，默认第一条航班可触发下单失败。
 - 表单错误处理：新增乘机人表单确认存在 Zod 错误不展示、按钮卡住；需扩展审计其它表单。
 - 改签流程：已出票订单前端入口固定禁用，无法验证后端改签规则是否完整可用。
+- 候补流程：售罄航班无候补入口，用户端候补页面不存在，候补主功能无法从前端验收。
+- 管理端基础资料：航司/机场管理接口和页面缺失，新增航班依赖手工 ID，不满足管理员维护需求。
+- 航班列表日期：列表卡片缺少日期，用户难以区分不同日期航班，尤其会放大过期航班展示风险。
 - 并发库存：同座位并发脚本存在但尚未执行，座位锁与订单唯一性仍需专项验证。
 
 ## 9. 初始建议
@@ -134,7 +148,10 @@
 2. P1：修复 Issue #86，确保部署地址能打开真实前端首页。
 3. P1：修复 Issue #85，恢复后端自动化测试基线可信度。
 4. P1：修复 Issue #81，统一处理表单校验错误展示和按钮 loading 恢复。
-5. P2：修复 Issue #84，明确改签功能状态和业务规则提示。
-6. P3：修复 Issue #79、#80、#83 等 UI/UX 一致性问题。
+5. P1：修复 Issue #88，补齐售罄航班候补入口和“我的候补”页面。
+6. P1：修复 Issue #89，补齐航司/机场管理接口和后台页面。
+7. P2：修复 Issue #84，明确改签功能状态和业务规则提示。
+8. P2：修复 Issue #87，航班卡片补充日期和跨天提示。
+9. P3：修复 Issue #79、#80、#83 等 UI/UX 一致性问题。
 
-完成上述修复后，应重新执行 smoke、未来航班下单支付、过期航班拦截、表单校验、部署首页、后端 `mvn test` 和相关回归测试。
+完成上述修复后，应重新执行 smoke、未来航班下单支付、过期航班拦截、表单校验、部署首页、售罄航班候补、航司/机场管理、后端 `mvn test` 和相关回归测试。
