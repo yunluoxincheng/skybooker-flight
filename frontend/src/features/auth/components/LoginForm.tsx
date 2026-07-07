@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import Link from "next/link"
+import { PasswordInput } from "@/components/common/PasswordInput"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -54,15 +55,13 @@ export function LoginForm() {
             忘记密码？
           </Link>
         </div>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           placeholder="请输入密码"
-          {...register("password")}
+          register={register("password")}
+          error={errors.password?.message}
+          autoComplete="current-password"
         />
-        {errors.password && (
-          <p className="text-xs text-destructive">{errors.password.message}</p>
-        )}
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
