@@ -25,6 +25,13 @@ PROFILE_BOUNDS = {
         "users": (200, 1000),
         "orders": (2000, 10000),
     },
+    "perf": {
+        "airports": (100, 120),
+        "airlines": (30, 40),
+        "routes": (1000, 1500),
+        "users": (5000, 6000),
+        "orders": (50000, 60000),
+    },
 }
 
 REQUIRED_TABLES = [
