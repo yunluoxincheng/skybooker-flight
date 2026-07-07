@@ -28,6 +28,7 @@ import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { WaitlistStatusBadge } from "@/components/common/WaitlistStatusBadge"
 import { useAuth } from "@/contexts/AuthContext"
+import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
 import * as flightApi from "@/services/flightApi"
 import * as orderApi from "@/services/orderApi"
 import * as waitlistApi from "@/services/waitlistApi"
@@ -318,11 +319,7 @@ export default function WaitlistDetailPage() {
                       <div>
                         <span className="font-medium">{passenger.passengerName}</span>
                         <span className="text-muted-foreground ml-2">
-                          {passenger.passengerType === "ADULT"
-                            ? "成人"
-                            : passenger.passengerType === "CHILD"
-                              ? "儿童"
-                              : "婴儿"}
+                          {PASSENGER_TYPE_LABEL[passenger.passengerType]}
                         </span>
                       </div>
                       <div className="text-muted-foreground">

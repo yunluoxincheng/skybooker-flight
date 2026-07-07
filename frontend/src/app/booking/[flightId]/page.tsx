@@ -45,9 +45,11 @@ import { SeatMap } from "@/features/booking/components/SeatMap"
 import { useBooking } from "@/features/booking/hooks/useBooking"
 import { CABIN_CLASS_LABEL } from "@/types/flight"
 import { getCabinAvailableSeats } from "@/lib/cabin-utils"
+import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
 import { useAuth } from "@/contexts/AuthContext"
 import * as passengerApi from "@/services/passengerApi"
 import type { ApiError } from "@/lib/request"
+import type { PassengerType } from "@/types/order"
 
 const STEPS = [
   { label: "确认航班", icon: Plane },
@@ -273,7 +275,9 @@ export default function BookingPage() {
                           onValueChange={(v) => setValue("passengerType", v as "ADULT" | "CHILD" | "INFANT")}
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue>
+                              {(value) => PASSENGER_TYPE_LABEL[value as PassengerType] ?? value}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ADULT">成人</SelectItem>
@@ -319,7 +323,7 @@ export default function BookingPage() {
                       <div className="flex-1">
                         <p className="font-medium text-sm">{p.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {p.idCardNo} · {p.passengerType === "ADULT" ? "成人" : p.passengerType === "CHILD" ? "儿童" : "婴儿"}
+                          {p.idCardNo} · {PASSENGER_TYPE_LABEL[p.passengerType]}
                         </p>
                       </div>
                     </label>

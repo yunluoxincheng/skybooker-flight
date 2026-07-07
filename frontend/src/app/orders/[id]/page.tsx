@@ -22,6 +22,7 @@ import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { useAuth } from "@/contexts/AuthContext"
 import { formatDateFull, formatTime, getHoursUntil } from "@/lib/date-utils"
+import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
 import * as orderApi from "@/services/orderApi"
 import type { OrderVO } from "@/types/order"
 import type { ApiError } from "@/lib/request"
@@ -272,7 +273,7 @@ export default function OrderDetailPage() {
                       <div>
                         <span className="font-medium">{p.passengerName}</span>
                         <span className="text-muted-foreground ml-2">
-                          {p.passengerType === "ADULT" ? "成人" : p.passengerType === "CHILD" ? "儿童" : "婴儿"}
+                          {PASSENGER_TYPE_LABEL[p.passengerType]}
                         </span>
                       </div>
                       <div className="text-right">

@@ -37,12 +37,14 @@ import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { useAuth } from "@/contexts/AuthContext"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
 import type { ApiError } from "@/lib/request"
 import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as waitlistApi from "@/services/waitlistApi"
 import type { PassengerVO } from "@/types/passenger"
 import type { FlightCabinVO, FlightVO, CabinClass } from "@/types/flight"
+import type { PassengerType } from "@/types/order"
 import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER } from "@/types/flight"
 
 const STEPS = [
@@ -432,7 +434,9 @@ function WaitlistCreateContent() {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue>
+                              {(value) => PASSENGER_TYPE_LABEL[value as PassengerType] ?? value}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ADULT">成人</SelectItem>
@@ -480,12 +484,7 @@ function WaitlistCreateContent() {
                       <div className="flex-1">
                         <p className="font-medium text-sm">{passenger.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {passenger.idCardNo} ·{" "}
-                          {passenger.passengerType === "ADULT"
-                            ? "成人"
-                            : passenger.passengerType === "CHILD"
-                              ? "儿童"
-                              : "婴儿"}
+                          {passenger.idCardNo} · {PASSENGER_TYPE_LABEL[passenger.passengerType]}
                         </p>
                       </div>
                     </label>
@@ -549,13 +548,7 @@ function WaitlistCreateContent() {
                   {selectedPassengers.map((passenger) => (
                     <div key={passenger.id} className="flex items-center justify-between text-sm">
                       <span>{passenger.name}</span>
-                      <span className="text-muted-foreground">
-                        {passenger.passengerType === "ADULT"
-                          ? "成人"
-                          : passenger.passengerType === "CHILD"
-                            ? "儿童"
-                            : "婴儿"}
-                      </span>
+                      <span className="text-muted-foreground">{PASSENGER_TYPE_LABEL[passenger.passengerType]}</span>
                     </div>
                   ))}
                 </div>
