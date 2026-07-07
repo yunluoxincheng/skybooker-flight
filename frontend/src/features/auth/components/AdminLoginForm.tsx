@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useAdminAuth } from "@/contexts/AdminAuthContext"
+import { PasswordInput } from "@/components/common/PasswordInput"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -74,8 +75,13 @@ export function AdminLoginForm() {
 
             <div className="space-y-2">
               <Label htmlFor="password">密码</Label>
-              <Input id="password" type="password" placeholder="请输入密码" {...register("password")} />
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              <PasswordInput
+                id="password"
+                placeholder="请输入密码"
+                register={register("password")}
+                error={errors.password?.message}
+                autoComplete="current-password"
+              />
             </div>
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>

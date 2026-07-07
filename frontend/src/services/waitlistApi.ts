@@ -23,5 +23,5 @@ export function payWaitlist(id: number) {
 
 /** 取消候补 */
 export function cancelWaitlist(id: number) {
-  return post<null>(`/waitlist/${id}/cancel`, undefined, { auth: "user" })
+  return post<WaitlistVO>(`/waitlist/${id}/cancel`, undefined, { auth: "user" })
 }

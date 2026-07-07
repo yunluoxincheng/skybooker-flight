@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FlightStatusBadge } from "./FlightStatusBadge"
 import { FlightPriceTag } from "./FlightPriceTag"
+import { formatDate, formatTime, getCrossDayLabel } from "@/lib/date-utils"
 import type { FlightVO } from "@/types/flight"
 
 interface FlightCardProps {
@@ -21,16 +22,13 @@ export function FlightCard({
   className,
   actionSlot,
 }: FlightCardProps) {
-  const formatTime = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-  }
-
   const formatDuration = (minutes: number) => {
     const h = Math.floor(minutes / 60)
     const m = minutes % 60
     return `${h}时${m > 0 ? `${m}分` : ""}`
   }
+
+  const crossDayLabel = getCrossDayLabel(flight.departureTime, flight.arrivalTime)
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${className || ""}`}>
@@ -52,6 +50,7 @@ export function FlightCard({
             {/* 出发 */}
             <div className="text-center shrink-0">
               <p className="text-xl font-bold tabular-nums">{formatTime(flight.departureTime)}</p>
+              <p className="text-xs text-muted-foreground">{formatDate(flight.departureTime)}</p>
               <p className="text-sm text-muted-foreground">{flight.departureCity}</p>
             </div>
 
@@ -71,6 +70,7 @@ export function FlightCard({
             {/* 到达 */}
             <div className="text-center shrink-0">
               <p className="text-xl font-bold tabular-nums">{formatTime(flight.arrivalTime)}</p>
+              {crossDayLabel && <p className="text-xs text-muted-foreground">{crossDayLabel}</p>}
               <p className="text-sm text-muted-foreground">{flight.arrivalCity}</p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import Link from "next/link"
+import { PasswordInput } from "@/components/common/PasswordInput"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -80,14 +81,28 @@ export function ForgotPasswordForm() {
 
       <div className="space-y-2">
         <Label htmlFor="newPassword">新密码</Label>
-        <Input id="newPassword" type="password" placeholder="8-20位，含大小写字母和数字" {...register("newPassword")} />
-        {errors.newPassword && <p className="text-xs text-destructive">{errors.newPassword.message}</p>}
+        <PasswordInput
+          id="newPassword"
+          placeholder="8-20位，含大小写字母和数字"
+          register={register("newPassword")}
+          error={errors.newPassword?.message}
+          showCapsLock
+          autoComplete="new-password"
+        />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">确认新密码</Label>
-        <Input id="confirmPassword" type="password" placeholder="请再次输入新密码" {...register("confirmPassword")} />
-        {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+        <PasswordInput
+          id="confirmPassword"
+          placeholder="请再次输入新密码"
+          register={register("confirmPassword")}
+          error={errors.confirmPassword?.message}
+          showCapsLock
+          ariaLabelShow="显示确认新密码"
+          ariaLabelHide="隐藏确认新密码"
+          autoComplete="new-password"
+        />
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>

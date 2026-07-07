@@ -3,6 +3,7 @@ import { Clock, Plane } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { formatDate, formatTime, getCrossDayLabel } from "@/lib/date-utils"
 import type { AiFlightCardVO } from "@/types/ai"
 
 interface AiFlightCardProps {
@@ -11,16 +12,13 @@ interface AiFlightCardProps {
 }
 
 export function AiFlightCard({ flight, className }: AiFlightCardProps) {
-  const formatTime = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-  }
-
   const formatDuration = (minutes: number) => {
     const h = Math.floor(minutes / 60)
     const m = minutes % 60
     return `${h}时${m > 0 ? `${m}分` : ""}`
   }
+
+  const crossDayLabel = getCrossDayLabel(flight.departureTime, flight.arrivalTime)
 
   // 推荐理由/状态标签
   const statusLabel = (() => {
@@ -50,6 +48,7 @@ export function AiFlightCard({ flight, className }: AiFlightCardProps) {
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="text-center shrink-0">
               <p className="text-lg font-bold tabular-nums">{formatTime(flight.departureTime)}</p>
+              <p className="text-[10px] text-muted-foreground">{formatDate(flight.departureTime)}</p>
               <p className="text-xs text-muted-foreground">{flight.departureCity}</p>
             </div>
 
@@ -69,6 +68,9 @@ export function AiFlightCard({ flight, className }: AiFlightCardProps) {
 
             <div className="text-center shrink-0">
               <p className="text-lg font-bold tabular-nums">{formatTime(flight.arrivalTime)}</p>
+              {crossDayLabel && (
+                <p className="text-[10px] text-muted-foreground">{crossDayLabel}</p>
+              )}
               <p className="text-xs text-muted-foreground">{flight.arrivalCity}</p>
             </div>
           </div>

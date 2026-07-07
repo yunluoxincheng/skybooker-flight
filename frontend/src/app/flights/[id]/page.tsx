@@ -12,9 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
+import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { formatDateFull, formatTime } from "@/lib/date-utils"
 import * as flightApi from "@/services/flightApi"
 import type { FlightVO, FlightSeatVO } from "@/types/flight"
 import type { ApiError } from "@/lib/request"
+import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER } from "@/types/flight"
 
 export default function FlightDetailPage() {
   const params = useParams()
@@ -66,16 +69,6 @@ export default function FlightDetailPage() {
     )
   }
 
-  const formatTime = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-  }
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-  }
-
   const formatDuration = (minutes: number) => {
     const h = Math.floor(minutes / 60)
     const m = minutes % 60
@@ -86,6 +79,30 @@ export default function FlightDetailPage() {
   const economySeats = seats.filter((s) => s.cabinClass === "ECONOMY" && s.status === "AVAILABLE").length
   const businessSeats = seats.filter((s) => s.cabinClass === "BUSINESS" && s.status === "AVAILABLE").length
   const firstSeats = seats.filter((s) => s.cabinClass === "FIRST" && s.status === "AVAILABLE").length
+  const cabinSummaries = flight.cabins && flight.cabins.length > 0
+    ? [...flight.cabins].sort(
+        (a, b) => CABIN_CLASS_ORDER.indexOf(a.cabinClass) - CABIN_CLASS_ORDER.indexOf(b.cabinClass)
+      )
+    : [
+        {
+          cabinClass: "ECONOMY" as const,
+          price: getFallbackCabinPrice(flight.basePrice, "ECONOMY"),
+          totalSeats: flight.totalSeats,
+          availableSeats: economySeats,
+        },
+        {
+          cabinClass: "BUSINESS" as const,
+          price: getFallbackCabinPrice(flight.basePrice, "BUSINESS"),
+          totalSeats: flight.totalSeats,
+          availableSeats: businessSeats,
+        },
+        {
+          cabinClass: "FIRST" as const,
+          price: getFallbackCabinPrice(flight.basePrice, "FIRST"),
+          totalSeats: flight.totalSeats,
+          availableSeats: firstSeats,
+        },
+      ]
 
   return (
     <UserLayout>
@@ -114,7 +131,7 @@ export default function FlightDetailPage() {
                 <p className="text-3xl font-bold tabular-nums">{formatTime(flight.departureTime)}</p>
                 <p className="text-base font-medium mt-1">{flight.departureCity}</p>
                 <p className="text-xs text-muted-foreground">{flight.departureAirportName}</p>
-                <p className="text-xs text-muted-foreground mt-2">{formatDate(flight.departureTime)}</p>
+                <p className="text-xs text-muted-foreground mt-2">{formatDateFull(flight.departureTime)}</p>
               </div>
 
               <div className="flex-1 flex flex-col items-center">
@@ -137,7 +154,7 @@ export default function FlightDetailPage() {
                 <p className="text-3xl font-bold tabular-nums">{formatTime(flight.arrivalTime)}</p>
                 <p className="text-base font-medium mt-1">{flight.arrivalCity}</p>
                 <p className="text-xs text-muted-foreground">{flight.arrivalAirportName}</p>
-                <p className="text-xs text-muted-foreground mt-2">{formatDate(flight.arrivalTime)}</p>
+                <p className="text-xs text-muted-foreground mt-2">{formatDateFull(flight.arrivalTime)}</p>
               </div>
             </div>
           </CardContent>
@@ -202,26 +219,41 @@ export default function FlightDetailPage() {
               <CardContent className="p-5">
                 <h2 className="font-semibold mb-3">可选舱位</h2>
                 <div className="space-y-3">
-                  {[
-                    { label: "经济舱", available: economySeats, price: flight.basePrice },
-                    { label: "商务舱", available: businessSeats, price: Math.round(flight.basePrice * 2.5) },
-                    { label: "头等舱", available: firstSeats, price: Math.round(flight.basePrice * 5) },
-                  ].map((cabin) => (
-                    <div
-                      key={cabin.label}
-                      className="flex items-center justify-between rounded-lg border border-slate-200 p-3"
-                    >
-                      <div>
-                        <p className="font-medium text-sm">{cabin.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {cabin.available > 0 ? `余 ${cabin.available} 座` : "已售罄"}
-                        </p>
+                  {cabinSummaries.map((cabin) => {
+                    const available = getCabinAvailableSeats(cabin)
+                    return (
+                      <div
+                        key={cabin.cabinClass}
+                        className="flex items-center justify-between rounded-lg border border-slate-200 p-3"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">
+                            {CABIN_CLASS_LABEL[cabin.cabinClass]}
+                          </p>
+                          {available > 0 ? (
+                            <p className="text-xs text-muted-foreground">余 {available} 座</p>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              render={
+                                <Link
+                                  href={`/waitlist/create?flightId=${flight.id}&cabinClass=${cabin.cabinClass}`}
+                                >
+                                  加入候补
+                                </Link>
+                              }
+                              nativeButton={false}
+                            />
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <FlightPriceTag price={cabin.price} />
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <FlightPriceTag price={cabin.price} />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -248,6 +280,17 @@ export default function FlightDetailPage() {
                   <p className="text-xs text-destructive">
                     仅剩 {availableSeats} 座，请尽快预订
                   </p>
+                )}
+                {availableSeats === 0 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">该航班已售罄</p>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      render={<Link href={`/waitlist/create?flightId=${flight.id}`}>加入候补队列</Link>}
+                      nativeButton={false}
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>
