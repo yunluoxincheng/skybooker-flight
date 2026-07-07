@@ -41,6 +41,9 @@ python3 scripts/generate_test_data.py --profile dev --seed 20260707
 # 生成测试数据
 python3 scripts/generate_test_data.py --profile test --seed 20260707
 
+# 生成性能测试数据，规模较大，仅用于压测环境
+python3 scripts/generate_test_data.py --profile perf --seed 20260707
+
 # 指定航班基准日期，适合演示前刷新“明天/未来 7 天/未来 30 天”
 python3 scripts/generate_test_data.py --profile dev --seed 20260707 --base-date 2026-07-07
 
@@ -57,6 +60,7 @@ python3 scripts/generate_test_data.py --profile test --seed 20260707 --output /t
 ```bash
 python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
 python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-test.sql
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-perf.sql
 ```
 
 校验器会检查：
@@ -133,6 +137,16 @@ mysql --default-character-set=utf8mb4 \
 ```
 
 导入 test 数据只需把文件换成 `seed-test.sql`。dev 和 test 使用不同 ID 区间，可以同时存在；通常建议一个库只导入一种 profile，避免测试结果混杂。
+
+导入 perf 数据时把文件换成 `seed-perf.sql`：
+
+```bash
+docker exec -i skybooker-mysql sh -c \
+  'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
+  < backend/src/main/resources/db/seed/seed-perf.sql
+```
+
+`perf` 数据规模较大，只用于性能测试或压测环境，不建议导入日常开发库，也不要提交生成后的 `seed-perf.sql` 到 Git。
 
 ## 6. 重置数据
 

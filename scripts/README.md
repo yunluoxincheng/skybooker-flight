@@ -32,6 +32,10 @@ python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/
 
 python3 scripts/generate_test_data.py --profile test --seed 20260707
 python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-test.sql
+
+# 性能测试数据规模较大，仅在压测环境生成
+python3 scripts/generate_test_data.py --profile perf --seed 20260707
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-perf.sql
 ```
 
 Docker Compose MySQL 导入：
@@ -41,6 +45,8 @@ docker exec -i skybooker-mysql sh -c \
   'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
   < backend/src/main/resources/db/seed/seed-dev.sql
 ```
+
+导入 perf 数据时把文件换成 `seed-perf.sql`。`perf` 只用于性能测试或压测环境，不建议导入日常开发库，也不要提交生成后的 `seed-perf.sql` 到 Git。
 
 完整说明见 `docs/17_TEST_DATA_GUIDE.md`。
 
