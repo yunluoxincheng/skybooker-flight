@@ -34,7 +34,7 @@
 | REQ-ADM-001 | 管理端 | 管理员可进入看板、用户、航班、订单、报表页面 | 浏览器验证 | `docs/09_FRONTEND_DESIGN.md` | 未执行 | 未执行 |
 | REQ-ADM-002 | 管理端 | 普通用户禁止访问 `/api/admin/**` | 接口权限边界 | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-ADM-003 | 管理端 | 航班管理支持舱位配置、发布、下架、生成座位 | 管理端页面 + 接口 | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
-| REQ-ADM-004 | 管理端 | 航司和机场可由管理员维护 | 管理端页面 + `/api/admin/airlines`、`/api/admin/airports` | `docs/01_REQUIREMENTS.md` | 后台无航司/机场管理入口；两个接口均返回 404，Issue #89 | 失败 |
+| REQ-ADM-004 | 管理端 | 航司和机场可由管理员维护 | 管理端页面 + `/api/admin/airlines`、`/api/admin/airports` | `docs/01_REQUIREMENTS.md` | 后台无航司/机场管理入口；两个接口均返回 404；后端 #90，前端 #91 | 失败 |
 | REQ-DEP-001 | 部署 | README 可指导本地启动 | 从空环境按 README 执行 | `README.md` | 未执行 | 未执行 |
 | REQ-DEP-002 | 部署 | 空库启动后 Flyway 可完成 schema 初始化 | MySQL 空库 + 后端启动 | `docs/11_DEPLOYMENT_GUIDE.md` | 未执行 | 未执行 |
 | REQ-DATA-001 | 测试数据 | `generate_test_data.py` 可生成 dev/test seed | 生成 + 静态校验 | `docs/17_TEST_DATA_GUIDE.md` | 未执行 | 未执行 |

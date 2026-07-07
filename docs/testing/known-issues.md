@@ -139,12 +139,12 @@
 | 后续验证方式 | 售罄航班详情页提供候补入口；“我的候补”页面可查看候补单；候补提交、支付、取消和退票释放后的兑现流程可从前端完成。 |
 | 关联 Issue | https://github.com/yunluoxincheng/skybooker-flight/issues/88 |
 
-## KI-009：后台缺少航司和机场管理
+## KI-009：后台缺少航司和机场管理（已拆分责任）
 
 | 字段 | 内容 |
 |---|---|
 | 问题编号 | KI-009 |
-| 问题描述 | 管理端没有航司和机场管理页面；新增/编辑航班只能手动输入航司 ID 和机场 ID；后端管理接口也未提供。 |
+| 问题描述 | 管理端没有航司和机场管理页面；新增/编辑航班只能手动输入航司 ID 和机场 ID；后端管理接口也未提供。原混合 Issue #89 已关闭，拆分为后端 #90 和前端 #91。 |
 | 复现步骤 | 1. 管理员登录后台；2. 查看后台侧边栏；3. 打开 `/admin/flights` 并点击“新增航班”；4. 请求 `GET /api/admin/airlines` 和 `GET /api/admin/airports`。 |
 | 预期结果 | 管理后台提供航司/机场管理页面；新增航班时可选择航司和机场；后端提供管理端航司/机场 CRUD 或至少列表接口。 |
 | 实际结果 | 已复现。后台侧边栏只有数据看板、航班管理、订单管理、用户管理、AI 配置；新增航班弹窗只有 `航司ID`、`出发机场ID`、`到达机场ID` 输入框；`GET /api/admin/airlines` 和 `GET /api/admin/airports` 均返回 404 `资源不存在`。 |
@@ -152,8 +152,9 @@
 | 严重级别 | S1 |
 | 当前状态 | 已复现 |
 | 建议优先级 | P1 |
-| 后续验证方式 | 后端提供 `/api/admin/airlines` 和 `/api/admin/airports` 管理接口；后台侧边栏出现航司/机场管理入口；新增/编辑航班时可选择航司和机场并正确保存关联。 |
-| 关联 Issue | https://github.com/yunluoxincheng/skybooker-flight/issues/89 |
+| 职责拆分 | 后端：提供 `/api/admin/airlines` 和 `/api/admin/airports` 管理接口；前端：提供航司/机场管理页面，并在航班表单使用选择器。 |
+| 后续验证方式 | 先验证后端 #90 接口可用和鉴权正确，再验证前端 #91 页面入口、列表维护、航班表单选择和编辑回显。 |
+| 关联 Issue | 后端：https://github.com/yunluoxincheng/skybooker-flight/issues/90；前端：https://github.com/yunluoxincheng/skybooker-flight/issues/91；原混合项 #89 已关闭 |
 
 ## 历史审计待复核来源
 
