@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2 } from "lucide-react"
@@ -104,7 +104,7 @@ export default function AdminFlightsPage() {
     setValue,
     formState: { errors },
   } = useForm<z.infer<typeof flightSchema>>({
-    resolver: zodResolver(flightSchema),
+    resolver: zodResolver(flightSchema) as Resolver<z.infer<typeof flightSchema>>,
     defaultValues: { directFlag: true, basePrice: 500, totalSeats: 180, baggageAllowance: "20kg" },
   })
 
