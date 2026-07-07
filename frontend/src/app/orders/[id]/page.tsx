@@ -21,6 +21,7 @@ import { UserLayout } from "@/components/layout/UserLayout"
 import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { useAuth } from "@/contexts/AuthContext"
+import { formatDateFull, formatTime, getHoursUntil } from "@/lib/date-utils"
 import * as orderApi from "@/services/orderApi"
 import type { OrderVO } from "@/types/order"
 import type { ApiError } from "@/lib/request"
@@ -86,16 +87,9 @@ export default function OrderDetailPage() {
   const handleRefund = () =>
     doAction(() => orderApi.refundOrder(id, refundReason || undefined)).then(() => setRefundOpen(false))
 
-  const formatTime = (iso: string) => {
-    if (!iso) return ""
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-  }
-
   const formatFull = (iso: string) => {
-    if (!iso) return ""
-    const d = new Date(iso)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${formatTime(iso)}`
+    if (!iso) return "—"
+    return `${formatDateFull(iso)} ${formatTime(iso)}`
   }
 
   if (isAuthLoading || isLoading) {
@@ -126,6 +120,15 @@ export default function OrderDetailPage() {
   const canCancel = order.status === "PENDING_PAYMENT"
   const canRefund = order.status === "ISSUED" || order.status === "CHANGED"
   const canChange = order.status === "ISSUED"
+  const hoursUntilDeparture = order.departureTime ? getHoursUntil(order.departureTime) : Number.NaN
+  const canChangeByTime = !Number.isNaN(hoursUntilDeparture) && hoursUntilDeparture >= 2
+  const canChangeEnabled = canChange && canChangeByTime
+  const changeDisabledReason = (() => {
+    if (!canChange) return ""
+    if (!order.departureTime || Number.isNaN(hoursUntilDeparture)) return "航班信息缺失，无法改签"
+    if (hoursUntilDeparture < 2) return "距起飞不足2小时，不可改签"
+    return ""
+  })()
 
   return (
     <UserLayout>
@@ -184,9 +187,16 @@ export default function OrderDetailPage() {
                 </Dialog>
               )}
               {canChange && (
-                <Button size="sm" variant="outline" disabled title="改签功能即将上线">
-                  改签
-                </Button>
+                <span title={changeDisabledReason || undefined} className="inline-flex">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canChangeEnabled}
+                    onClick={() => router.push(`/orders/${id}/change`)}
+                  >
+                    改签
+                  </Button>
+                </span>
               )}
               {canRefund && (
                 <Dialog open={refundOpen} onOpenChange={setRefundOpen}>

@@ -60,3 +60,16 @@ export function getCrossDayLabel(departureIso?: string | null, arrivalIso?: stri
 
   return diffDays > 0 ? `+${diffDays}天` : ""
 }
+
+/**
+ * 计算目标时间距离当前时刻还剩多少小时。
+ *
+ * @param iso ISO 格式的日期时间字符串；为空或无法解析时返回 `NaN`。
+ * @returns 剩余小时数；`NaN` 表示解析失败，负数表示目标时间已过去。
+ */
+export function getHoursUntil(iso?: string | null) {
+  const date = safeParse(iso)
+  if (!date) return Number.NaN
+
+  return (date.getTime() - Date.now()) / (1000 * 60 * 60)
+}
