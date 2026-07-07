@@ -34,8 +34,8 @@
 | 测试数据生成与静态校验 | 已执行，通过 |
 | 后端自动化测试基线 | 已执行，失败，已登记 Issue #85 |
 | 后端部署 smoke | 已执行，通过 |
-| 浏览器缺陷复现 | 已执行 KI-001 至 KI-009 |
-| GitHub 缺陷登记 | 已创建 Issue #79 至 #91；#89 已拆分为 #90/#91 并关闭 |
+| 浏览器缺陷复现 | 已执行 KI-001 至 KI-010 |
+| GitHub 缺陷登记 | 已创建 Issue #79 至 #91、#99、#100；#89 已拆分为 #90/#91 并关闭，#96 已按复测结论关闭 |
 
 ## 4. 命令执行记录
 
@@ -59,7 +59,7 @@
 | `MYSQL_TEST_DB=flight_booking_test_codex_20260707133006 mvn test`（新测试库） | Flyway 10 个迁移成功；333 个测试中 8 个失败，已登记 Issue #85 |
 | `SKYBOOKER_BASE_URL=http://localhost:8088 SKYBOOKER_ADMIN_PASSWORD='SkyBooker@Init2026!' SKYBOOKER_SMOKE_OUTPUT_DIR=reports/smoke/final-system-test-20260707 scripts/smoke/backend-smoke.sh` | 通过；公开航班、用户登录、管理员登录、`/me`、角色隔离、订单列表、AI chat、管理端 dashboard 均符合脚本断言 |
 | Playwright 浏览器验证 `http://localhost:8088/` | 返回 gateway 占位页，未提供前端 UI，已登记 Issue #86 |
-| Playwright 浏览器验证 `http://localhost:3000` | 已用于 KI-001 至 KI-009 复现；该端口为已有 Next dev server |
+| Playwright/Chromium 浏览器验证 `http://localhost:3000` | 已用于 KI-001 至 KI-010 复现；该端口为已有 Next dev server |
 | `gh issue list --repo yunluoxincheng/skybooker-flight --state open --limit 50` | 创建前未发现本轮缺陷重复 issue |
 | GitHub issue 创建 | 已创建 #79、#80、#81、#82、#83、#84、#85、#86 |
 | Playwright 浏览器验证 `/flights` 航班卡片 | 已确认列表卡片只显示起降时间和用时，不显示日期，Issue #87 |
@@ -70,6 +70,17 @@
 | Playwright 浏览器回归验证 `/login` 空密码 | 最新 `origin/main` 上，邮箱填 `user1@example.com`、密码留空点击登录；未展示“请输入密码”，URL 变为 `/login?email=user1%40example.com&password=` |
 | Playwright 浏览器回归验证 `/login` 空邮箱 | 最新 `origin/main` 上，邮箱留空、密码填测试值 `DummyPass123` 点击登录；未展示邮箱错误，URL 变为 `/login?email=&password=DummyPass123` |
 | GitHub issue 创建与回链 | 已创建 #96 跟踪 #81 关闭后的全站表单校验修复不完整，并在 #81 追加回归说明评论 |
+| `CI=true pnpm exec next dev -p 3001` | 重建当前 `main` 前端依赖并启动干净 Next dev server，用于排除旧 3000 实例影响 |
+| Playwright 表单矩阵 `127.0.0.1:3001` | Next dev 日志提示阻止 `127.0.0.1` 访问 dev resource；登录、注册、找回密码、管理端登录均退回原生 GET，密码类字段进入 URL |
+| Playwright 表单矩阵 `localhost:3001` | 登录、注册、找回密码、管理端登录均正常展示字段错误，URL 不带 query |
+| Playwright 密码可见性验证 | `localhost:3001` 下 `/login`、`/register`、`/forgot-password`、`/admin` 点击后 input type 从 `password` 切到 `text`；`127.0.0.1:3001` 下点击无效 |
+| Playwright 受保护业务表单验证 | 旧数据 `/booking/110124` 返回资源不存在；改用当前有效航班 `/booking/210005`、售罄航班 `/waitlist/create?flightId=210007&cabinClass=ECONOMY` 和 `/admin/flights` 后，空表单字段校验均通过 |
+| 用户指定环境表单矩阵 `localhost:3000` | 登录、注册、找回密码、管理端登录、预订新增乘机人、候补新增乘机人、管理端新增航班空表单校验均通过；未复现按钮卡住或密码进入 URL |
+| `curl -i -X POST http://localhost:8080/api/auth/login`（未注册邮箱） | `not-exist-20260707@example.com / User@123456` 返回 401，响应体为 `{"code":10007,"message":"账号或密码错误","data":null}` |
+| `curl -i -X POST http://localhost:8080/api/auth/login`（错误密码） | `user1@example.com / WrongPassword123` 返回 401，响应体同为 `{"code":10007,"message":"账号或密码错误","data":null}` |
+| Chromium DevTools Protocol 验证登录失败提示 | 未注册邮箱和错误密码在 `localhost:3000/login` 均显示“未登录或登录已过期”，已登记前端 Issue #99 |
+| Chromium DevTools Protocol 模拟接口异常 | 连接失败显示英文 `Failed to fetch`；非 JSON 500 显示 `Unexpected token '<'... is not valid JSON`；已登记前端 Issue #99 |
+| GitHub issue 创建 | 已创建 #99 跟踪前端登录失败/接口异常提示不明确；已创建 #100 跟踪是否区分“邮箱不存在”的后端/产品策略 |
 
 ## 5. 已执行基线结果
 
@@ -93,7 +104,8 @@
 | 流程 | 测试数据 | 实际结果 | 状态 |
 |---|---|---|---|
 | 普通用户登录 | `user1@example.com / User@123456` | 登录成功，首页 Header 显示用户头像 `S` | 通过 |
-| 登录表单缺失字段校验 | `/login` 空密码、空邮箱 | 空密码未展示“请输入密码”，空邮箱未展示字段错误；部分场景发生原生 GET 并将表单字段写入 URL | 未通过，Issue #96 |
+| 表单缺失字段校验 | `/login`、`/register`、`/forgot-password`、`/admin`、`/booking/210005`、`/waitlist/create?flightId=210007&cabinClass=ECONOMY`、`/admin/flights` | 用户指定 `localhost:3000` 下均正常展示字段错误，URL 不带敏感 query，按钮保持可操作；`127.0.0.1` dev origin 问题另见 #96 | 通过 |
+| 登录失败错误提示 | 未注册邮箱、错误密码、模拟网络失败、模拟非 JSON 500 | 登录 401 被显示为“未登录或登录已过期”；网络失败显示英文 `Failed to fetch`；非 JSON 500 暴露解析错误 | 未通过，前端 #99，后端/产品策略 #100 |
 | 未来航班下单 | 航班 `110124`，座位 `10A`，乘机人“张三” | `POST /api/orders` 返回 200，订单 `150121` 状态 `PENDING_PAYMENT` | 通过 |
 | 模拟支付 | 订单 `150121` | `POST /api/orders/150121/pay` 返回 200，订单状态变为 `ISSUED` | 通过 |
 | 过期航班下单 | 航班 `1`，2026-06-18，座位 `1B` | 页面允许走到提交订单，`POST /api/orders` 返回 400 `航班不可预订` | 未通过，Issue #82 |
@@ -108,9 +120,9 @@
 |---|---|---|---|---|
 | KI-001 | 登录后首页底部仍显示“免费注册”文案 | S3 | 已复现 | #79 |
 | KI-002 | 新增乘机人类型选项中英文不一致 | S3 | 已复现 | #80 |
-| KI-003 | 全站表单校验错误不展示且提交状态异常 | S1 | #81 关闭后登录页仍复现；新建 #96 | #81/#96 |
+| KI-003 | 全站表单校验错误不展示且提交状态异常 | S1 | 用户指定 `localhost:3000` 抽样通过；`127.0.0.1` dev origin 环境偏差已记录并关闭 | #81/#96 |
 | KI-004 | 默认列表过期航班仍可预订，提交订单返回 400“航班不可预订” | S0 | 已复现，范围已澄清 | #82 |
-| KI-005 | 登录密码无法切换可见性 | S3 | 已复现 | #83 |
+| KI-005 | 密码可见性按钮在特定 origin 下点击无效 | S3 | 用户指定 `localhost:3000` 通过；`127.0.0.1` dev origin 环境偏差已记录并关闭 | #83/#96 |
 | KI-006 | 已出票订单改签按钮固定禁用且规则提示不清 | S2 | 已复现 | #84 |
 | BASE-001 | 后端 `mvn test` 在新测试库仍有 8 个失败 | S1 | 已复现 | #85 |
 | DEP-001 | docker compose nginx 根路径未提供前端 UI | S1 | 已复现 | #86 |
@@ -118,6 +130,8 @@
 | KI-008 | 售罄航班缺少候补入口且 `/waitlist` 页面不存在 | S1 | 已复现 | #88 |
 | KI-009-BE | 后台缺少航司和机场管理接口 | S1 | 已复现 | #90 |
 | KI-009-FE | 后台缺少航司和机场管理页面及航班表单选择器 | S1 | 已复现 | #91 |
+| KI-010-FE | 登录失败与接口异常提示不明确 | S2 | 已复现 | #99 |
+| KI-010-BE/产品 | 是否区分未注册邮箱和密码错误需确认 | S2 | 待策略确认 | #100 |
 
 ## 7. 尚未执行的测试
 
@@ -138,7 +152,7 @@
 - 部署入口：`http://localhost:8088/` 未提供前端 UI，影响交付环境首页验收。
 - 后端自动化测试：新测试库 `mvn test` 仍有 8 个失败，且 AI 测试疑似依赖真实 LLM 输出。
 - 默认航班列表：过期航班仍被展示为可预订，默认第一条航班可触发下单失败。
-- 表单错误处理：#81 关闭后登录页仍存在字段错误不展示，且部分场景退回原生 GET 将表单字段写入 URL；需按 #96 执行全站表单审计。
+- 表单错误处理：用户指定 `localhost:3000` 下，字段级校验抽样通过；`127.0.0.1` 访问 Next dev 的 origin 偏差已记录并关闭 #96；登录失败、网络失败、非 JSON 500 的全局错误提示仍不清晰，见 #99/#100。
 - 改签流程：已出票订单前端入口固定禁用，无法验证后端改签规则是否完整可用。
 - 候补流程：售罄航班无候补入口，用户端候补页面不存在，候补主功能无法从前端验收。
 - 管理端基础资料：航司/机场管理接口和页面缺失，新增航班依赖手工 ID，不满足管理员维护需求。
@@ -152,12 +166,13 @@
 1. P0：修复 Issue #82，确保默认航班列表和预订页不会让用户对过期/不可订航班走完整下单流程。
 2. P1：修复 Issue #86，确保部署地址能打开真实前端首页。
 3. P1：修复 Issue #85，恢复后端自动化测试基线可信度。
-4. P1：修复 Issue #96，重新审计 #81 关闭后的全站表单校验、原生提交和按钮 loading 恢复。
-5. P1：修复 Issue #88，补齐售罄航班候补入口和“我的候补”页面。
-6. P1：修复 Issue #90，补齐航司/机场管理接口。
-7. P1：修复 Issue #91，补齐航司/机场管理页面和航班表单选择器。
-8. P2：修复 Issue #84，明确改签功能状态和业务规则提示。
-9. P2：修复 Issue #87，航班卡片补充日期和跨天提示。
-10. P3：修复 Issue #79、#80、#83 等 UI/UX 一致性问题。
+4. P1：修复 Issue #88，补齐售罄航班候补入口和“我的候补”页面。
+5. P1：修复 Issue #90，补齐航司/机场管理接口。
+6. P1：修复 Issue #91，补齐航司/机场管理页面和航班表单选择器。
+7. P2：修复 Issue #99，登录失败和接口异常展示准确、友好的用户提示。
+8. P2：确认 Issue #100，决定是否允许暴露“邮箱不存在”；确认后前后端按统一策略实现。
+9. P2：修复 Issue #84，明确改签功能状态和业务规则提示。
+10. P2：修复 Issue #87，航班卡片补充日期和跨天提示。
+11. P3：修复 Issue #79、#80、#83 等 UI/UX 一致性问题。
 
 完成上述修复后，应重新执行 smoke、未来航班下单支付、过期航班拦截、表单校验、部署首页、售罄航班候补、航司/机场管理、后端 `mvn test` 和相关回归测试。

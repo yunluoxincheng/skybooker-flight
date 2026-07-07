@@ -10,7 +10,10 @@
 | REQ-AUTH-004 | 用户认证 | 管理员不能通过用户端登录 | 接口权限边界 | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-AUTH-005 | 用户认证 | 管理员只能通过管理端登录 | `/admin` + `/api/admin/auth/login` | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
 | REQ-AUTH-006 | 用户认证 | token 过期或无效时清理本地登录态并提示 | 手工构造过期/伪造 token | `docs/15_AUTH_DESIGN.md` | 未执行 | 未执行 |
-| REQ-AUTH-007 | 用户认证 | 登录表单缺失或非法输入时展示字段错误，且不发生原生 GET 提交 | `/login` 空密码、空邮箱、非法邮箱浏览器验证 | `docs/09_FRONTEND_DESIGN.md` | 空密码未展示“请输入密码”，空邮箱未展示字段错误；部分场景 URL 出现表单字段，Issue #96 | 失败 |
+| REQ-AUTH-007 | 用户认证 | 登录表单缺失或非法输入时展示字段错误，且不发生原生 GET 提交 | `/login` 空密码、空邮箱、非法邮箱浏览器验证 | `docs/09_FRONTEND_DESIGN.md` | 用户指定 `localhost:3000` 下通过；`127.0.0.1:3001` 下因 Next dev origin 限制退回原生 GET，Issue #96 | 通过 |
+| REQ-AUTH-008 | 用户认证 | 注册表单缺失或非法输入时展示字段错误，且不发生原生 GET 提交 | `/register` 空表单、邮箱留空且密码填测试值 | `docs/09_FRONTEND_DESIGN.md` | 用户指定 `localhost:3000` 下通过；`127.0.0.1:3001` 下 URL 带出密码类字段，Issue #96 | 通过 |
+| REQ-AUTH-009 | 用户认证 | 找回密码表单缺失或非法输入时展示字段错误，且不发生原生 GET 提交 | `/forgot-password` 空表单、邮箱留空且新密码填测试值 | `docs/09_FRONTEND_DESIGN.md` | 用户指定 `localhost:3000` 下通过；`127.0.0.1:3001` 下 URL 带出新密码字段，Issue #96 | 通过 |
+| REQ-AUTH-010 | 用户认证 | 管理端登录表单缺失输入时展示字段错误，且不发生原生 GET 提交 | `/admin` 空用户名、空密码浏览器验证 | `docs/09_FRONTEND_DESIGN.md`、`docs/15_AUTH_DESIGN.md` | 用户指定 `localhost:3000` 下通过；`127.0.0.1:3001` 下 URL 带出 `username/password`，Issue #96 | 通过 |
 | REQ-FLT-001 | 航班 | 按日期 + 航班号查询 | `GET /api/flights` | `docs/07_API_DESIGN.md` | 未执行 | 未执行 |
 | REQ-FLT-002 | 航班 | 按日期 + 出发地 + 目的地查询 | 前端搜索 + 接口 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
 | REQ-FLT-003 | 航班 | 筛选航空公司、价格、时间、直飞、舱位、余票 | 前端筛选 + 接口参数 | `docs/02_FEATURE_SPEC.md` | 未执行 | 未执行 |
