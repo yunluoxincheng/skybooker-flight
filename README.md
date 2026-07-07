@@ -89,8 +89,8 @@ http://<server-ip>:8088
 
 SkyBooker 当前支持两条 Docker 路径：
 
-- 本地开发 / 演示：使用仓库根目录 `docker-compose.yml`，本地构建后端并启动 MySQL、Redis、backend、nginx；前端可单独本地运行。
-- 生产部署：使用 `scripts/deploy.sh` 下载维护中的生产模板，拉取已发布镜像，启动 MySQL、Redis、backend、frontend、nginx all-in-one 栈。
+- 本地开发：使用仓库根目录 `docker-compose.yml`，本地构建后端并启动 MySQL、Redis、backend、nginx（nginx 仅作 API 网关，根路径不提供前端 UI）。前端通过 `cd frontend && pnpm dev` 热重载运行，访问 `http://localhost:3000`。
+- 生产部署 / 全栈验收：使用 `scripts/deploy.sh`——它会自动准备生产 compose、nginx 配置（把 `deploy/nginx/prod.conf` 落地为 `default.conf`）和 `.env`，再拉取镜像启动 MySQL、Redis、backend、frontend、nginx all-in-one 栈，访问 `http://localhost:8088` 即可见前端 UI。完整流程见 `docs/11_DEPLOYMENT_GUIDE.md`。
 
 ### 1. 本地开发 / 演示启动
 
@@ -155,16 +155,18 @@ docker compose ps
 docker compose logs -f backend
 ```
 
-访问入口：
+本地 compose 的 nginx 是 API 网关，根路径只返回引导文本、不提供前端 UI：
 
 ```text
-http://localhost:8088
+http://localhost:8088            # API 网关：/api/**、/healthz（根路径无前端 UI）
+http://localhost:3000            # 前端 UI：cd frontend && pnpm dev
 ```
 
 API 基地址：
 
 ```text
 http://localhost:8088/api
+http://localhost:8080/api        # 后端直连
 ```
 
 验证：

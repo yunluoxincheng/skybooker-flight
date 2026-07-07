@@ -2,7 +2,7 @@
 
 SkyBooker 支持两条 Docker 路径：
 
-- 本地开发：仓库根目录 `docker-compose.yml`，可本地构建 backend，并启动 MySQL、Redis、backend、nginx。
+- 本地开发：仓库根目录 `docker-compose.yml`，可本地构建 backend，并启动 MySQL、Redis、backend、nginx。该 nginx 仅作 API 网关（`/api/**`、`/healthz`），根路径返回引导文本、不提供前端 UI；前端请用 `cd frontend && pnpm dev` 热重载运行。要看完整 UI 或验收部署，使用下面的生产路径。
 - 生产部署：`scripts/deploy.sh` 下载仓库维护的 `deploy/docker-compose.prod.yml` 和 `deploy/nginx/prod.conf`，在服务器上拉取已发布镜像并启动 all-in-one 栈。
 
 当前第一版生产部署只支持 all-in-one 单机拓扑：MySQL、Redis、backend、frontend、nginx 在同一个 Docker Compose 项目中运行。使用外部 MySQL/Redis 的 app-only 部署是后续工作。
@@ -85,11 +85,11 @@ pnpm dev
 
 本地默认地址：
 
-```text
-后端 API: http://localhost:8080/api
-前端: http://localhost:3000
-本地 nginx 网关: http://localhost:8088
-```
+- 后端 API：`http://localhost:8080/api`
+- 前端（`pnpm dev` 热重载）：`http://localhost:3000`
+- 本地 nginx 网关（仅 `/api/**`、`/healthz`；根路径不含前端 UI）：`http://localhost:8088`
+
+要看完整前端 UI 或验收部署效果，通过 `scripts/deploy.sh` 启动——它会基于 `deploy/docker-compose.prod.yml` 和 `deploy/nginx/prod.conf` 自动准备好生产 compose、nginx 配置和 `.env`（见第 0 节最快启动）；其 nginx 根路径会反代 frontend 容器。
 
 ## 2. 生产服务器前提条件
 
