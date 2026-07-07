@@ -1,4 +1,5 @@
 import type { CabinClass } from "./flight"
+import type { PassengerType } from "./order"
 
 /** 候补状态 — 匹配后端 WaitlistStatus */
 export type WaitlistStatus =
@@ -14,7 +15,9 @@ export type WaitlistStatus =
 export interface WaitlistPassengerVO {
   passengerId: number
   passengerName: string
-  passengerType: "ADULT" | "CHILD" | "INFANT"
+  passengerType: PassengerType
+  seatId?: number
+  seatNo?: string
 }
 
 /** 候补 VO — 匹配后端 WaitlistVO */
@@ -30,7 +33,7 @@ export interface WaitlistVO {
   payAmount: number
   paidAt?: string
   ticketOrderId?: number
-  refundAmount: number
+  refundAmount?: number
   refundTime?: string
   lastSkipReason?: string
   expireTime: string
@@ -41,6 +44,6 @@ export interface WaitlistVO {
 /** 创建候补 DTO — 匹配后端 CreateWaitlistDTO */
 export interface CreateWaitlistDTO {
   flightId: number
-  cabinClass: string
+  cabinClass: CabinClass
   passengerIds: number[]
 }

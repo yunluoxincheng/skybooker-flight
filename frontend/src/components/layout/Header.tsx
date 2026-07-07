@@ -20,12 +20,15 @@ const NAV_ITEMS = [
   { href: "/flights", label: "航班查询" },
   { href: "/ai-assistant", label: "AI 助手" },
   { href: "/orders", label: "我的订单" },
+  { href: "/waitlist", label: "我的候补" },
 ]
 
 export function Header() {
   const pathname = usePathname()
   const { user, isAuthenticated, logout, isLoading } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const isActive = (href: string) =>
+    href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
@@ -41,7 +44,7 @@ export function Header() {
           {NAV_ITEMS.map((item) => (
             <Button
               key={item.href}
-              variant={pathname === item.href ? "secondary" : "ghost"}
+              variant={isActive(item.href) ? "secondary" : "ghost"}
               render={<Link href={item.href}>{item.label}</Link>}
               nativeButton={false}
             />
@@ -72,6 +75,7 @@ export function Header() {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem render={<Link href="/orders">我的订单</Link>} />
+                <DropdownMenuItem render={<Link href="/waitlist">我的候补</Link>} />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logout()}>退出登录</DropdownMenuItem>
               </DropdownMenuContent>
@@ -98,7 +102,7 @@ export function Header() {
           {NAV_ITEMS.map((item) => (
             <Button
               key={item.href}
-              variant={pathname === item.href ? "secondary" : "ghost"}
+              variant={isActive(item.href) ? "secondary" : "ghost"}
               className="w-full justify-start"
               render={<Link href={item.href}>{item.label}</Link>}
               onClick={() => setMobileOpen(false)}
