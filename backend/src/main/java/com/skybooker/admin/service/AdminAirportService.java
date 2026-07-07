@@ -1,6 +1,7 @@
 package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AirportDTO;
+import com.skybooker.admin.dto.AirportUpdateDTO;
 import com.skybooker.admin.entity.Airport;
 import com.skybooker.admin.mapper.AirportMapper;
 import com.skybooker.admin.vo.AirportVO;
@@ -46,7 +47,7 @@ public class AdminAirportService {
     }
 
     @Transactional
-    public AirportVO updateAirport(Long id, AirportDTO dto) {
+    public AirportVO updateAirport(Long id, AirportUpdateDTO dto) {
         if (airportMapper.findById(id) == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }

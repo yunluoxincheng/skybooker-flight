@@ -1,6 +1,7 @@
 package com.skybooker.admin.controller;
 
 import com.skybooker.admin.dto.AirlineDTO;
+import com.skybooker.admin.dto.AirlineUpdateDTO;
 import com.skybooker.admin.service.AdminAirlineService;
 import com.skybooker.admin.vo.AirlineVO;
 import com.skybooker.common.response.ApiResponse;
@@ -36,7 +37,7 @@ public class AdminAirlineController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<AirlineVO> update(@PathVariable Long id, @Valid @RequestBody AirlineDTO dto) {
+    public ApiResponse<AirlineVO> update(@PathVariable Long id, @Valid @RequestBody AirlineUpdateDTO dto) {
         return ApiResponse.success(adminAirlineService.updateAirline(id, dto));
     }
 

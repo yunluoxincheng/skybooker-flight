@@ -5,14 +5,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 机场新增表单。编辑请使用 {@link AirportUpdateDTO}（不含 code，避免 @NotBlank(code) 拦截编辑请求）。
+ * 机场编辑表单。不含 {@code code}：code 为稳定标识，创建后不可改，
+ * 由 {@link AirportDTO}（新增专用）承载。分离可避免 {@code @NotBlank(code)}
+ * 把"按契约不提交 code"的编辑请求在校验层直接拦截。
  */
 @Data
-public class AirportDTO {
-
-    @NotBlank(message = "机场代码不能为空")
-    @Size(max = 20, message = "机场代码长度不能超过 20")
-    private String code;
+public class AirportUpdateDTO {
 
     @NotBlank(message = "机场名称不能为空")
     @Size(max = 100, message = "机场名称长度不能超过 100")

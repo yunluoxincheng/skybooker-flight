@@ -156,12 +156,12 @@ class AdminAirlineAirportIntegrationTest {
     }
 
     @Test
-    void updateAirline_success_andCodeImmutable() throws Exception {
+    void updateAirline_successWithoutCode() throws Exception {
         String originalCode = uniqueCode("AL");
         Long id = createAirline(originalCode, "更新前航空");
 
-        // 编辑请求携带不同 code + 新 name/logoUrl；service 应忽略 code，仅更新 name/logoUrl
-        String updateBody = "{\"code\":\"CHANGED\",\"name\":\"更新后航空\",\"logoUrl\":\"https://example.com/new.png\"}";
+        // 编辑请求按契约不携带 code（code 为稳定标识）；验证仍能更新，且 code 保持原值
+        String updateBody = "{\"name\":\"更新后航空\",\"logoUrl\":\"https://example.com/new.png\"}";
         mockMvc.perform(put("/api/admin/airlines/" + id)
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -174,7 +174,7 @@ class AdminAirlineAirportIntegrationTest {
 
     @Test
     void updateAirline_notFound() throws Exception {
-        String body = "{\"code\":\"X\",\"name\":\"不存在\"}";
+        String body = "{\"name\":\"不存在\"}";
         mockMvc.perform(put("/api/admin/airlines/99999")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -267,11 +267,12 @@ class AdminAirlineAirportIntegrationTest {
     }
 
     @Test
-    void updateAirport_success_andCodeImmutable() throws Exception {
+    void updateAirport_successWithoutCode() throws Exception {
         String originalCode = uniqueCode("AP");
         Long id = createAirport(originalCode, "更新前机场", "旧城市");
 
-        String updateBody = "{\"code\":\"CHANGED\",\"name\":\"更新后机场\",\"city\":\"新城市\",\"province\":\"新省\"}";
+        // 编辑请求按契约不携带 code（code 为稳定标识）；验证仍能更新，且 code 保持原值
+        String updateBody = "{\"name\":\"更新后机场\",\"city\":\"新城市\",\"province\":\"新省\"}";
         mockMvc.perform(put("/api/admin/airports/" + id)
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
