@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.admin.mapper.AirlineMapper">
+
+    <select id="search" resultType="com.skybooker.admin.vo.AirlineVO">
+        SELECT id, code, name, logo_url, status, created_at, updated_at
+        FROM airline
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (code LIKE CONCAT('%', #{keyword}, '%')
+                  OR name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM airline
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (code LIKE CONCAT('%', #{keyword}, '%')
+                  OR name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="findById" resultType="com.skybooker.admin.vo.AirlineVO">
+        SELECT id, code, name, logo_url, status, created_at, updated_at
+        FROM airline WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM airline WHERE code = #{code}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO airline(code, name, logo_url, status)
+        VALUES(#{code}, #{name}, #{logoUrl}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE airline
+        SET name = #{name}, logo_url = #{logoUrl}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE airline SET status = #{status} WHERE id = #{id}
+    </update>
+
+</mapper>

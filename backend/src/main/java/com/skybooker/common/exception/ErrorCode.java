@@ -51,6 +51,8 @@ public enum ErrorCode {
     AI_RATE_LIMITED(10020, "请求过于频繁，请稍后再试"),
     FLIGHT_HAS_INVENTORY(40008, "航班已有座位、订单或舱位配置，不允许修改"),
     ADMIN_ACCOUNT_PROTECTED(40009, "不允许操作管理员账号"),
+    DUPLICATE_AIRLINE_CODE(40010, "航司代码已存在"),
+    DUPLICATE_AIRPORT_CODE(40011, "机场代码已存在"),
     REFUND_WINDOW_CLOSED(50001, "退款窗口已关闭，距起飞不足2小时"),
     WAITLIST_NOT_FOUND(50002, "候补订单不存在"),
     WAITLIST_STATE_INVALID(50003, "候补订单状态不允许此操作"),

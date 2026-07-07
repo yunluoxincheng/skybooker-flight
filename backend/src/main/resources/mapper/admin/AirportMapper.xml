@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.admin.mapper.AirportMapper">
+
+    <select id="search" resultType="com.skybooker.admin.vo.AirportVO">
+        SELECT id, code, name, city, province, status, created_at, updated_at
+        FROM airport
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (code LIKE CONCAT('%', #{keyword}, '%')
+                  OR name LIKE CONCAT('%', #{keyword}, '%')
+                  OR city LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM airport
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (code LIKE CONCAT('%', #{keyword}, '%')
+                  OR name LIKE CONCAT('%', #{keyword}, '%')
+                  OR city LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="findById" resultType="com.skybooker.admin.vo.AirportVO">
+        SELECT id, code, name, city, province, status, created_at, updated_at
+        FROM airport WHERE id = #{id}
+    </select>
+
+    <select id="existsByCode" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM airport WHERE code = #{code}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO airport(code, name, city, province, status)
+        VALUES(#{code}, #{name}, #{city}, #{province}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE airport
+        SET name = #{name}, city = #{city}, province = #{province}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE airport SET status = #{status} WHERE id = #{id}
+    </update>
+
+</mapper>
