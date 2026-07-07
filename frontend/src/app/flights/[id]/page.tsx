@@ -13,6 +13,7 @@ import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { formatDateFull, formatTime } from "@/lib/date-utils"
 import * as flightApi from "@/services/flightApi"
 import type { FlightVO, FlightSeatVO } from "@/types/flight"
 import type { ApiError } from "@/lib/request"
@@ -66,16 +67,6 @@ export default function FlightDetailPage() {
         </div>
       </UserLayout>
     )
-  }
-
-  const formatTime = (iso: string) => {
-    const d = new Date(iso)
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-  }
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
   }
 
   const formatDuration = (minutes: number) => {
@@ -140,7 +131,7 @@ export default function FlightDetailPage() {
                 <p className="text-3xl font-bold tabular-nums">{formatTime(flight.departureTime)}</p>
                 <p className="text-base font-medium mt-1">{flight.departureCity}</p>
                 <p className="text-xs text-muted-foreground">{flight.departureAirportName}</p>
-                <p className="text-xs text-muted-foreground mt-2">{formatDate(flight.departureTime)}</p>
+                <p className="text-xs text-muted-foreground mt-2">{formatDateFull(flight.departureTime)}</p>
               </div>
 
               <div className="flex-1 flex flex-col items-center">
@@ -163,7 +154,7 @@ export default function FlightDetailPage() {
                 <p className="text-3xl font-bold tabular-nums">{formatTime(flight.arrivalTime)}</p>
                 <p className="text-base font-medium mt-1">{flight.arrivalCity}</p>
                 <p className="text-xs text-muted-foreground">{flight.arrivalAirportName}</p>
-                <p className="text-xs text-muted-foreground mt-2">{formatDate(flight.arrivalTime)}</p>
+                <p className="text-xs text-muted-foreground mt-2">{formatDateFull(flight.arrivalTime)}</p>
               </div>
             </div>
           </CardContent>
