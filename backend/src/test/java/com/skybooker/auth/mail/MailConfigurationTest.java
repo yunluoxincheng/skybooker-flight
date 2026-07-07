@@ -11,7 +11,13 @@ class MailConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(RestClientAutoConfiguration.class))
-            .withUserConfiguration(MailConfiguration.class);
+            .withUserConfiguration(MailConfiguration.class)
+            .withPropertyValues(
+                    "mail.provider=log",
+                    "mail.from=",
+                    "mail.resend.api-key=",
+                    "mail.resend.base-url=https://api.resend.test"
+            );
 
     @Test
     void defaultsToLogMailWithoutResendCredentials() {

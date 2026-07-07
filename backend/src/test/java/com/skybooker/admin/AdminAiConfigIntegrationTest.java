@@ -6,6 +6,7 @@ import com.skybooker.ai.config.DynamicLlmConfigProvider;
 import com.skybooker.auth.dto.UserLoginDTO;
 import com.skybooker.common.AbstractIntegrationTest;
 import com.skybooker.common.response.ApiResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,11 @@ class AdminAiConfigIntegrationTest extends AbstractIntegrationTest {
     void clearConfig() {
         jdbcTemplate.update("DELETE FROM ai_llm_config WHERE id = 1");
         configProvider.invalidateCache();
+    }
+
+    @AfterEach
+    void cleanupConfig() {
+        clearConfig();
     }
 
     @Test
