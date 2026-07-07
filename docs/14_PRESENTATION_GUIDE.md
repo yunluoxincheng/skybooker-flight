@@ -57,7 +57,7 @@ AI 智能购票助手
 - `docker compose up -d --build` 后 `mysql`、`redis`、`backend`、`nginx` 均为 healthy；
 - `curl http://localhost:8088/healthz` 返回 `ok`；
 - `curl http://localhost:8088/api/flights?page=1\&size=1` 返回标准 API 包装；
-- 如航班日期已过期，执行 `scripts/refresh-demo-flight-dates.sql`；
+- 如航班日期已过期，重新生成并导入 `seed-dev.sql`，详见 `docs/17_TEST_DATA_GUIDE.md`；
 - `scripts/smoke/backend-smoke.sh` 通过，输出保存在 `reports/smoke/`；
 - AI 助手对”我想去北京”能返回追问或推荐响应；
 - 准备一个余票充足航班用于订票演示；
@@ -74,7 +74,7 @@ AI 智能购票助手
 - [ ] 服务器 `docker compose ps` 全部 healthy；
 - [ ] `scripts/smoke/backend-smoke.sh` 通过 `SKYBOOKER_BASE_URL=http://<server-ip>:8088` 验证；
 - [ ] 管理员密码已从默认 `SkyBooker@Init2026!` 修改；
-- [ ] 演示数据日期未过期（执行 `scripts/refresh-demo-flight-dates.sql`）；
+- [ ] 演示数据日期未过期（必要时重新生成并导入 `seed-dev.sql`）；
 - [ ] 前端可通过公网访问或由前端同学另行启动；
 - [ ] 保存以下证据用于答辩或 PR：
   - `docker compose ps` 输出截图；

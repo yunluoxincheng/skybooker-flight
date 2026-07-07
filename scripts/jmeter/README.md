@@ -7,10 +7,13 @@
 - 已启动 MySQL、Redis 和后端服务；
 - 本机可执行 `jmeter`，或通过 `JMETER_BIN` 指向 JMeter 可执行文件；
 - 测试数据库中存在未来已发布航班、可用座位和属于普通用户的乘机人；
-- 如演示数据日期过期，先刷新演示航班日期：
+- 如演示数据日期过期，重新生成并导入 dev seed：
 
 ```bash
-mysql -h localhost -P 3306 -u root -p flight_booking < scripts/refresh-demo-flight-dates.sql
+python3 scripts/generate_test_data.py --profile dev --seed 20260707 --base-date <YYYY-MM-DD>
+python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
+mysql --default-character-set=utf8mb4 -h localhost -P 3306 -u root -p flight_booking \
+  < backend/src/main/resources/db/seed/seed-dev.sql
 ```
 
 ## 查询测试数据
