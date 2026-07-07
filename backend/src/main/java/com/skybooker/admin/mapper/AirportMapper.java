@@ -1,0 +1,35 @@
+package com.skybooker.admin.mapper;
+
+import com.skybooker.admin.entity.Airport;
+import com.skybooker.admin.vo.AirportVO;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface AirportMapper {
+
+    List<AirportVO> search(@Param("keyword") String keyword,
+                           @Param("status") String status,
+                           @Param("offset") int offset,
+                           @Param("size") int size);
+
+    long count(@Param("keyword") String keyword, @Param("status") String status);
+
+    AirportVO findById(@Param("id") Long id);
+
+    /**
+     * 仅用于新增时校验 code 唯一。编辑不允许改 code，故无需排除自身。
+     */
+    boolean existsByCode(@Param("code") String code);
+
+    void insert(Airport airport);
+
+    /**
+     * 仅更新 name / city / province，code 与 status 不在此变更。
+     */
+    int update(Airport airport);
+
+    int updateStatus(@Param("id") Long id, @Param("status") String status);
+}
