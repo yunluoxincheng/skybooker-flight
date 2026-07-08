@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -7,11 +8,25 @@ import { useAuth } from "@/contexts/AuthContext"
 
 export function HomeCTA() {
   const { isAuthenticated, isLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <section className="py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-        {isLoading ? (
+        {!mounted ? (
+          <div className="flex flex-col items-center">
+            <Skeleton className="mb-4 h-9 w-72 max-w-full" />
+            <Skeleton className="mb-8 h-5 w-80 max-w-full" />
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col items-center">
             <Skeleton className="mb-4 h-9 w-72 max-w-full" />
             <Skeleton className="mb-8 h-5 w-80 max-w-full" />

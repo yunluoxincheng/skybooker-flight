@@ -4,6 +4,8 @@ import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightSearchCard } from "@/components/common/FlightSearchCard"
 import { HomeCTA } from "@/components/common/HomeCTA"
 
+export const dynamic = "force-dynamic"
+
 const HOT_ROUTES = [
   { from: "上海", to: "北京", price: 890 },
   { from: "广州", to: "成都", price: 680 },
