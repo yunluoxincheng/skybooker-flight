@@ -135,6 +135,7 @@ export default function BookingPage() {
   )
   const selectedCabin = booking.cabins.find((cabin) => cabin.cabinClass === booking.selectedCabinClass)
   const totalPrice = selectedSeats.reduce((sum, s) => sum + s.price, 0)
+  const { flightBookable, unbookableReason } = booking
 
   // Auth loading
   if (isAuthLoading || (isAuthenticated && booking.isLoadingFlight)) {
@@ -225,8 +226,13 @@ export default function BookingPage() {
                   <p className="font-medium">{flight.arrivalCity}</p>
                 </div>
               </div>
+              {!flightBookable && unbookableReason && (
+                <div className="mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {unbookableReason}
+                </div>
+              )}
               <div className="flex justify-end mt-6">
-                <Button onClick={booking.nextStep}>
+                <Button onClick={booking.nextStep} disabled={!flightBookable}>
                   下一步 <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

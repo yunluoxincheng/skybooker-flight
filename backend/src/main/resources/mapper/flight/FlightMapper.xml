@@ -69,6 +69,8 @@
                 AND f.departure_time &lt; #{departureDate} + INTERVAL 1 DAY
             </when>
         </choose>
+        AND f.departure_time > NOW()
+        AND f.status IN ('ON_TIME', 'DELAYED')
     </sql>
 
     <sql id="advancedFilters">
