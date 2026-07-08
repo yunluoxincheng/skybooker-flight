@@ -158,6 +158,74 @@
         SELECT COUNT(*) FROM ticket_order
     </select>
 
+    <sql id="adminOrderWhere">
+        <where>
+            <if test="query.status != null and query.status != ''">
+                AND o.status = #{query.status}
+            </if>
+            <if test="query.orderNo != null and query.orderNo != ''">
+                AND o.order_no LIKE CONCAT('%', #{query.orderNo}, '%')
+            </if>
+            <if test="query.userId != null">
+                AND o.user_id = #{query.userId}
+            </if>
+            <if test="query.userKeyword != null and query.userKeyword != ''">
+                AND (u.email LIKE CONCAT('%', #{query.userKeyword}, '%')
+                  OR u.nickname LIKE CONCAT('%', #{query.userKeyword}, '%')
+                  OR u.real_name LIKE CONCAT('%', #{query.userKeyword}, '%')
+                  OR u.phone LIKE CONCAT('%', #{query.userKeyword}, '%'))
+            </if>
+            <if test="query.flightNo != null and query.flightNo != ''">
+                AND f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
+            </if>
+            <if test="query.flightKeyword != null and query.flightKeyword != ''">
+                AND (f.flight_no LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR al.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR da.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR da.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR aa.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR aa.name LIKE CONCAT('%', #{query.flightKeyword}, '%'))
+            </if>
+            <if test="query.departureDateStart != null and query.departureDateStart != ''">
+                AND f.departure_time &gt;= #{query.departureDateStart}
+            </if>
+            <if test="query.departureDateEnd != null and query.departureDateEnd != ''">
+                AND f.departure_time &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
+            </if>
+        </where>
+    </sql>
+
+    <select id="searchOrdersAdmin" resultMap="orderVOResult">
+        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+               al.name AS airline_name,
+               da.city AS departure_city, aa.city AS arrival_city,
+               f.departure_time, f.arrival_time,
+               o.user_id, u.email AS user_email, u.nickname AS user_nickname,
+               o.status,
+               o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
+               o.pay_time, o.expire_time, o.admin_note, o.created_at
+        FROM ticket_order o
+        JOIN flight f ON o.flight_id = f.id
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        JOIN users u ON o.user_id = u.id
+        <include refid="adminOrderWhere"/>
+        ORDER BY o.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countOrdersAdmin" resultType="long">
+        SELECT COUNT(*)
+        FROM ticket_order o
+        JOIN flight f ON o.flight_id = f.id
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        JOIN users u ON o.user_id = u.id
+        <include refid="adminOrderWhere"/>
+    </select>
+
     <update id="updateOrderFlightAndAmounts">
         UPDATE ticket_order
         SET flight_id = #{flightId},

@@ -1,6 +1,7 @@
 package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AdminCreateUserDTO;
+import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.auth.entity.User;
@@ -17,10 +18,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class AdminService {
+
+    private static final Set<String> VALID_ORDER_STATUSES = Set.of(
+            "PENDING_PAYMENT", "ISSUED", "CANCELLED", "REFUNDED", "CHANGED", "CHANGE_PENDING", "VOIDED");
 
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
@@ -115,10 +122,18 @@ public class AdminService {
     }
 
     public PageResponse<OrderVO> listOrders(int page, int size) {
-        int offset = (page - 1) * size;
-        List<OrderVO> orders = orderMapper.findAllOrders(offset, size);
-        long total = orderMapper.countAllOrders();
-        return new PageResponse<>(orders, total, page, size);
+        AdminOrderQueryDTO query = new AdminOrderQueryDTO();
+        query.setPage(page);
+        query.setSize(size);
+        return listOrders(query);
+    }
+
+    public PageResponse<OrderVO> listOrders(AdminOrderQueryDTO query) {
+        validateOrderQuery(query);
+        int offset = (query.getPage() - 1) * query.getSize();
+        List<OrderVO> orders = orderMapper.searchOrdersAdmin(query, offset, query.getSize());
+        long total = orderMapper.countOrdersAdmin(query);
+        return new PageResponse<>(orders, total, query.getPage(), query.getSize());
     }
 
     public OrderVO getOrderDetail(Long id) {
@@ -186,6 +201,32 @@ public class AdminService {
 
     private Long currentAdminId() {
         return operationLogService.currentAdminId();
+    }
+
+    private void validateOrderQuery(AdminOrderQueryDTO query) {
+        if (query.getPage() < 1 || query.getSize() < 1) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        validateEnum(query.getStatus(), VALID_ORDER_STATUSES);
+        validateDate(query.getDepartureDateStart());
+        validateDate(query.getDepartureDateEnd());
+    }
+
+    private void validateEnum(String value, Set<String> valid) {
+        if (value != null && !value.isBlank() && !valid.contains(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+    }
+
+    private void validateDate(String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        try {
+            LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     private UserAdminVO toUserAdminVO(User user) {

@@ -654,24 +654,41 @@ POST   /api/admin/flights/{id}/generate-seats
 ### 订单管理
 
 ```http
-GET    /api/admin/orders
-GET    /api/admin/orders/{id}
-POST   /api/admin/orders
-POST   /api/admin/orders/{id}/refund
-POST   /api/admin/orders/{id}/change
-POST   /api/admin/orders/{id}/void
-PATCH  /api/admin/orders/{id}/admin-note
-GET    /api/admin/orders/{id}/refunds
-GET    /api/admin/orders/{id}/changes
+GET    /api/admin/orders                         # 列表/筛选：?status&orderNo&userId&userKeyword&flightNo&flightKeyword&departureDateStart&departureDateEnd&page&size
+GET    /api/admin/orders/{id}                    # 兼容详情：订单 + 乘机人快照
+GET    /api/admin/orders/{id}/detail             # 增强详情：订单、乘机人、退票、改签、状态时间线
+POST   /api/admin/orders                         # 代普通用户下单
+POST   /api/admin/orders/{id}/refund             # 管理端退票
+GET    /api/admin/orders/{id}/change-options     # 管理端可改签航班候选
+POST   /api/admin/orders/{id}/change             # 管理端改签
+POST   /api/admin/orders/{id}/void               # 作废
+DELETE /api/admin/orders/{id}?type=delete        # 前端删除入口：受保护作废，不硬删
+PATCH  /api/admin/orders/{id}/admin-note         # 管理员备注
+GET    /api/admin/orders/{id}/refunds            # 退票记录
+GET    /api/admin/orders/{id}/changes            # 改签记录
+GET    /api/admin/passengers?userId={userId}     # 查询指定普通用户乘机人
+GET    /api/admin/flights/{flightId}/seats       # 查询指定航班座位图
 ```
 
-`POST /api/admin/orders` 用于管理员代普通用户下单，请求体为 `targetUserId`、`flightId` 和 `items[{passengerId, seatId}]`。订单创建仍复用普通下单规则：乘机人必须属于 `targetUserId`，座位必须可售，金额、锁座、余票扣减和乘客快照一致；创建后状态保持 `PENDING_PAYMENT`，不创建支付记录、不自动出票。
+`GET /api/admin/orders` 支持后台筛选条件：`status` 精确匹配订单状态，`orderNo` 模糊匹配订单号，`userId` 精确匹配用户，`userKeyword` 模糊匹配邮箱、昵称、姓名或手机号，`flightNo` 模糊匹配航班号，`flightKeyword` 模糊匹配航班号、航司、出发/到达城市或机场名，`departureDateStart`/`departureDateEnd` 按航班出发日期范围过滤。筛选条件必须同时作用于 `records` 和 `total`；非法状态或日期返回 `VALIDATION_ERROR`，不得静默返回未筛选列表。
+
+`GET /api/admin/orders/{id}/detail` 返回管理端专用详情模型，包含基础订单字段、乘机人快照、退票记录、改签记录和 `timeline[{eventType,status,description,occurredAt}]`。`GET /api/admin/orders/{id}` 保持兼容，仍返回原订单详情。
+
+`POST /api/admin/orders` 用于管理员代普通用户下单，请求体推荐使用 `targetUserId`、`flightId` 和 `items[{passengerId, seatId}]`。后端兼容旧前端字段 `userId`：当只传 `userId` 时按目标普通用户处理；当 `targetUserId` 与 `userId` 同时存在且不一致时返回 `VALIDATION_ERROR`。订单创建仍复用普通下单规则：乘机人必须属于目标用户，座位必须可售，金额、锁座、余票扣减和乘客快照一致；创建后状态保持 `PENDING_PAYMENT`，不创建支付记录、不自动出票。
 
 `POST /api/admin/orders/{id}/refund` 请求体为 `reason` 与可选 `force`。`reason` 必填；`force=true` 时管理员可绕过距起飞不足 2 小时的普通退票窗口，但座位释放、余票回补、候补兑现和手续费计算仍复用普通退票逻辑，强制场景按不足 24 小时档 30% 计费。
 
+`GET /api/admin/orders/{id}/change-options` 返回管理端可改签候选航班。候选规则与用户端一致：订单必须可改签，候选航班必须同出发/到达机场、已发布、未起飞、状态可售且余座满足订单乘机人数；该查询接口不使用 `force` 绕过 cutoff，`force` 只在提交改签时生效。
+
 `POST /api/admin/orders/{id}/change` 请求体为 `newFlightId`、`seatMappings[{passengerId,newSeatId}]`、`reason` 与可选 `force`。`force=true` 只绕过普通改签 cutoff，航线一致性、座位可用性、先占新座再放旧座、改签记录和金额重算规则不变，强制场景 `change_fee` 按 30% 档计费。
 
-`POST /api/admin/orders/{id}/void` 请求体为 `reason`。作废只允许 `CANCELLED` 或 `REFUNDED` 订单转为 `VOIDED`；非终态返回 `ORDER_NOT_VOIDABLE`。作废不修改座位、余票、支付、退票或改签记录。`PATCH /admin-note` 只允许更新 `ticket_order.admin_note`，其余订单字段不得自由编辑。
+`POST /api/admin/orders/{id}/void` 请求体为 `reason`。作废只允许 `CANCELLED` 或 `REFUNDED` 订单转为 `VOIDED`；非终态返回 `ORDER_NOT_VOIDABLE`。作废不修改座位、余票、支付、退票或改签记录。
+
+`DELETE /api/admin/orders/{id}?type=delete` 是前端删除按钮兼容入口，不做硬删除。请求必须提供 `reason`（JSON body 或查询参数），且只允许 `CANCELLED` 或 `REFUNDED` 订单按同一作废规则转为 `VOIDED`；不得物理删除 `ticket_order`、`order_passenger`、退票、改签、座位、航班或审计记录。非终态返回 `ORDER_NOT_VOIDABLE`，不支持的 `type` 返回 `VALIDATION_ERROR`。
+
+`GET /api/admin/passengers?userId=...` 仅允许查询普通用户乘机人，不允许查询管理员账号。`GET /api/admin/flights/{flightId}/seats` 返回座位图字段 `id/seatNo/cabinClass/seatType/price/status/version`，用于后台下单和改签选座。
+
+`PATCH /admin-note` 只允许更新 `ticket_order.admin_note`，其余订单字段不得自由编辑。
 
 上述订单写操作均记录 `admin_operation_log`；查询订单、退票记录和改签记录不写审计。
 
