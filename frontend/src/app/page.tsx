@@ -1,8 +1,8 @@
 import Link from "next/link"
 import { Plane, Sparkles, ArmchairIcon, ListPlus, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightSearchCard } from "@/components/common/FlightSearchCard"
+import { HomeCTA } from "@/components/common/HomeCTA"
 
 const HOT_ROUTES = [
   { from: "上海", to: "北京", price: 890 },
@@ -105,18 +105,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-            准备好开始你的旅程了吗？
-          </h2>
-          <p className="text-muted-foreground mb-8">
-            立即注册，体验 AI 智能购票的便捷
-          </p>
-          <Button render={<Link href="/register">免费注册</Link>} size="lg" nativeButton={false} />
-        </div>
-      </section>
+      <HomeCTA />
     </UserLayout>
   )
 }

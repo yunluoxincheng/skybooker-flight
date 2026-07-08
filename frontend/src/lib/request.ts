@@ -79,8 +79,10 @@ async function request<T>(
     clearTimeout(timer)
 
     if (res.status === 401) {
-      handleUnauthorized(auth)
-      throw new ApiError(401, "未登录或登录已过期")
+      if (auth !== "none") {
+        handleUnauthorized(auth)
+        throw new ApiError(401, "未登录或登录已过期")
+      }
     }
 
     const json: ApiResponse<T> = await res.json()
@@ -96,7 +98,13 @@ async function request<T>(
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new ApiError(0, "请求超时")
     }
-    throw new ApiError(0, err instanceof Error ? err.message : "网络错误")
+    if (err instanceof TypeError) {
+      throw new ApiError(0, "无法连接服务器，请检查网络或稍后重试")
+    }
+    if (err instanceof SyntaxError) {
+      throw new ApiError(0, "服务器异常，请稍后重试")
+    }
+    throw new ApiError(0, "网络错误")
   }
 }
 
