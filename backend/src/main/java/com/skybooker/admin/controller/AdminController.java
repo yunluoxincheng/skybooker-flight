@@ -44,9 +44,20 @@ public class AdminController {
 
     @GetMapping("/flights")
     public ApiResponse<PageResponse<FlightVO>> listFlights(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String flightNo,
+            @RequestParam(required = false) Long airlineId,
+            @RequestParam(required = false) String departureCity,
+            @RequestParam(required = false) String arrivalCity,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String publishStatus,
+            @RequestParam(required = false) String departureDateStart,
+            @RequestParam(required = false) String departureDateEnd,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(adminFlightService.listFlights(page, size));
+        return ApiResponse.success(adminFlightService.listFlights(
+                keyword, flightNo, airlineId, departureCity, arrivalCity,
+                status, publishStatus, departureDateStart, departureDateEnd, page, size));
     }
 
     @PostMapping("/flights")

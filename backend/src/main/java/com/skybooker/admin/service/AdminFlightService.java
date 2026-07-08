@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,11 +36,42 @@ public class AdminFlightService {
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
 
-    public PageResponse<FlightVO> listFlights(int page, int size) {
+    public PageResponse<FlightVO> listFlights(
+            String keyword, String flightNo, Long airlineId,
+            String departureCity, String arrivalCity,
+            String status, String publishStatus,
+            String departureDateStart, String departureDateEnd,
+            int page, int size) {
+        validateEnum(status, VALID_STATUSES);
+        validateEnum(publishStatus, VALID_PUBLISH_STATUSES);
+        validateDate(departureDateStart);
+        validateDate(departureDateEnd);
+
         int offset = (page - 1) * size;
-        List<FlightVO> records = flightMapper.searchAllFlights(offset, size);
-        long total = flightMapper.countAllFlights();
+        List<FlightVO> records = flightMapper.searchFlightsAdmin(
+                keyword, flightNo, airlineId, departureCity, arrivalCity,
+                status, publishStatus, departureDateStart, departureDateEnd, offset, size);
+        long total = flightMapper.countFlightsAdmin(
+                keyword, flightNo, airlineId, departureCity, arrivalCity,
+                status, publishStatus, departureDateStart, departureDateEnd);
         return new PageResponse<>(records, total, page, size);
+    }
+
+    /** 枚举白名单校验:空值放过(不过滤),非空但非法返回 VALIDATION_ERROR(不 500)。 */
+    private void validateEnum(String value, Set<String> valid) {
+        if (value != null && !value.isBlank() && !valid.contains(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+    }
+
+    /** 日期格式校验(yyyy-MM-dd):空值放过,非法格式返回 VALIDATION_ERROR(不 500)。 */
+    private void validateDate(String value) {
+        if (value == null || value.isBlank()) return;
+        try {
+            LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     @Transactional

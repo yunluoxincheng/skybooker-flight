@@ -366,14 +366,60 @@
         SELECT COUNT(*) FROM flight_seat WHERE flight_id = #{flightId}
     </select>
 
-    <select id="searchAllFlights" resultMap="flightVOResult">
+    <!-- 管理端航班搜索条件(keyword 模糊匹配航班号/航司名/航司代码/机场名/机场代码/城市) -->
+    <sql id="adminFlightWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (f.flight_no LIKE CONCAT('%', #{keyword}, '%')
+                  OR al.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR al.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.city LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.city LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="flightNo != null and flightNo != ''">
+                AND f.flight_no LIKE CONCAT('%', #{flightNo}, '%')
+            </if>
+            <if test="airlineId != null">
+                AND f.airline_id = #{airlineId}
+            </if>
+            <if test="departureCity != null and departureCity != ''">
+                AND da.city LIKE CONCAT('%', #{departureCity}, '%')
+            </if>
+            <if test="arrivalCity != null and arrivalCity != ''">
+                AND aa.city LIKE CONCAT('%', #{arrivalCity}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND f.status = #{status}
+            </if>
+            <if test="publishStatus != null and publishStatus != ''">
+                AND f.publish_status = #{publishStatus}
+            </if>
+            <if test="departureDateStart != null and departureDateStart != ''">
+                AND f.departure_time &gt;= #{departureDateStart}
+            </if>
+            <if test="departureDateEnd != null and departureDateEnd != ''">
+                AND f.departure_time &lt; #{departureDateEnd} + INTERVAL 1 DAY
+            </if>
+        </where>
+    </sql>
+
+    <select id="searchFlightsAdmin" resultMap="flightVOResult">
         <include refid="flightSelect"/>
+        <include refid="adminFlightWhere"/>
         ORDER BY f.created_at DESC
         LIMIT #{offset}, #{size}
     </select>
 
-    <select id="countAllFlights" resultType="long">
+    <select id="countFlightsAdmin" resultType="long">
         SELECT COUNT(*) FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        <include refid="adminFlightWhere"/>
     </select>
 
     <select id="findFlightByIdAnyStatus" resultMap="flightVOResult">
