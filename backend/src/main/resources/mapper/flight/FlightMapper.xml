@@ -118,6 +118,15 @@
         </if>
     </sql>
 
+    <sql id="cabinClassExists">
+        <if test="cabinClass != null and cabinClass != ''">
+            AND EXISTS (
+                SELECT 1 FROM flight_cabin fc
+                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+            )
+        </if>
+    </sql>
+
     <sql id="passengerCapacity">
         <if test="includeSoldOut == null or includeSoldOut == false">
             <choose>
@@ -160,6 +169,7 @@
         <include refid="flightSelect"/>
         <include refid="publishedWhere"/>
         <include refid="advancedFilters"/>
+        <include refid="cabinClassExists"/>
         <include refid="passengerCapacity"/>
         ORDER BY ${orderBy}
         LIMIT #{offset}, #{size}
@@ -173,6 +183,7 @@
         JOIN airport aa ON f.arrival_airport_id = aa.id
         <include refid="publishedWhere"/>
         <include refid="advancedFilters"/>
+        <include refid="cabinClassExists"/>
         <include refid="passengerCapacity"/>
     </select>
 
@@ -236,6 +247,7 @@
         <if test="directOnly != null and directOnly">
             AND f.direct_flag = 1
         </if>
+        <include refid="cabinClassExists"/>
         <include refid="passengerCapacity"/>
         ORDER BY ${orderBy}
         LIMIT #{limit}

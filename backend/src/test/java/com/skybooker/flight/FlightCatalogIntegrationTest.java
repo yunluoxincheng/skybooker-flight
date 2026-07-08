@@ -294,6 +294,18 @@ class FlightCatalogIntegrationTest {
                 .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].cabins[0].availableSeats", contains(0)));
     }
 
+    @Test
+    void searchFlights_includeSoldOutStillRequiresRequestedCabinToExist() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("flightNo", "CZ3101")
+                        .param("departureDate", tomorrowStr)
+                        .param("cabinClass", "BUSINESS")
+                        .param("includeSoldOut", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records").isEmpty());
+    }
+
     // --- Sort tests ---
 
     @Test
