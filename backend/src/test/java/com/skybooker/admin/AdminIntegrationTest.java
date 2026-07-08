@@ -785,7 +785,9 @@ class AdminIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.records[0].passwordHash").doesNotExist());
+                .andExpect(jsonPath("$.data.records[0].passwordHash").doesNotExist())
+                // DELETED 用户不展示在列表中(硬删不再产生 DELETED,此断言兼顾历史残留)
+                .andExpect(jsonPath("$.data.records[?(@.status == 'DELETED')]").isEmpty());
     }
 
     @Test
@@ -875,27 +877,34 @@ class AdminIntegrationTest {
     }
 
     @Test
-    void deleteUserSetsDeletedAndCannotBeEnabledOrLogin() throws Exception {
+    void deleteUserHardDeletesAndCannotBeEnabledOrLogin() throws Exception {
         String email = uniqueEmail("delete-target");
         Long userId = createCleanUser(email);
 
         mockMvc.perform(delete("/api/admin/users/{id}", userId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
-        String status = jdbcTemplate.queryForObject("SELECT status FROM users WHERE id = ?", String.class, userId);
-        org.assertj.core.api.Assertions.assertThat(status).isEqualTo("DELETED");
+        // 硬删除:记录被物理清除(而非 status='DELETED'),邮箱随记录释放
+        Integer remaining = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users WHERE id = ?",
+                Integer.class, userId);
+        org.assertj.core.api.Assertions.assertThat(remaining).isZero();
+        Integer emailTaken = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users WHERE email = ?",
+                Integer.class, email);
+        org.assertj.core.api.Assertions.assertThat(emailTaken).isZero();
 
+        // 记录不存在:enable 走 RESOURCE_NOT_FOUND(404);登录用户不存在返回 401
         mockMvc.perform(post("/api/admin/users/{id}/enable", userId)
                         .header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"%s\",\"password\":\"User@123456\"}".formatted(email)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void deleteUserRejectsActiveOrdersWaitlistProcessingRecordsAndAdminAccounts() throws Exception {
+    void deleteUserRejectsBusinessRecordsAndAdminAccounts() throws Exception {
+        // 硬删除:任何业务引用(FK RESTRICT)都阻断,统一返回 USER_HAS_BUSINESS_DATA(40024)。
         Long activeUserId = createCleanUser(uniqueEmail("active-business"));
         jdbcTemplate.update("""
                 INSERT INTO ticket_order(order_no, user_id, flight_id, status, total_amount)
@@ -904,7 +913,7 @@ class AdminIntegrationTest {
         mockMvc.perform(delete("/api/admin/users/{id}", activeUserId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40021));
+                .andExpect(jsonPath("$.code").value(40024));
 
         Long waitlistUserId = createCleanUser(uniqueEmail("waitlist-business"));
         jdbcTemplate.update("""
@@ -914,7 +923,7 @@ class AdminIntegrationTest {
         mockMvc.perform(delete("/api/admin/users/{id}", waitlistUserId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40022));
+                .andExpect(jsonPath("$.code").value(40024));
 
         Long pendingWaitlistUserId = createCleanUser(uniqueEmail("pending-waitlist-business"));
         jdbcTemplate.update("""
@@ -924,7 +933,7 @@ class AdminIntegrationTest {
         mockMvc.perform(delete("/api/admin/users/{id}", pendingWaitlistUserId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40022));
+                .andExpect(jsonPath("$.code").value(40024));
 
         Long processingUserId = createCleanUser(uniqueEmail("processing-business"));
         jdbcTemplate.update("""
@@ -941,12 +950,104 @@ class AdminIntegrationTest {
         mockMvc.perform(delete("/api/admin/users/{id}", processingUserId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40023));
+                .andExpect(jsonPath("$.code").value(40024));
 
         mockMvc.perform(delete("/api/admin/users/1")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40009));
+    }
+
+    @Test
+    void deleteCheck_returnsBlockReasonsForUserWithBusinessData() throws Exception {
+        Long userId = createCleanUser(uniqueEmail("check-blocked"));
+        jdbcTemplate.update("""
+                INSERT INTO ticket_order(order_no, user_id, flight_id, status, total_amount)
+                VALUES(?, ?, 1, 'ISSUED', 580.00)
+                """, unique("CHK"), userId);
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(false))
+                .andExpect(jsonPath("$.data.orderCount").value(1))
+                .andExpect(jsonPath("$.data.blockReasons").isArray())
+                .andExpect(jsonPath("$.data.blockReasons[0]").value(containsString("订单")));
+    }
+
+    @Test
+    void deleteCheck_returnsCanDeleteForCleanUser() throws Exception {
+        Long userId = createCleanUser(uniqueEmail("check-clean"));
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(true))
+                .andExpect(jsonPath("$.data.orderCount").value(0))
+                .andExpect(jsonPath("$.data.blockReasons").isEmpty());
+    }
+
+    @Test
+    void deleteCheck_protectsAdminAccount() throws Exception {
+        mockMvc.perform(get("/api/admin/users/1/delete-check")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40009));
+    }
+
+    @Test
+    void deleteCheck_notFound() throws Exception {
+        mockMvc.perform(get("/api/admin/users/99999/delete-check")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteCheck_blocksOnAiChatSession() throws Exception {
+        // ai_chat_session.user_id FK RESTRICT，用过 AI 助手的用户不能硬删
+        Long userId = createCleanUser(uniqueEmail("ai-session"));
+        jdbcTemplate.update(
+                "INSERT INTO ai_chat_session(public_session_id, user_id, status) VALUES(?, ?, 'ACTIVE')",
+                unique("AISESS"), userId);
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(false))
+                .andExpect(jsonPath("$.data.aiSessionCount").value(1))
+                .andExpect(jsonPath("$.data.blockReasons").isArray());
+
+        mockMvc.perform(delete("/api/admin/users/{id}", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40024));
+    }
+
+    @Test
+    void deleteCheck_blocksOnAiRecommendation() throws Exception {
+        Long userId = createCleanUser(uniqueEmail("ai-rec"));
+        // recommendation.session_id 是 NOT NULL FK → 先建一个 user_id=NULL 的匿名 session 锚定，
+        // 这样 aiSessionCount 保持 0，隔离验证 recommendation 的阻断
+        jdbcTemplate.update(
+                "INSERT INTO ai_chat_session(public_session_id, user_id, status) VALUES(?, NULL, 'ACTIVE')",
+                unique("ANON"));
+        Long sessionId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        jdbcTemplate.update(
+                "INSERT INTO ai_recommendation_record(session_id, user_id, query_text) VALUES(?, ?, 'test')",
+                sessionId, userId);
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(false))
+                .andExpect(jsonPath("$.data.aiSessionCount").value(0))
+                .andExpect(jsonPath("$.data.aiRecommendationCount").value(1))
+                .andExpect(jsonPath("$.data.blockReasons").isArray());
+
+        mockMvc.perform(delete("/api/admin/users/{id}", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40024));
     }
 
     @Test

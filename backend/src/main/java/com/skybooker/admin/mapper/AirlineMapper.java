@@ -32,4 +32,10 @@ public interface AirlineMapper {
     int update(Airline airline);
 
     int updateStatus(@Param("id") Long id, @Param("status") String status);
+
+    /**
+     * 物理删除航司。仅在 Service 层确认无关联航班后调用，
+     * 否则会被 flight.airline_id 的 FK RESTRICT 兜底拒绝。
+     */
+    int deleteById(@Param("id") Long id);
 }

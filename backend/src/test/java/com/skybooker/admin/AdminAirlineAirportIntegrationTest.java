@@ -7,11 +7,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
@@ -36,6 +38,9 @@ class AdminAirlineAirportIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private String adminToken;
     private String userToken;
@@ -312,6 +317,84 @@ class AdminAirlineAirportIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records.length()").value(1))
                 .andExpect(jsonPath("$.data.records[0].status").value("ENABLED"));
+    }
+
+    // ---- Delete (hard delete) ----
+
+    @Test
+    void deleteAirline_success() throws Exception {
+        String code = uniqueCode("AL");
+        Long id = createAirline(code, "删除测试航空");
+
+        mockMvc.perform(delete("/api/admin/airlines/" + id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        // 物理删除:列表不再返回该 code
+        mockMvc.perform(get("/api/admin/airlines")
+                        .param("keyword", code)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(0));
+    }
+
+    @Test
+    void deleteAirline_inUseBlocked() throws Exception {
+        // 种子航班关联的航司不可删除
+        List<Long> ids = jdbcTemplate.queryForList("SELECT DISTINCT airline_id FROM flight", Long.class);
+        org.assertj.core.api.Assertions.assertThat(ids).isNotEmpty();
+        Long inUseAirlineId = ids.get(0);
+
+        mockMvc.perform(delete("/api/admin/airlines/" + inUseAirlineId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40012));
+    }
+
+    @Test
+    void deleteAirline_notFound() throws Exception {
+        mockMvc.perform(delete("/api/admin/airlines/99999")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteAirport_success() throws Exception {
+        String code = uniqueCode("AP");
+        Long id = createAirport(code, "删除测试机场", "删除市");
+
+        mockMvc.perform(delete("/api/admin/airports/" + id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/airports")
+                        .param("keyword", code)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records.length()").value(0));
+    }
+
+    @Test
+    void deleteAirport_inUseBlocked() throws Exception {
+        List<Long> ids = jdbcTemplate.queryForList(
+                "SELECT DISTINCT departure_airport_id FROM flight", Long.class);
+        org.assertj.core.api.Assertions.assertThat(ids).isNotEmpty();
+        Long inUseAirportId = ids.get(0);
+
+        mockMvc.perform(delete("/api/admin/airports/" + inUseAirportId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40013));
+    }
+
+    @Test
+    void deleteAirline_rejectUserToken() throws Exception {
+        String code = uniqueCode("AL");
+        Long id = createAirline(code, "鉴权测试航空");
+
+        mockMvc.perform(delete("/api/admin/airlines/" + id)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
     }
 
     // ---- Auth Isolation ----

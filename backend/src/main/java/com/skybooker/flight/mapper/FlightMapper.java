@@ -135,6 +135,10 @@ public interface FlightMapper {
 
     boolean existsAirportById(@Param("id") Long id);
 
+    int countFlightsByAirlineId(@Param("airlineId") Long airlineId);
+
+    int countFlightsByAirportId(@Param("airportId") Long airportId);
+
     int countAvailableSeatsByFlightAndCabin(@Param("flightId") Long flightId,
                                             @Param("cabinClass") String cabinClass);
 
