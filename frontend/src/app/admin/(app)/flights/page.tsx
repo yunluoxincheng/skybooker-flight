@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -35,14 +42,27 @@ import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import * as adminApi from "@/services/adminApi"
 import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER, type CabinClass, type FlightVO } from "@/types/flight"
-import type { FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
+import type { AirlineVO, AirportVO, FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
+
+const selectNumberField = (label: string) =>
+  z.preprocess(
+    (value) => {
+      if (value === "" || value === undefined || value === null) return undefined
+      if (typeof value === "number") return Number.isNaN(value) ? undefined : value
+      const numericValue = Number(value)
+      return Number.isNaN(numericValue) ? undefined : numericValue
+    },
+    z.number({
+      message: `请选择${label}`,
+    }).min(1, `请选择${label}`)
+  )
 
 const flightSchema = z.object({
   flightNo: z.string().min(1, "请输入航班号"),
-  airlineId: z.coerce.number().min(1, "请输入航司ID"),
-  departureAirportId: z.coerce.number().min(1, "请输入出发机场ID"),
-  arrivalAirportId: z.coerce.number().min(1, "请输入到达机场ID"),
+  airlineId: selectNumberField("航空公司"),
+  departureAirportId: selectNumberField("出发机场"),
+  arrivalAirportId: selectNumberField("到达机场"),
   departureTime: z.string().min(1, "请选择出发时间"),
   arrivalTime: z.string().min(1, "请选择到达时间"),
   durationMinutes: z.coerce.number().min(1, "请输入飞行时长（分钟）"),
@@ -79,11 +99,15 @@ function hasValidCabinConfig(flight: FlightVO) {
 
 export default function AdminFlightsPage() {
   const [flights, setFlights] = useState<FlightVO[]>([])
+  const [airlines, setAirlines] = useState<AirlineVO[]>([])
+  const [airports, setAirports] = useState<AirportVO[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionErr, setActionErr] = useState<string | null>(null)
+  const [refsErr, setRefsErr] = useState<string | null>(null)
+  const [selectKey, setSelectKey] = useState(0)
 
   // 新增/编辑 Dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -108,6 +132,12 @@ export default function AdminFlightsPage() {
     defaultValues: { directFlag: true, basePrice: 500, totalSeats: 180, baggageAllowance: "20kg" },
   })
 
+  useEffect(() => {
+    register("airlineId")
+    register("departureAirportId")
+    register("arrivalAirportId")
+  }, [register])
+
   const fetchFlights = useCallback(async () => {
     try {
       const data = await adminApi.getFlights({ page, size: 10 })
@@ -121,12 +151,45 @@ export default function AdminFlightsPage() {
     }
   }, [page])
 
+  const fetchRefs = useCallback(async () => {
+    try {
+      const [airlineData, airportData] = await Promise.all([
+        adminApi.getAirlines({ page: 1, size: 100 }),
+        adminApi.getAirports({ page: 1, size: 100 }),
+      ])
+      setAirlines(airlineData.records)
+      setAirports(airportData.records)
+      setRefsErr(null)
+    } catch (err) {
+      setAirlines([])
+      setAirports([])
+      setRefsErr((err as ApiError).message || "加载航司和机场数据失败")
+    }
+  }, [])
+
   useEffect(() => { fetchFlights() }, [fetchFlights])
+  useEffect(() => { fetchRefs() }, [fetchRefs])
+
+  const selectableAirlines = useMemo(
+    () => airlines.filter((airline) => airline.status === "ENABLED" || airline.id === editingFlight?.airlineId),
+    [airlines, editingFlight]
+  )
+
+  const selectableDepartureAirports = useMemo(
+    () => airports.filter((airport) => airport.status === "ENABLED" || airport.id === editingFlight?.departureAirportId),
+    [airports, editingFlight]
+  )
+
+  const selectableArrivalAirports = useMemo(
+    () => airports.filter((airport) => airport.status === "ENABLED" || airport.id === editingFlight?.arrivalAirportId),
+    [airports, editingFlight]
+  )
 
   const openAdd = () => {
     setEditingFlight(null)
     reset({ directFlag: true, basePrice: 500, totalSeats: 180, baggageAllowance: "20kg" })
     setActionErr(null)
+    setSelectKey((current) => current + 1)
     setDialogOpen(true)
   }
 
@@ -134,7 +197,9 @@ export default function AdminFlightsPage() {
     setEditingFlight(f)
     setActionErr(null)
     setValue("flightNo", f.flightNo)
-    // FlightVO 不包含 airlineId/airportId，编辑时需要手动填入
+    setValue("airlineId", f.airlineId)
+    setValue("departureAirportId", f.departureAirportId)
+    setValue("arrivalAirportId", f.arrivalAirportId)
     setValue("departureTime", f.departureTime.slice(0, 16))
     setValue("arrivalTime", f.arrivalTime.slice(0, 16))
     setValue("durationMinutes", f.durationMinutes)
@@ -142,6 +207,7 @@ export default function AdminFlightsPage() {
     setValue("totalSeats", f.totalSeats)
     setValue("baggageAllowance", f.baggageAllowance)
     setValue("directFlag", Boolean(f.directFlag))
+    setSelectKey((current) => current + 1)
     setDialogOpen(true)
   }
 
@@ -388,6 +454,11 @@ export default function AdminFlightsPage() {
             {actionErr && (
               <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{actionErr}</div>
             )}
+            {refsErr && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {refsErr}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>航班号</Label>
@@ -395,18 +466,105 @@ export default function AdminFlightsPage() {
                 {errors.flightNo && <p className="text-xs text-destructive">{errors.flightNo.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>航司ID</Label>
-                <Input type="number" {...register("airlineId")} placeholder="1" />
+                <Label>航空公司</Label>
+                {selectableAirlines.length > 0 ? (
+                  <Select
+                    key={`airline-${selectKey}`}
+                    defaultValue={editingFlight ? String(editingFlight.airlineId) : undefined}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      setValue("airlineId", Number(value), { shouldDirty: true, shouldValidate: true })
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value) => {
+                          const airline = selectableAirlines.find((item) => String(item.id) === value)
+                          return airline ? `${airline.name} (${airline.code})` : "请选择航空公司"
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectableAirlines.map((airline) => (
+                        <SelectItem key={airline.id} value={String(airline.id)}>
+                          {airline.name} ({airline.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
+                    暂无可用航司，请先在航司管理中启用数据
+                  </div>
+                )}
                 {errors.airlineId && <p className="text-xs text-destructive">{errors.airlineId.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>出发机场ID</Label>
-                <Input type="number" {...register("departureAirportId")} placeholder="1" />
+                <Label>出发机场</Label>
+                {selectableDepartureAirports.length > 0 ? (
+                  <Select
+                    key={`departure-airport-${selectKey}`}
+                    defaultValue={editingFlight ? String(editingFlight.departureAirportId) : undefined}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      setValue("departureAirportId", Number(value), { shouldDirty: true, shouldValidate: true })
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value) => {
+                          const airport = selectableDepartureAirports.find((item) => String(item.id) === value)
+                          return airport ? `${airport.name} (${airport.code} - ${airport.city})` : "请选择出发机场"
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectableDepartureAirports.map((airport) => (
+                        <SelectItem key={airport.id} value={String(airport.id)}>
+                          {airport.name} ({airport.code} - {airport.city})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
+                    暂无可用机场，请先在机场管理中启用数据
+                  </div>
+                )}
                 {errors.departureAirportId && <p className="text-xs text-destructive">{errors.departureAirportId.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>到达机场ID</Label>
-                <Input type="number" {...register("arrivalAirportId")} placeholder="2" />
+                <Label>到达机场</Label>
+                {selectableArrivalAirports.length > 0 ? (
+                  <Select
+                    key={`arrival-airport-${selectKey}`}
+                    defaultValue={editingFlight ? String(editingFlight.arrivalAirportId) : undefined}
+                    onValueChange={(value) => {
+                      if (!value) return
+                      setValue("arrivalAirportId", Number(value), { shouldDirty: true, shouldValidate: true })
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value) => {
+                          const airport = selectableArrivalAirports.find((item) => String(item.id) === value)
+                          return airport ? `${airport.name} (${airport.code} - ${airport.city})` : "请选择到达机场"
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectableArrivalAirports.map((airport) => (
+                        <SelectItem key={airport.id} value={String(airport.id)}>
+                          {airport.name} ({airport.code} - {airport.city})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
+                    暂无可用机场，请先在机场管理中启用数据
+                  </div>
+                )}
                 {errors.arrivalAirportId && <p className="text-xs text-destructive">{errors.arrivalAirportId.message}</p>}
               </div>
               <div className="space-y-1.5">

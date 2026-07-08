@@ -46,6 +46,42 @@ export interface UserAdminVO {
   updatedAt?: string
 }
 
+export type AdminEntityStatus = "ENABLED" | "DISABLED"
+
+export interface AirlineVO {
+  id: number
+  code: string
+  name: string
+  logoUrl?: string
+  status: AdminEntityStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AirlineFormDTO {
+  code: string
+  name: string
+  logoUrl?: string
+}
+
+export interface AirportVO {
+  id: number
+  code: string
+  name: string
+  city: string
+  province?: string
+  status: AdminEntityStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AirportFormDTO {
+  code: string
+  name: string
+  city: string
+  province?: string
+}
+
 /** 航班表单 DTO（管理端） */
 export interface FlightFormDTO {
   flightNo: string

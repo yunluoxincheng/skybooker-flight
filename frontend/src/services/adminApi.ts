@@ -1,6 +1,10 @@
 import { get, post, put } from "@/lib/request"
 import type { AdminLoginResponse, AdminUser } from "@/types/auth"
 import type {
+  AirlineFormDTO,
+  AirlineVO,
+  AirportFormDTO,
+  AirportVO,
   DashboardSummaryVO,
   HotRouteVO,
   OrderStatusDistributionVO,
@@ -75,6 +79,50 @@ export function generateSeats(id: number) {
 
 export function updateFlightCabins(id: number, data: UpdateFlightCabinsDTO) {
   return put<FlightCabinVO[]>(`/admin/flights/${id}/cabins`, data, { auth: "admin" })
+}
+
+// ---- Airlines ----
+
+export function getAirlines(params?: Record<string, string | number | boolean | undefined>) {
+  return get<PageData<AirlineVO>>("/admin/airlines", params, { auth: "admin" })
+}
+
+export function createAirline(data: AirlineFormDTO) {
+  return post<AirlineVO>("/admin/airlines", data, { auth: "admin" })
+}
+
+export function updateAirline(id: number, data: Pick<AirlineFormDTO, "name" | "logoUrl">) {
+  return put<AirlineVO>(`/admin/airlines/${id}`, data, { auth: "admin" })
+}
+
+export function enableAirline(id: number) {
+  return post<null>(`/admin/airlines/${id}/enable`, undefined, { auth: "admin" })
+}
+
+export function disableAirline(id: number) {
+  return post<null>(`/admin/airlines/${id}/disable`, undefined, { auth: "admin" })
+}
+
+// ---- Airports ----
+
+export function getAirports(params?: Record<string, string | number | boolean | undefined>) {
+  return get<PageData<AirportVO>>("/admin/airports", params, { auth: "admin" })
+}
+
+export function createAirport(data: AirportFormDTO) {
+  return post<AirportVO>("/admin/airports", data, { auth: "admin" })
+}
+
+export function updateAirport(id: number, data: Omit<AirportFormDTO, "code">) {
+  return put<AirportVO>(`/admin/airports/${id}`, data, { auth: "admin" })
+}
+
+export function enableAirport(id: number) {
+  return post<null>(`/admin/airports/${id}/enable`, undefined, { auth: "admin" })
+}
+
+export function disableAirport(id: number) {
+  return post<null>(`/admin/airports/${id}/disable`, undefined, { auth: "admin" })
 }
 
 // ---- Orders ----
