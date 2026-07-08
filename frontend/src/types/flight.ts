@@ -36,11 +36,14 @@ export interface FlightCabinVO {
 export interface FlightVO {
   id: number
   flightNo: string
+  airlineId: number
   airlineCode: string
   airlineName: string
+  departureAirportId: number
   departureAirportCode: string
   departureAirportName: string
   departureCity: string
+  arrivalAirportId: number
   arrivalAirportCode: string
   arrivalAirportName: string
   arrivalCity: string

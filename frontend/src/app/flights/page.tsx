@@ -48,7 +48,7 @@ function FlightsContent() {
     { value: "00:00-06:00", label: "凌晨 00:00-06:00" },
     { value: "06:00-12:00", label: "上午 06:00-12:00" },
     { value: "12:00-18:00", label: "下午 12:00-18:00" },
-    { value: "18:00-24:00", label: "晚间 18:00-24:00" },
+    { value: "18:00-23:59", label: "晚间 18:00-23:59" },
   ]
 
   const SORT_OPTIONS = [

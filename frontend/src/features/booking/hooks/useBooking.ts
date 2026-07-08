@@ -6,6 +6,7 @@ import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as orderApi from "@/services/orderApi"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
+import { isFlightBookable } from "@/lib/flight-utils"
 import {
   CABIN_CLASS_ORDER,
   type CabinClass,
@@ -129,8 +130,18 @@ export function useBooking(flightId: number) {
 
   const nextStep = useCallback(() => {
     setState((s) => {
+      if (s.step === 0 && s.flight) {
+        const bookableResult = isFlightBookable(s.flight)
+        if (!bookableResult.bookable) {
+          return {
+            ...s,
+            error: bookableResult.reason || "该航班当前不可预订",
+          }
+        }
+      }
+
       const next = Math.min(s.step + 1, 3) as BookingStep
-      return { ...s, step: next }
+      return { ...s, step: next, error: null }
     })
   }, [])
 
@@ -236,11 +247,14 @@ export function useBooking(flightId: number) {
   const filteredSeats = state.selectedCabinClass
     ? state.seats.filter((seat) => seat.cabinClass === state.selectedCabinClass)
     : state.seats
+  const bookableResult = state.flight ? isFlightBookable(state.flight) : { bookable: false as const }
 
   return {
     ...state,
     cabins,
     filteredSeats,
+    flightBookable: bookableResult.bookable,
+    unbookableReason: bookableResult.bookable ? null : bookableResult.reason || "该航班当前不可预订",
     loadFlight,
     loadPassengers,
     goToStep,

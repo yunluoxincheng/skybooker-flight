@@ -14,6 +14,7 @@ import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
+import { isFlightBookable } from "@/lib/flight-utils"
 import * as flightApi from "@/services/flightApi"
 import type { FlightVO, FlightSeatVO } from "@/types/flight"
 import type { ApiError } from "@/lib/request"
@@ -76,6 +77,10 @@ export default function FlightDetailPage() {
   }
 
   const availableSeats = seats.filter((s) => s.status === "AVAILABLE").length
+  const bookableResult = isFlightBookable(flight)
+  const bookingButtonLabel = bookableResult.bookable
+    ? "立即预订"
+    : bookableResult.reason || "暂不可预订"
   const economySeats = seats.filter((s) => s.cabinClass === "ECONOMY" && s.status === "AVAILABLE").length
   const businessSeats = seats.filter((s) => s.cabinClass === "BUSINESS" && s.status === "AVAILABLE").length
   const firstSeats = seats.filter((s) => s.cabinClass === "FIRST" && s.status === "AVAILABLE").length
@@ -267,21 +272,27 @@ export default function FlightDetailPage() {
                   <FlightPriceTag price={flight.basePrice} className="text-2xl" />
                   <p className="text-xs text-muted-foreground mt-1">经济舱起</p>
                 </div>
-                <Button
-                  className="w-full"
-                  size="lg"
-                  disabled={availableSeats === 0}
-                  render={<Link href={`/booking/${flight.id}`}>
-                    {availableSeats > 0 ? "立即预订" : "已售罄"}
-                  </Link>}
-                  nativeButton={false}
-                />
-                {availableSeats > 0 && availableSeats < 10 && (
+                {bookableResult.bookable ? (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    render={<Link href={`/booking/${flight.id}`}>{bookingButtonLabel}</Link>}
+                    nativeButton={false}
+                  />
+                ) : (
+                  <Button className="w-full" size="lg" disabled>
+                    {bookingButtonLabel}
+                  </Button>
+                )}
+                {bookableResult.bookable && availableSeats < 10 && (
                   <p className="text-xs text-destructive">
                     仅剩 {availableSeats} 座，请尽快预订
                   </p>
                 )}
-                {availableSeats === 0 && (
+                {!bookableResult.bookable && bookableResult.reason && (
+                  <p className="text-xs text-muted-foreground">{bookableResult.reason}</p>
+                )}
+                {!bookableResult.bookable && flight.remainingSeats <= 0 && (
                   <div className="mt-3 pt-3 border-t">
                     <p className="text-xs text-muted-foreground mb-2">该航班已售罄</p>
                     <Button

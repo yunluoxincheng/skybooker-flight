@@ -100,3 +100,75 @@ export interface ChangeOrderResultVO {
   totalAmount: number
   passengers: OrderPassengerVO[]
 }
+
+/** 管理端创建订单 DTO */
+export interface CreateAdminOrderDTO {
+  userId: number
+  flightId: number
+  items: OrderItemDTO[]
+}
+
+/** 管理端更新订单 DTO */
+export interface UpdateAdminOrderDTO {
+  items?: OrderItemDTO[]
+}
+
+/** 管理端退票 DTO */
+export interface AdminRefundDTO {
+  reason: string
+  refundFee?: number
+}
+
+/** 退款记录 VO */
+export interface RefundRecordVO {
+  id: number
+  orderId: number
+  refundAmount: number
+  feeAmount: number
+  reason: string
+  status: string
+  createdAt: string
+  completedAt?: string
+}
+
+/** 改签记录 VO */
+export interface ChangeRecordVO {
+  id: number
+  orderNo: string
+  oldFlightNo: string
+  newFlightNo: string
+  oldDepartureTime: string
+  newDepartureTime: string
+  feeAmount: number
+  priceDiff: number
+  status: string
+  createdAt: string
+}
+
+/** 支付信息 VO */
+export interface PaymentInfoVO {
+  payTime?: string
+  payAmount?: number
+  payMethod?: string
+  tradeNo?: string
+}
+
+/** 状态流转项 */
+export interface OrderStatusTimelineItemVO {
+  status: OrderStatus
+  title?: string
+  description?: string
+  operatorName?: string
+  occurredAt?: string
+}
+
+/** 管理端增强订单详情 */
+export interface AdminOrderDetailVO extends OrderVO {
+  refundRecords: RefundRecordVO[]
+  changeRecords: ChangeRecordVO[]
+  paymentInfo?: PaymentInfoVO
+  statusTimeline: OrderStatusTimelineItemVO[]
+}
+
+/** 订单删除类型 */
+export type OrderDeleteType = "cancel" | "delete"

@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Plane, LayoutDashboard, PlaneTakeoff, Package, Users, Cpu } from "lucide-react"
+import { Plane, LayoutDashboard, PlaneTakeoff, Building2, MapPin, Package, Users, Cpu } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "数据看板", icon: LayoutDashboard },
   { href: "/admin/flights", label: "航班管理", icon: PlaneTakeoff },
+  { href: "/admin/airlines", label: "航司管理", icon: Building2 },
+  { href: "/admin/airports", label: "机场管理", icon: MapPin },
   { href: "/admin/orders", label: "订单管理", icon: Package },
   { href: "/admin/users", label: "用户管理", icon: Users },
   { href: "/admin/ai-config", label: "AI 配置", icon: Cpu },

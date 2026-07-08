@@ -35,6 +35,7 @@ export interface UserAdminVO {
   id: number
   email: string
   realName: string
+  nickname?: string
   phone?: string
   avatarUrl?: string
   role: "USER" | "ADMIN"
@@ -44,6 +45,60 @@ export interface UserAdminVO {
   lastLoginAt?: string
   createdAt: string
   updatedAt?: string
+}
+
+/** 管理端新增普通用户 DTO */
+export interface CreateUserAdminDTO {
+  email: string
+  realName: string
+  phone?: string
+  password: string
+}
+
+/** 删除用户前阻断信息 */
+export interface DeleteUserBlockInfoVO {
+  activeOrderCount: number
+  waitlistCount: number
+  pendingRefundCount: number
+  pendingChangeCount: number
+  canDelete: boolean
+  blockReasons: string[]
+}
+
+export type AdminEntityStatus = "ENABLED" | "DISABLED"
+
+export interface AirlineVO {
+  id: number
+  code: string
+  name: string
+  logoUrl?: string
+  status: AdminEntityStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AirlineFormDTO {
+  code: string
+  name: string
+  logoUrl?: string
+}
+
+export interface AirportVO {
+  id: number
+  code: string
+  name: string
+  city: string
+  province?: string
+  status: AdminEntityStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AirportFormDTO {
+  code: string
+  name: string
+  city: string
+  province?: string
 }
 
 /** 航班表单 DTO（管理端） */

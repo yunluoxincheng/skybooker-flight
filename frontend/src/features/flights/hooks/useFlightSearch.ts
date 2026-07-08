@@ -16,6 +16,13 @@ interface UseFlightSearchReturn {
   refresh: () => void
 }
 
+const SORT_BY_TO_ENUM: Record<string, string> = {
+  price: "PRICE_ASC",
+  duration: "DURATION_ASC",
+  departure: "TIME_ASC",
+  seats: "SEATS_DESC",
+}
+
 export function useFlightSearch(): UseFlightSearchReturn {
   const searchParams = useSearchParams()
   const [flights, setFlights] = useState<FlightVO[]>([])
@@ -39,7 +46,6 @@ export function useFlightSearch(): UseFlightSearchReturn {
       const directOnly = searchParams.get("directOnly")
       const departureTimeRange = searchParams.get("departureTimeRange")
       const sortBy = searchParams.get("sortBy")
-      const sortOrder = searchParams.get("sortOrder")
 
       if (departureCity) params.departureCity = departureCity
       if (arrivalCity) params.arrivalCity = arrivalCity
@@ -58,9 +64,8 @@ export function useFlightSearch(): UseFlightSearchReturn {
           params.departureTimeEnd = parts[1]
         }
       }
-      if (sortBy) {
-        const order = sortOrder || "asc"
-        params.sort = `${sortBy}_${order}`
+      if (sortBy && SORT_BY_TO_ENUM[sortBy]) {
+        params.sort = SORT_BY_TO_ENUM[sortBy]
       }
       params.page = page
       params.size = size
