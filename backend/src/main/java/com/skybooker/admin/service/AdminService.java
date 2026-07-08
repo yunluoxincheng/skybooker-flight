@@ -168,6 +168,8 @@ public class AdminService {
         int waitlist = authMapper.countAllWaitlistByUserId(userId);
         int refundOrChange = authMapper.countAllRefundOrChangeByUserId(userId);
         boolean oauthBound = authMapper.existsOauthBindingByUserId(userId);
+        int aiSessions = authMapper.countAiChatSessionsByUserId(userId);
+        int aiRecommendations = authMapper.countAiRecommendationsByUserId(userId);
 
         List<String> blockReasons = new ArrayList<>();
         if (orders > 0) blockReasons.add("存在 " + orders + " 笔订单记录");
@@ -175,9 +177,11 @@ public class AdminService {
         if (waitlist > 0) blockReasons.add("存在 " + waitlist + " 条候补记录");
         if (refundOrChange > 0) blockReasons.add("存在 " + refundOrChange + " 条退款/改签记录");
         if (oauthBound) blockReasons.add("已绑定第三方登录账号");
+        if (aiSessions > 0) blockReasons.add("存在 " + aiSessions + " 条 AI 对话记录");
+        if (aiRecommendations > 0) blockReasons.add("存在 " + aiRecommendations + " 条 AI 推荐记录");
 
         return new UserDeleteCheckVO(blockReasons.isEmpty(), orders, passengers, waitlist,
-                refundOrChange, oauthBound, blockReasons);
+                refundOrChange, oauthBound, aiSessions, aiRecommendations, blockReasons);
     }
 
     private Long currentAdminId() {

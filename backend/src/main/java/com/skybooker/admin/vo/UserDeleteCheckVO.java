@@ -15,6 +15,8 @@ public record UserDeleteCheckVO(
         int waitlistCount,
         int refundOrChangeCount,
         boolean oauthBound,
+        int aiSessionCount,
+        int aiRecommendationCount,
         List<String> blockReasons
 ) {
 }

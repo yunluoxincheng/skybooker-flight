@@ -120,6 +120,14 @@
         SELECT EXISTS(SELECT 1 FROM oauth_account WHERE user_id = #{userId})
     </select>
 
+    <select id="countAiChatSessionsByUserId" resultType="int">
+        SELECT COUNT(*) FROM ai_chat_session WHERE user_id = #{userId}
+    </select>
+
+    <select id="countAiRecommendationsByUserId" resultType="int">
+        SELECT COUNT(*) FROM ai_recommendation_record WHERE user_id = #{userId}
+    </select>
+
     <delete id="deleteUserById">
         DELETE FROM users WHERE id = #{id}
     </delete>

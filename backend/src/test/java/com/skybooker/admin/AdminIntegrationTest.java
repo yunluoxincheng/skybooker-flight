@@ -1003,6 +1003,54 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void deleteCheck_blocksOnAiChatSession() throws Exception {
+        // ai_chat_session.user_id FK RESTRICT，用过 AI 助手的用户不能硬删
+        Long userId = createCleanUser(uniqueEmail("ai-session"));
+        jdbcTemplate.update(
+                "INSERT INTO ai_chat_session(public_session_id, user_id, status) VALUES(?, ?, 'ACTIVE')",
+                unique("AISESS"), userId);
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(false))
+                .andExpect(jsonPath("$.data.aiSessionCount").value(1))
+                .andExpect(jsonPath("$.data.blockReasons").isArray());
+
+        mockMvc.perform(delete("/api/admin/users/{id}", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40024));
+    }
+
+    @Test
+    void deleteCheck_blocksOnAiRecommendation() throws Exception {
+        Long userId = createCleanUser(uniqueEmail("ai-rec"));
+        // recommendation.session_id 是 NOT NULL FK → 先建一个 user_id=NULL 的匿名 session 锚定，
+        // 这样 aiSessionCount 保持 0，隔离验证 recommendation 的阻断
+        jdbcTemplate.update(
+                "INSERT INTO ai_chat_session(public_session_id, user_id, status) VALUES(?, NULL, 'ACTIVE')",
+                unique("ANON"));
+        Long sessionId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        jdbcTemplate.update(
+                "INSERT INTO ai_recommendation_record(session_id, user_id, query_text) VALUES(?, ?, 'test')",
+                sessionId, userId);
+
+        mockMvc.perform(get("/api/admin/users/{id}/delete-check", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canDelete").value(false))
+                .andExpect(jsonPath("$.data.aiSessionCount").value(0))
+                .andExpect(jsonPath("$.data.aiRecommendationCount").value(1))
+                .andExpect(jsonPath("$.data.blockReasons").isArray());
+
+        mockMvc.perform(delete("/api/admin/users/{id}", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40024));
+    }
+
+    @Test
     void disableUserWithActiveOrdersIsRejected() throws Exception {
         mockMvc.perform(post("/api/admin/users/2/disable")
                         .header("Authorization", "Bearer " + adminToken))

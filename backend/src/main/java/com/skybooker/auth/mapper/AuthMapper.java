@@ -54,9 +54,13 @@ public interface AuthMapper {
 
     boolean existsOauthBindingByUserId(@Param("userId") Long userId);
 
+    int countAiChatSessionsByUserId(@Param("userId") Long userId);
+
+    int countAiRecommendationsByUserId(@Param("userId") Long userId);
+
     /**
      * 物理删除用户。仅在 Service 层确认零业务数据后调用,
-     * 否则会被 ticket_order / passenger 等表的 FK RESTRICT 兜底拒绝。
+     * 否则会被 ticket_order / passenger / ai_chat_session 等表的 FK RESTRICT 兜底拒绝。
      */
     int deleteUserById(@Param("id") Long id);
 }
