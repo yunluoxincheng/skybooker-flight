@@ -169,6 +169,16 @@ class AdminIntegrationTest {
                 .get("data").get("id").asLong();
     }
 
+    private Long createPassenger(Long userId, String prefix) {
+        jdbcTemplate.update("""
+                INSERT INTO passenger(user_id, name, id_card_no, passenger_type, phone)
+                VALUES(?, ?, ?, 'ADULT', ?)
+                """, userId, prefix + " Passenger", unique("IDCARD"), "13800000000");
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM passenger WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                Long.class, userId);
+    }
+
     private String unique(String prefix) {
         return prefix + "-" + RUN_ID + "-" + COUNTER.incrementAndGet();
     }
@@ -453,6 +463,45 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void adminCreateOrder_rejectsNonNormalOrNonUserTarget() throws Exception {
+        Long targetUserId = createCleanUser(uniqueEmail("target-status"));
+        Long passengerId = createPassenger(targetUserId, "Target Status");
+        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        String request = """
+                {
+                  "targetUserId": %d,
+                  "flightId": %d,
+                  "items": [{"passengerId": %d, "seatId": %d}]
+                }
+                """;
+
+        jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE id = ?", targetUserId);
+        mockMvc.perform(post("/api/admin/orders")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.formatted(targetUserId, flightId, passengerId, seatId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(10008));
+
+        jdbcTemplate.update("UPDATE users SET status = 'DELETED' WHERE id = ?", targetUserId);
+        mockMvc.perform(post("/api/admin/orders")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.formatted(targetUserId, flightId, passengerId, seatId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(10008));
+
+        jdbcTemplate.update("UPDATE users SET status = 'NORMAL', role = 'ADMIN' WHERE id = ?", targetUserId);
+        mockMvc.perform(post("/api/admin/orders")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.formatted(targetUserId, flightId, passengerId, seatId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40009));
+    }
+
+    @Test
     void adminCreateOrder_rejectsUnsellableFlightWithoutInventoryChange() throws Exception {
         Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
         Long seatId = getAvailableSeatId(flightId);
@@ -701,6 +750,16 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void corsPreflightAllowsPatchForAdminNote() throws Exception {
+        mockMvc.perform(options("/api/admin/orders/1/admin-note")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "PATCH")
+                        .header("Access-Control-Request-Headers", "Authorization,Content-Type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("PATCH")));
+    }
+
+    @Test
     void checkConstraintsAllowDeletedUsersAndVoidedOrders() throws Exception {
         Long userId = createCleanUser(uniqueEmail("check-status"));
         Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
@@ -853,6 +912,16 @@ class AdminIntegrationTest {
                 VALUES(?, ?, 1, 1, 'ECONOMY', 580.00, 'WAITING', NOW())
                 """, unique("WAIT"), waitlistUserId);
         mockMvc.perform(delete("/api/admin/users/{id}", waitlistUserId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40022));
+
+        Long pendingWaitlistUserId = createCleanUser(uniqueEmail("pending-waitlist-business"));
+        jdbcTemplate.update("""
+                INSERT INTO waitlist_order(waitlist_no, user_id, flight_id, passenger_count, cabin_class, pay_amount, status)
+                VALUES(?, ?, 1, 1, 'ECONOMY', 580.00, 'PENDING_PAYMENT')
+                """, unique("WAIT-PENDING"), pendingWaitlistUserId);
+        mockMvc.perform(delete("/api/admin/users/{id}", pendingWaitlistUserId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40022));

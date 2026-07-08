@@ -7,6 +7,8 @@ import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.entity.AdminUser;
 import com.skybooker.admin.mapper.AdminMapper;
+import com.skybooker.auth.entity.User;
+import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.change.entity.ChangeRecord;
 import com.skybooker.change.mapper.ChangeMapper;
 import com.skybooker.change.service.ChangeService;
@@ -33,6 +35,7 @@ import java.util.List;
 public class AdminOrderService {
 
     private final AdminMapper adminMapper;
+    private final AuthMapper authMapper;
     private final AdminOperationLogService operationLogService;
     private final OrderService orderService;
     private final RefundService refundService;
@@ -44,6 +47,7 @@ public class AdminOrderService {
     @Transactional
     public OrderVO createOrderForUser(AdminCreateOrderDTO dto) {
         Long adminUserId = currentAdminId();
+        requireNormalOrdinaryUser(dto.getTargetUserId());
         OrderVO order = orderService.createOrderCore(dto.getTargetUserId(), dto.toCreateOrderDTO());
         operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, order.getId(),
                 AdminOperationLogService.ACTION_ORDER_CREATE, null);
@@ -124,6 +128,22 @@ public class AdminOrderService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return order;
+    }
+
+    private void requireNormalOrdinaryUser(Long userId) {
+        User user = authMapper.findById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        if ("ADMIN".equals(user.getRole())) {
+            throw new BusinessException(ErrorCode.ADMIN_ACCOUNT_PROTECTED);
+        }
+        if (!"USER".equals(user.getRole())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        if (!"NORMAL".equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
+        }
     }
 
     private Long currentAdminId() {

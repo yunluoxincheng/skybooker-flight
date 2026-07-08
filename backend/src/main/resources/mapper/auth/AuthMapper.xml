@@ -72,7 +72,7 @@
             SELECT 1
             FROM waitlist_order
             WHERE user_id = #{userId}
-              AND status = 'WAITING'
+              AND status IN ('PENDING_PAYMENT','WAITING')
         )
     </select>
 
