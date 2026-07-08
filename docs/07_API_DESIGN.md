@@ -649,19 +649,44 @@ POST   /api/admin/flights/{id}/generate-seats
 ### 订单管理
 
 ```http
-GET /api/admin/orders
-GET /api/admin/orders/{id}
+GET    /api/admin/orders
+GET    /api/admin/orders/{id}
+POST   /api/admin/orders
+POST   /api/admin/orders/{id}/refund
+POST   /api/admin/orders/{id}/change
+POST   /api/admin/orders/{id}/void
+PATCH  /api/admin/orders/{id}/admin-note
+GET    /api/admin/orders/{id}/refunds
+GET    /api/admin/orders/{id}/changes
 ```
+
+`POST /api/admin/orders` 用于管理员代普通用户下单，请求体为 `targetUserId`、`flightId` 和 `items[{passengerId, seatId}]`。订单创建仍复用普通下单规则：乘机人必须属于 `targetUserId`，座位必须可售，金额、锁座、余票扣减和乘客快照一致；创建后状态保持 `PENDING_PAYMENT`，不创建支付记录、不自动出票。
+
+`POST /api/admin/orders/{id}/refund` 请求体为 `reason` 与可选 `force`。`reason` 必填；`force=true` 时管理员可绕过距起飞不足 2 小时的普通退票窗口，但座位释放、余票回补、候补兑现和手续费计算仍复用普通退票逻辑，强制场景按不足 24 小时档 30% 计费。
+
+`POST /api/admin/orders/{id}/change` 请求体为 `newFlightId`、`seatMappings[{passengerId,newSeatId}]`、`reason` 与可选 `force`。`force=true` 只绕过普通改签 cutoff，航线一致性、座位可用性、先占新座再放旧座、改签记录和金额重算规则不变，强制场景 `change_fee` 按 30% 档计费。
+
+`POST /api/admin/orders/{id}/void` 请求体为 `reason`。作废只允许 `CANCELLED` 或 `REFUNDED` 订单转为 `VOIDED`；非终态返回 `ORDER_NOT_VOIDABLE`。作废不修改座位、余票、支付、退票或改签记录。`PATCH /admin-note` 只允许更新 `ticket_order.admin_note`，其余订单字段不得自由编辑。
+
+上述订单写操作均记录 `admin_operation_log`；查询订单、退票记录和改签记录不写审计。
 
 ### 普通用户管理
 
 ```http
 GET  /api/admin/users
+POST /api/admin/users
+DELETE /api/admin/users/{id}
 POST /api/admin/users/{id}/disable
 POST /api/admin/users/{id}/enable
 ```
 
-普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口禁用 `role = ADMIN` 的管理员账号，也不能禁用当前登录管理员自身。管理员启停应通过单独的管理员管理能力扩展。
+普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口删除、禁用或启用 `role = ADMIN` 的管理员账号。
+
+`POST /api/admin/users` 创建普通用户，请求体为 `email`、`password`、`nickname`，可选 `phone`、`realName`。服务端固定写入 `role = USER`、`status = NORMAL`、`email_verified = 0`，使用 BCrypt 存储密码，不发送验证码或验证邮件；请求体中的未知 `role` 字段会被忽略，不能创建管理员账号。
+
+`DELETE /api/admin/users/{id}` 为逻辑删除，成功后把 `users.status` 置为 `DELETED`，不物理删除历史订单、乘机人或候补数据。删除和禁用前都必须校验目标用户没有 `PENDING_PAYMENT`、`ISSUED`、`CHANGED`、`CHANGE_PENDING` 订单，没有 `WAITING` 候补，没有处理中退票或改签；否则分别返回 `USER_HAS_ACTIVE_ORDERS`、`USER_HAS_PENDING_WAITLIST`、`USER_HAS_PROCESSING_REFUND_OR_CHANGE`。
+
+`POST /api/admin/users/{id}/enable` 仅允许 `DISABLED -> NORMAL`，不得把 `DELETED` 账号恢复。`DELETED` 和 `DISABLED` 用户都不能通过用户端登录或刷新 Token。
 
 ### AI LLM 配置管理
 

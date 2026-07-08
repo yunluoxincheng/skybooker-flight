@@ -24,6 +24,7 @@
         <result property="totalAmount" column="total_amount"/>
         <result property="payTime" column="pay_time"/>
         <result property="expireTime" column="expire_time"/>
+        <result property="adminNote" column="admin_note"/>
         <result property="createdAt" column="created_at"/>
     </resultMap>
 
@@ -63,7 +64,7 @@
     <select id="findById" resultType="com.skybooker.order.entity.TicketOrder">
         SELECT id, order_no, user_id, flight_id, status,
                ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
-               pay_time, expire_time, created_at, updated_at
+               pay_time, expire_time, admin_note, created_at, updated_at
         FROM ticket_order WHERE id = #{id}
     </select>
 
@@ -75,7 +76,7 @@
                o.user_id, u.email AS user_email, u.nickname AS user_nickname,
                o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
-               o.pay_time, o.expire_time, o.created_at
+               o.pay_time, o.expire_time, o.admin_note, o.created_at
         FROM ticket_order o
         JOIN flight f ON o.flight_id = f.id
         JOIN airline al ON f.airline_id = al.id
@@ -99,7 +100,7 @@
                o.user_id, u.email AS user_email, u.nickname AS user_nickname,
                o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
-               o.pay_time, o.expire_time, o.created_at,
+               o.pay_time, o.expire_time, o.admin_note, o.created_at,
                op.passenger_id AS op_passenger_id, op.passenger_name AS op_passenger_name,
                op.passenger_type AS op_passenger_type, op.seat_id AS op_seat_id,
                op.seat_no AS op_seat_no, op.ticket_price AS op_ticket_price
@@ -129,7 +130,7 @@
     <select id="findExpiredPendingOrders" resultType="com.skybooker.order.entity.TicketOrder">
         SELECT id, order_no, user_id, flight_id, status,
                ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
-               pay_time, expire_time, created_at, updated_at
+               pay_time, expire_time, admin_note, created_at, updated_at
         FROM ticket_order
         WHERE status = 'PENDING_PAYMENT' AND expire_time &lt; NOW()
     </select>
@@ -142,7 +143,7 @@
                o.user_id, u.email AS user_email, u.nickname AS user_nickname,
                o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
-               o.pay_time, o.expire_time, o.created_at
+               o.pay_time, o.expire_time, o.admin_note, o.created_at
         FROM ticket_order o
         JOIN flight f ON o.flight_id = f.id
         JOIN airline al ON f.airline_id = al.id
@@ -171,6 +172,11 @@
     <update id="updateOrderPassengerSeat">
         UPDATE order_passenger
         SET seat_id = #{seatId}, seat_no = #{seatNo}, ticket_price = #{ticketPrice}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAdminNote">
+        UPDATE ticket_order SET admin_note = #{adminNote}
         WHERE id = #{id}
     </update>
 

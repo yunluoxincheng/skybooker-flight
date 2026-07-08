@@ -40,6 +40,11 @@ public class OrderService {
     @Transactional
     public OrderVO createOrder(CreateOrderDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return createOrderCore(userId, dto);
+    }
+
+    @Transactional
+    public OrderVO createOrderCore(Long userId, CreateOrderDTO dto) {
         List<CreateOrderDTO.OrderItemDTO> items = dto.getItems();
         int passengerCount = items.size();
 
@@ -61,7 +66,7 @@ public class OrderService {
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
         order.setFlightId(flight.getId());
-        order.setStatus("PENDING_PAYMENT");
+        order.setStatus(TicketOrder.STATUS_PENDING_PAYMENT);
         order.setTicketAmount(ticketAmount);
         order.setAirportFee(airportFee);
         order.setFuelFee(fuelFee);
@@ -106,17 +111,17 @@ public class OrderService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if ("ISSUED".equals(order.getStatus())) {
+        if (TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
             return getOrderDetailForUser(orderId, userId);
         }
-        if (!"PENDING_PAYMENT".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
         if (order.getExpireTime() != null && order.getExpireTime().isBefore(LocalDateTime.now())) {
             throw new BusinessException(ErrorCode.ORDER_EXPIRED);
         }
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, "PENDING_PAYMENT", "ISSUED");
+        int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_PENDING_PAYMENT, TicketOrder.STATUS_ISSUED);
         if (cas == 0) {
             return getOrderDetailForUser(orderId, userId);
         }
@@ -154,14 +159,14 @@ public class OrderService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if ("CANCELLED".equals(order.getStatus())) {
+        if (TicketOrder.STATUS_CANCELLED.equals(order.getStatus())) {
             return getOrderDetailForUser(orderId, userId);
         }
-        if (!"PENDING_PAYMENT".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, "PENDING_PAYMENT", "CANCELLED");
+        int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_PENDING_PAYMENT, TicketOrder.STATUS_CANCELLED);
         if (cas == 0) {
             return getOrderDetailForUser(orderId, userId);
         }

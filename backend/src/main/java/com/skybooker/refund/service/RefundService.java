@@ -38,12 +38,17 @@ public class RefundService {
     @Transactional
     public RefundVO refundOrder(Long orderId, String reason) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return refundOrderCore(orderId, userId, reason, false);
+    }
+
+    @Transactional
+    public RefundVO refundOrderCore(Long orderId, Long userId, String reason, boolean force) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        if ("REFUNDED".equals(order.getStatus())) {
+        if (TicketOrder.STATUS_REFUNDED.equals(order.getStatus())) {
             return refundMapper.findByOrderId(orderId);
         }
 
@@ -52,7 +57,9 @@ public class RefundService {
         }
 
         Flight flight = flightMapper.findById(order.getFlightId());
-        validateRefundWindow(flight);
+        if (!force) {
+            validateRefundWindow(flight);
+        }
 
         BigDecimal feeRate = calculateFeeRate(flight);
         BigDecimal feeAmount = order.getTotalAmount().multiply(feeRate)
@@ -60,7 +67,7 @@ public class RefundService {
         BigDecimal refundAmount = order.getTotalAmount().subtract(feeAmount)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, order.getStatus(), "REFUNDED");
+        int cas = orderMapper.updateOrderStatusCAS(orderId, order.getStatus(), TicketOrder.STATUS_REFUNDED);
         if (cas == 0) {
             return refundMapper.findByOrderId(orderId);
         }
@@ -125,6 +132,6 @@ public class RefundService {
     }
 
     private boolean isRefundableStatus(String status) {
-        return "ISSUED".equals(status) || "CHANGED".equals(status);
+        return TicketOrder.STATUS_ISSUED.equals(status) || TicketOrder.STATUS_CHANGED.equals(status);
     }
 }

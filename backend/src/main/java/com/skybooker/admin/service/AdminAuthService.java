@@ -55,7 +55,7 @@ public class AdminAuthService {
         if (!"ADMIN".equals(user.getRole())) {
             throw new BusinessException(ErrorCode.ACCOUNT_TYPE_MISMATCH);
         }
-        if ("DISABLED".equals(user.getStatus())) {
+        if (!"NORMAL".equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
         if ("DISABLED".equals(adminUser.getStatus())) {
@@ -97,7 +97,7 @@ public class AdminAuthService {
         User user = adminUser == null ? null : authMapper.findById(userId);
         if (adminUser == null || user == null
                 || !"ADMIN".equals(user.getRole())
-                || "DISABLED".equals(user.getStatus())
+                || !"NORMAL".equals(user.getStatus())
                 || "DISABLED".equals(adminUser.getStatus())) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }

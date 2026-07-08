@@ -11,6 +11,7 @@ CANCELLED       已取消
 REFUNDED        已退票
 CHANGE_PENDING  改签处理中
 CHANGED         已改签
+VOIDED          已作废
 ```
 
 基础版本普通订单支付成功后直接进入 `ISSUED`。候补兑现成功时创建的正式订单也直接为 `ISSUED`。`PAID` 不作为基础状态，真实支付或异步出票扩展时再引入。
@@ -23,6 +24,8 @@ PENDING_PAYMENT -> CANCELLED
 ISSUED -> REFUNDED
 ISSUED -> CHANGED
 CHANGED -> REFUNDED
+CANCELLED -> VOIDED
+REFUNDED -> VOIDED
 ```
 
 约束：
@@ -33,7 +36,34 @@ CHANGED -> REFUNDED
 - `REFUNDED` 可由普通已出票订单或已改签订单退票产生；
 - 当前加分版本改签采用单步确认，成功后直接 `ISSUED -> CHANGED`；
 - `CHANGE_PENDING` 预留给后续真实支付差价、人工审核或异步出票流程，当前单步改签实现不得产生该状态；
+- `VOIDED` 只能由管理员从 `CANCELLED` 或 `REFUNDED` 终态进入，作废本身不释放座位、不回补余票、不修改支付、退票或改签记录；
+- `VOIDED` 为订单终态，支付、取消、退票和改签都必须拒绝；
 - 所有状态变更接口必须具备幂等语义，重复请求不能重复扣减或释放座位。
+
+## 1.1 用户状态
+
+```text
+NORMAL   正常
+DISABLED 已禁用
+DELETED  已逻辑删除
+```
+
+状态流转：
+
+```text
+NORMAL -> DISABLED
+DISABLED -> NORMAL
+NORMAL -> DELETED
+DISABLED -> DELETED
+```
+
+约束：
+
+- 管理端禁用和删除普通用户前必须检查目标用户没有未完成订单、进行中候补、处理中退票或改签；
+- `enable` 只允许 `DISABLED -> NORMAL`，必须使用条件更新防止并发或错误状态复活；
+- `DELETED` 是终态，不能再启用、禁用或删除；
+- 用户端认证只允许 `status = NORMAL`，`DISABLED` 和 `DELETED` 都不能登录或刷新 Token；
+- 管理端普通用户管理接口只能操作 `role = USER`，不得修改 `role = ADMIN` 账号。
 
 ## 2. 座位状态
 

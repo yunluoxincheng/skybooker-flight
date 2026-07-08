@@ -44,7 +44,7 @@ public class ChangeService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if (!"ISSUED".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
@@ -71,22 +71,29 @@ public class ChangeService {
     @Transactional
     public ChangeOrderResultVO changeOrder(Long orderId, ChangeOrderDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return changeOrderCore(orderId, userId, dto, false);
+    }
+
+    @Transactional
+    public ChangeOrderResultVO changeOrderCore(Long orderId, Long userId, ChangeOrderDTO dto, boolean force) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if ("CHANGED".equals(order.getStatus())) {
+        if (TicketOrder.STATUS_CHANGED.equals(order.getStatus())) {
             OrderVO detail = orderMapper.findDetailById(orderId);
             return new ChangeOrderResultVO(
                     detail.getId(), detail.getOrderNo(), detail.getStatus(),
                     detail.getFlightId(), detail.getTotalAmount(), detail.getPassengers());
         }
-        if (!"ISSUED".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
         Flight currentFlight = flightMapper.findById(order.getFlightId());
-        validateChangeCutoff(currentFlight);
+        if (!force) {
+            validateChangeCutoff(currentFlight);
+        }
 
         if (dto.getNewFlightId().equals(order.getFlightId())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -117,7 +124,7 @@ public class ChangeService {
         BigDecimal changeFee = order.getTotalAmount().multiply(changeFeeRate)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, "ISSUED", "CHANGED");
+        int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_ISSUED, TicketOrder.STATUS_CHANGED);
         if (cas == 0) {
             OrderVO detail = orderMapper.findDetailById(orderId);
             return new ChangeOrderResultVO(

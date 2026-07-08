@@ -16,4 +16,11 @@
         LIMIT 1
     </select>
 
+    <select id="findRecordsByOrderId" resultType="com.skybooker.refund.entity.RefundRecord">
+        SELECT id, order_id, user_id, reason, refund_amount, fee_amount, status, created_at
+        FROM refund_record
+        WHERE order_id = #{orderId}
+        ORDER BY created_at DESC, id DESC
+    </select>
+
 </mapper>

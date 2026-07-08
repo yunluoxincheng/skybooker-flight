@@ -36,6 +36,7 @@
 | ai_chat_message | AI 消息表 |
 | ai_recommendation_record | AI 推荐记录表 |
 | ai_llm_config | AI LLM 配置表 |
+| admin_operation_log | 管理端订单/用户维护审计日志表 |
 
 ## 2.1 约束策略
 
@@ -137,6 +138,7 @@ CANCELLED       已取消
 REFUNDED        已退票
 CHANGE_PENDING  改签处理中
 CHANGED         已改签
+VOIDED          已作废
 ```
 
 基础版本建议普通订单支付成功后直接进入 `ISSUED`，候补兑现创建的正式订单也直接为 `ISSUED`，不单独保留 `PAID`。如果后续接入真实支付和异步出票，再新增 `PAID` 作为中间状态。
@@ -148,6 +150,8 @@ CHANGED         已改签
 - 燃油费；
 - 手续费；
 - 总价。
+
+`admin_note VARCHAR(500) NULL` 保存管理员备注，是管理端唯一允许直接修改的订单字段。订单作废使用 `status = VOIDED` 表示逻辑作废，仅允许已释放库存的 `CANCELLED` / `REFUNDED` 订单进入该状态；作废不修改座位、余票、支付、退票或改签记录。
 
 ## 6. 候补订单表 waitlist_order
 
@@ -205,12 +209,37 @@ EXPIRED         支付超时
 
 保存 AI 助手 LLM provider 的运行时配置（单行表，应用层通过固定 `id = 1` 的 upsert 语义写入）。`api_key_cipher` 存 AES-GCM 加密后的 apiKey 密文，加密密钥来自环境变量 `AI_CONFIG_ENC_KEY`，明文 apiKey 不落库。表中无记录时，AI 助手回退到环境变量 `AI_LLM_*` 默认配置。三条 CHECK 约束：`enabled IN (0,1)`、`timeout_ms > 0`、`max_retries >= 0`；`updated_by` 记录最近一次修改该配置的管理员。
 
+### admin_operation_log 管理端操作审计表
+
+`admin_operation_log` 记录本次订单和普通用户维护能力引入或改造的管理端写操作，便于追踪谁在何时对哪个目标执行了什么动作。
+
+关键字段：
+
+- `admin_user_id`：执行操作的管理员资料 ID，外键关联 `admin_user.id`；
+- `target_type`：目标类型，当前为 `ORDER` 或 `USER`；
+- `target_id`：目标业务 ID；
+- `action`：动作，例如 `ORDER_CREATE`、`REFUND`、`REFUND_FORCE`、`CHANGE`、`CHANGE_FORCE`、`VOID`、`ADMIN_NOTE_UPDATE`、`USER_CREATE`、`USER_DELETE`、`USER_DISABLE`、`USER_ENABLE`；
+- `reason`：操作原因，可为空；
+- `created_at`：审计时间。
+
+该表只记录元数据，不保存密码哈希、Token、AI API key 等密钥材料。航班、座位和 AI LLM 配置等既有管理端写操作的审计策略不由本表变更。
+
+## 7.1 V11 管理维护迁移
+
+`V11__add_admin_order_user_maintenance.sql` 新增 `admin_operation_log` 表，给 `ticket_order` 增加 `admin_note` 列，并同步重建两个 V8 引入的 CHECK 约束：
+
+- `chk_ticket_order_status`：扩展为允许 `PENDING_PAYMENT`、`ISSUED`、`CANCELLED`、`REFUNDED`、`CHANGED`、`CHANGE_PENDING`、`VOIDED`；
+- `chk_users_status`：扩展为允许 `NORMAL`、`DISABLED`、`DELETED`。
+
+这两个约束必须先 `DROP CHECK` 再 `ADD CONSTRAINT`，否则新增的订单作废态和用户删除态会被数据库拒绝落库。
+
 ## 8. ER 关系概览
 
 ```mermaid
 erDiagram
   users ||--o{ passenger : has
   users ||--o{ ticket_order : places
+  admin_user ||--o{ admin_operation_log : writes
   flight ||--o{ flight_seat : has
   flight ||--o{ ticket_order : creates
   ticket_order ||--o{ order_passenger : contains
@@ -273,12 +302,14 @@ CREATE INDEX idx_waitlist_status_expire ON waitlist_order(status, expire_time);
 - `password_hash`：BCrypt 密码哈希；
 - `nickname`：用户昵称；
 - `role`：用户角色，默认为 `USER`；
-- `status`：账号状态，如 `NORMAL`、`DISABLED`；
+- `status`：账号状态，如 `NORMAL`、`DISABLED`、`DELETED`；
 - `email_verified`：邮箱是否已验证；
 - `phone_verified`：手机号是否已验证；
 - `last_login_at`：最近登录时间。
 
 管理员账号同样存储在 `users` 表中，使用 `role = ADMIN` 区分，不使用独立管理员密码表。用户端登录只允许 `role = USER`，管理端登录只允许 `role = ADMIN`。
+
+普通用户逻辑删除通过 `status = DELETED` 表示，不物理删除账号行。`DELETED` 为终态，不能被启用接口恢复；用户端登录和刷新 Token 只允许 `status = NORMAL`。
 
 ### admin_user 管理员扩展资料表
 

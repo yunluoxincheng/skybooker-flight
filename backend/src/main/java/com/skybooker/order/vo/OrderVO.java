@@ -33,6 +33,7 @@ public class OrderVO {
     private BigDecimal totalAmount;
     private LocalDateTime payTime;
     private LocalDateTime expireTime;
+    private String adminNote;
     private LocalDateTime createdAt;
     private List<OrderPassengerVO> passengers;
 
