@@ -81,8 +81,16 @@ async function request<T>(
     if (res.status === 401) {
       if (auth !== "none") {
         handleUnauthorized(auth)
+        throw new ApiError(401, "未登录或登录已过期")
       }
-      throw new ApiError(401, "未登录或登录已过期")
+
+      try {
+        const json: ApiResponse = await res.json()
+        throw new ApiError(401, json.message || "用户名或密码错误")
+      } catch (err) {
+        if (err instanceof ApiError) throw err
+        throw new ApiError(401, "用户名或密码错误")
+      }
     }
 
     const json: ApiResponse<T> = await res.json()
