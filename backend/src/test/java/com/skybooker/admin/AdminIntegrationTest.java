@@ -206,6 +206,59 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void listFlights_filterByKeyword() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(10));
+        String flightNo = jdbcTemplate.queryForObject(
+                "SELECT flight_no FROM flight WHERE id = ?", String.class, flightId);
+
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("keyword", flightNo)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                // keyword 模糊匹配应命中刚创建的航班
+                .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[0].flightNo").value(flightNo));
+    }
+
+    @Test
+    void listFlights_filterByStatusOnlyReturnsMatched() throws Exception {
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("status", "ON_TIME")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                // 返回结果要么为空,要么全是 ON_TIME(不混入其他状态)
+                .andExpect(jsonPath("$.data.records[?(@.status != 'ON_TIME')]").isEmpty());
+    }
+
+    @Test
+    void listFlights_invalidStatusRejected() throws Exception {
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("status", "BOGUS")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void listFlights_invalidDateRejected() throws Exception {
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("departureDateStart", "not-a-date")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void listFlights_invalidAirlineIdRejected() throws Exception {
+        // airlineId=abc 触发 MethodArgumentTypeMismatchException，GlobalExceptionHandler 友好返回 400（不 500）
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("airlineId", "abc")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
     void createFlight_success() throws Exception {
         FlightFormDTO dto = buildValidFlightForm();
 

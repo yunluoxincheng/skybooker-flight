@@ -626,19 +626,21 @@ POST   /api/admin/airlines                      # 新增：code / name / logoUrl
 PUT    /api/admin/airlines/{id}                 # 编辑：name / logoUrl（code 创建后不可改）
 POST   /api/admin/airlines/{id}/disable         # 禁用
 POST   /api/admin/airlines/{id}/enable          # 启用
+DELETE /api/admin/airlines/{id}                 # 物理删除（有关联航班返回 40012 阻断，无关联时删除）
 GET    /api/admin/airports                      # 列表/搜索：?keyword&status&page&size（keyword 命中 code/name/city）
 POST   /api/admin/airports                      # 新增：code / name / city / province
 PUT    /api/admin/airports/{id}                 # 编辑：name / city / province（code 创建后不可改）
 POST   /api/admin/airports/{id}/disable         # 禁用
 POST   /api/admin/airports/{id}/enable          # 启用
+DELETE /api/admin/airports/{id}                 # 物理删除（有关联航班返回 40013 阻断，无关联时删除）
 ```
 
-航司与机场是航班的基础资料，采用软状态（`status = ENABLED | DISABLED`），不提供物理删除——二者被 `flight` 外键引用，物理删除将破坏历史航班数据。新增/编辑航班表单以 `GET /api/admin/airlines?status=ENABLED` 与 `GET /api/admin/airports?status=ENABLED` 拉取候选项。`code` 为稳定标识，创建后不可修改；重复 `code` 新增分别返回 `40010 / 40011`。
+航司与机场是航班的基础资料，采用软状态（`status = ENABLED | DISABLED`），并提供物理删除：被 `flight` 外键引用时删除会被阻断（航司返回 `40012`、机场返回 `40013`），引导管理员对有航班的记录使用禁用；无关联航班时可物理删除。新增/编辑航班表单以 `GET /api/admin/airlines?status=ENABLED` 与 `GET /api/admin/airports?status=ENABLED` 拉取候选项。`code` 为稳定标识，创建后不可修改；重复 `code` 新增分别返回 `40010 / 40011`。
 
 ### 航班管理
 
 ```http
-GET    /api/admin/flights
+GET    /api/admin/flights                       # 列表/搜索：?keyword&flightNo&airlineId&departureCity&arrivalCity&status&publishStatus&departureDateStart&departureDateEnd&page&size（keyword 命中航班号/航司/机场/城市；非法枚举或日期返回 10003）
 POST   /api/admin/flights
 PUT    /api/admin/flights/{id}
 POST   /api/admin/flights/{id}/publish
