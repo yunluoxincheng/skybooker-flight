@@ -170,6 +170,41 @@ class FlightCatalogIntegrationTest {
     }
 
     @Test
+    void searchFlights_invalidTimeEnd24_returns400WithFriendlyMessage() throws Exception {
+        // 24:00 不是合法 LocalTime,应返回友好校验错误而非暴露 Java 类型转换细节
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("departureTimeStart", "18:00")
+                        .param("departureTimeEnd", "24:00"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003))
+                .andExpect(jsonPath("$.message").value(containsString("HH:mm")))
+                .andExpect(jsonPath("$.message").value(not(containsString("java.time"))));
+    }
+
+    @Test
+    void searchFlights_invalidSort_returns400WithLegalEnums() throws Exception {
+        // 非法 sort 不再静默回落默认排序,返回 400 并提示合法枚举
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "seats_asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003))
+                .andExpect(jsonPath("$.message").value(containsString("排序参数")))
+                .andExpect(jsonPath("$.message").value(containsString("SEATS_DESC")));
+    }
+
+    @Test
+    void searchFlights_validSortSeatsDesc_returns200() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "SEATS_DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
     void searchFlights_filterByMaxDuration() throws Exception {
         mockMvc.perform(get("/api/flights")
                         .param("departureDate", tomorrowStr)

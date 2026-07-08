@@ -472,6 +472,7 @@
           AND id != #{excludeFlightId}
           AND publish_status = 'PUBLISHED'
           AND departure_time > NOW()
+          AND departure_time >= #{earliestDepartureTime}
           AND status IN ('ON_TIME', 'DELAYED')
           AND remaining_seats >= #{passengerCount}
         ORDER BY departure_time

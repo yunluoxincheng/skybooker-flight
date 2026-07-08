@@ -63,6 +63,7 @@ public enum ErrorCode {
     WAITLIST_NOT_NEEDED(50004, "当前舱位余票充足，无需候补"),
     DUPLICATE_WAITLIST_PASSENGER(50005, "候补订单中存在重复乘机人"),
     CHANGE_WINDOW_CLOSED(50006, "改签窗口已关闭，距起飞不足2小时"),
+    CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL(50007, "改签航班出发时间需晚于原航班出发时间至少2小时"),
     AI_LLM_CONFIG_INVALID(10022, "LLM 配置校验失败");
 
     private final int code;
