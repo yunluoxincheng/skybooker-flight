@@ -1,9 +1,36 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { Eye, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import {
+  ArrowRightLeft,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  Undo2,
+} from "lucide-react"
+import { FlightPriceTag } from "@/components/common/FlightPriceTag"
+import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -12,45 +39,73 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
-import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
-import { FlightPriceTag } from "@/components/common/FlightPriceTag"
-import * as adminApi from "@/services/adminApi"
-import type { OrderVO } from "@/types/order"
+import { formatDateFull, formatTime } from "@/lib/date-utils"
 import type { ApiError } from "@/lib/request"
+import * as adminApi from "@/services/adminApi"
+import type { UserAdminVO } from "@/types/admin"
+import type { FlightVO } from "@/types/flight"
+import type { AdminOrderDetailVO, OrderDeleteType, OrderVO } from "@/types/order"
+import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
+import { DeleteCancelDialog } from "./_components/DeleteCancelDialog"
+import { OrderDetailSheet } from "./_components/OrderDetailSheet"
+import { OrderFormDialog } from "./_components/OrderFormDialog"
+import { RefundConfirmDialog } from "./_components/RefundConfirmDialog"
+
+type OrderFormMode = "create" | "edit"
+
+function formatDateTime(iso?: string | null) {
+  if (!iso) return "—"
+  return `${formatDateFull(iso)} ${formatTime(iso)}`
+}
+
+function toDetailPreview(order: OrderVO): AdminOrderDetailVO {
+  return {
+    ...order,
+    refundRecords: [],
+    changeRecords: [],
+    paymentInfo: {
+      payTime: order.payTime,
+      payAmount: order.totalAmount,
+    },
+    statusTimeline: [],
+  }
+}
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderVO[]>([])
+  const [users, setUsers] = useState<UserAdminVO[]>([])
+  const [flights, setFlights] = useState<FlightVO[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("ALL")
   const [orderNoFilter, setOrderNoFilter] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [refsLoading, setRefsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refsError, setRefsError] = useState<string | null>(null)
 
-  // 详情 Drawer
-  const [detailOrder, setDetailOrder] = useState<OrderVO | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [formMode, setFormMode] = useState<OrderFormMode>("create")
+  const [editingOrder, setEditingOrder] = useState<OrderVO | null>(null)
+
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailOrder, setDetailOrder] = useState<AdminOrderDetailVO | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  const [refundOrder, setRefundOrder] = useState<OrderVO | null>(null)
+  const [changeOrder, setChangeOrder] = useState<OrderVO | null>(null)
+  const [deleteOrder, setDeleteOrder] = useState<OrderVO | null>(null)
+  const [deleteInitialType, setDeleteInitialType] = useState<OrderDeleteType>("cancel")
 
   const fetchOrders = useCallback(async () => {
     try {
-      const params: Record<string, string | number | boolean | undefined> = { page, size: 10 }
-      if (statusFilter) params.status = statusFilter
-      if (orderNoFilter) params.orderNo = orderNoFilter
+      const params: Record<string, string | number | boolean | undefined> = {
+        page,
+        size: 10,
+      }
+      if (statusFilter !== "ALL") params.status = statusFilter
+      if (orderNoFilter.trim()) params.orderNo = orderNoFilter.trim()
+
       const data = await adminApi.getAdminOrders(params)
       setOrders(data.records)
       setTotal(data.total)
@@ -60,69 +115,146 @@ export default function AdminOrdersPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [page, statusFilter, orderNoFilter])
+  }, [orderNoFilter, page, statusFilter])
 
-  useEffect(() => { fetchOrders() }, [fetchOrders])
+  const fetchRefs = useCallback(async () => {
+    try {
+      const [userData, flightData] = await Promise.all([
+        adminApi.getUsers({ page: 1, size: 200, role: "USER" }),
+        adminApi.getPublishedFlights({ page: 1, size: 200 }),
+      ])
+      setUsers(userData.records)
+      setFlights(flightData.records)
+      setRefsError(null)
+    } catch (err) {
+      setUsers([])
+      setFlights([])
+      setRefsError((err as ApiError).message || "加载用户和航班参考数据失败")
+    } finally {
+      setRefsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
+
+  useEffect(() => {
+    fetchRefs()
+  }, [fetchRefs])
+
+  const refreshOrders = useCallback(async () => {
+    setIsLoading(true)
+    await fetchOrders()
+  }, [fetchOrders])
+
+  const openCreate = () => {
+    setFormMode("create")
+    setEditingOrder(null)
+    setFormOpen(true)
+  }
+
+  const openEdit = (order: OrderVO) => {
+    setFormMode("edit")
+    setEditingOrder(order)
+    setFormOpen(true)
+  }
 
   const openDetail = async (order: OrderVO) => {
-    setDetailOrder(order)
+    setDetailOpen(true)
+    setDetailOrder(toDetailPreview(order))
     setDetailLoading(true)
     try {
-      const fresh = await adminApi.getAdminOrderById(order.id)
+      const fresh = await adminApi.getAdminOrderDetailEnhanced(order.id)
       setDetailOrder(fresh)
     } catch {
-      // keep existing
+      setDetailOrder(toDetailPreview(order))
     } finally {
       setDetailLoading(false)
     }
-  }
-
-  const formatTime = (iso: string) => {
-    if (!iso) return ""
-    return new Date(iso).toLocaleString("zh-CN")
   }
 
   const totalPages = Math.max(1, Math.ceil(total / 10))
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">订单管理</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">订单管理</h1>
+          <p className="text-sm text-muted-foreground">
+            支持新增、编辑、退票、改签、作废和高风险删除操作。
+          </p>
+        </div>
+        <Button onClick={openCreate} disabled={refsLoading}>
+          <Plus className="h-4 w-4" />
+          新增订单
+        </Button>
+      </div>
 
-      {/* 筛选栏 */}
+      {refsError && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {refsError}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <Input
           placeholder="搜索订单号..."
           className="w-60"
           value={orderNoFilter}
-          onChange={(e) => { setIsLoading(true); setOrderNoFilter(e.target.value); setPage(1) }}
+          onChange={(event) => {
+            setIsLoading(true)
+            setOrderNoFilter(event.target.value)
+            setPage(1)
+          }}
         />
-        <Select value={statusFilter} onValueChange={(v) => { if (!v) return; setIsLoading(true); setStatusFilter(v); setPage(1) }}>
-          <SelectTrigger className="w-36">
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => {
+            setIsLoading(true)
+            setStatusFilter(value ?? "ALL")
+            setPage(1)
+          }}
+        >
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="全部">全部状态</SelectItem>
+            <SelectItem value="ALL">全部状态</SelectItem>
             <SelectItem value="PENDING_PAYMENT">待支付</SelectItem>
             <SelectItem value="ISSUED">已出票</SelectItem>
             <SelectItem value="CHANGED">已改签</SelectItem>
             <SelectItem value="REFUNDED">已退票</SelectItem>
             <SelectItem value="CANCELLED">已取消</SelectItem>
+            <SelectItem value="EXPIRED">已过期</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => { setIsLoading(true); setStatusFilter(""); setOrderNoFilter(""); setPage(1) }}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setIsLoading(true)
+            setStatusFilter("ALL")
+            setOrderNoFilter("")
+            setPage(1)
+          }}
+        >
           清除
         </Button>
       </div>
 
-      {/* Table */}
       {isLoading ? (
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-12 w-full rounded-lg" />
+          ))}
         </div>
       ) : error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center text-destructive">{error}</div>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center text-destructive">
+          {error}
+        </div>
       ) : (
-        <div className="rounded-xl border bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-xl border bg-white">
           <Table>
             <TableHeader>
               <TableRow>
@@ -132,30 +264,100 @@ export default function AdminOrdersPage() {
                 <TableHead>金额</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>创建时间</TableHead>
-                <TableHead className="w-[80px]">操作</TableHead>
+                <TableHead className="w-[96px]">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">暂无订单数据</TableCell>
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    暂无订单数据
+                  </TableCell>
                 </TableRow>
               ) : (
-                orders.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-mono text-xs">{o.orderNo}</TableCell>
-                    <TableCell>{o.userNickname || o.userEmail}</TableCell>
-                    <TableCell>{o.flightNo}</TableCell>
-                    <TableCell><FlightPriceTag price={o.totalAmount} className="text-sm" /></TableCell>
-                    <TableCell><OrderStatusBadge status={o.status} /></TableCell>
-                    <TableCell className="text-sm">{formatTime(o.createdAt)}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => openDetail(o)}>
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                orders.map((order) => {
+                  const canEdit = order.status === "ISSUED" || order.status === "PENDING_PAYMENT"
+                  const canRefund = order.status === "ISSUED" || order.status === "CHANGED"
+                  const canChange = order.status === "ISSUED"
+                  const canCancel =
+                    order.status === "PENDING_PAYMENT" ||
+                    order.status === "CANCELLED" ||
+                    order.status === "EXPIRED"
+
+                  return (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-mono text-xs">{order.orderNo}</TableCell>
+                      <TableCell>{order.userNickname || order.userEmail}</TableCell>
+                      <TableCell>{order.flightNo}</TableCell>
+                      <TableCell>
+                        <FlightPriceTag price={order.totalAmount} className="text-sm" />
+                      </TableCell>
+                      <TableCell>
+                        <OrderStatusBadge status={order.status} />
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDateTime(order.createdAt)}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button variant="ghost" size="icon-sm" aria-label="订单操作" />
+                            }
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openDetail(order)}>
+                              <Eye className="h-4 w-4" />
+                              查看详情
+                            </DropdownMenuItem>
+                            {canEdit && (
+                              <DropdownMenuItem onClick={() => openEdit(order)}>
+                                <Pencil className="h-4 w-4" />
+                                编辑
+                              </DropdownMenuItem>
+                            )}
+                            {canRefund && (
+                              <DropdownMenuItem onClick={() => setRefundOrder(order)}>
+                                <Undo2 className="h-4 w-4" />
+                                退票
+                              </DropdownMenuItem>
+                            )}
+                            {canChange && (
+                              <DropdownMenuItem onClick={() => setChangeOrder(order)}>
+                                <ArrowRightLeft className="h-4 w-4" />
+                                改签
+                              </DropdownMenuItem>
+                            )}
+                            {canCancel && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setDeleteOrder(order)
+                                    setDeleteInitialType("cancel")
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  作废订单
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => {
+                                setDeleteOrder(order)
+                                setDeleteInitialType("delete")
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              删除订单
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -164,81 +366,78 @@ export default function AdminOrdersPage() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => { setIsLoading(true); setPage(page - 1) }}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => {
+              setIsLoading(true)
+              setPage(page - 1)
+            }}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => { setIsLoading(true); setPage(page + 1) }}>
+          <span className="text-sm text-muted-foreground">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => {
+              setIsLoading(true)
+              setPage(page + 1)
+            }}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}
 
-      {/* 详情 Drawer */}
-      <Sheet open={!!detailOrder} onOpenChange={() => setDetailOrder(null)}>
-        <SheetContent className="w-[420px] sm:max-w-[420px] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>订单详情</SheetTitle>
-          </SheetHeader>
-          {detailLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : detailOrder ? (
-            <div className="space-y-4 mt-4">
-              <div>
-                <p className="text-xs text-muted-foreground">订单号</p>
-                <p className="font-mono text-sm">{detailOrder.orderNo}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">状态</p>
-                <OrderStatusBadge status={detailOrder.status} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">用户</p>
-                <p className="text-sm">{detailOrder.userNickname || "—"} ({detailOrder.userEmail})</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">航班</p>
-                <p className="text-sm">{detailOrder.airlineName} {detailOrder.flightNo}</p>
-                <p className="text-xs text-muted-foreground">
-                  {detailOrder.departureCity} → {detailOrder.arrivalCity}
-                  {detailOrder.departureTime && ` · ${formatTime(detailOrder.departureTime)}`}
-                </p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">乘机人</p>
-                {detailOrder.passengers.map((p) => (
-                  <div key={p.passengerId} className="flex justify-between text-sm py-1">
-                    <span>{p.passengerName}</span>
-                    <span className="text-muted-foreground">{p.seatNo} ¥{p.ticketPrice}</span>
-                  </div>
-                ))}
-              </div>
-              <Separator />
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">票价</span><span>¥{detailOrder.ticketAmount.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">机场建设费</span><span>¥{detailOrder.airportFee.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">燃油费</span><span>¥{detailOrder.fuelFee.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">服务费</span><span>¥{detailOrder.serviceFee.toLocaleString()}</span></div>
-                <Separator />
-                <div className="flex justify-between font-bold"><span>合计</span><FlightPriceTag price={detailOrder.totalAmount} /></div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">创建时间</p>
-                <p className="text-sm">{formatTime(detailOrder.createdAt)}</p>
-              </div>
-              {detailOrder.payTime && (
-                <div>
-                  <p className="text-xs text-muted-foreground">支付时间</p>
-                  <p className="text-sm">{formatTime(detailOrder.payTime)}</p>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+      <OrderFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        mode={formMode}
+        order={editingOrder}
+        users={users}
+        flights={flights}
+        onSuccess={refreshOrders}
+      />
+
+      <RefundConfirmDialog
+        open={Boolean(refundOrder)}
+        onOpenChange={(open) => {
+          if (!open) setRefundOrder(null)
+        }}
+        order={refundOrder}
+        onSuccess={refreshOrders}
+      />
+
+      <ChangeOrderDialog
+        open={Boolean(changeOrder)}
+        onOpenChange={(open) => {
+          if (!open) setChangeOrder(null)
+        }}
+        order={changeOrder}
+        onSuccess={refreshOrders}
+      />
+
+      <DeleteCancelDialog
+        open={Boolean(deleteOrder)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteOrder(null)
+        }}
+        order={deleteOrder}
+        initialType={deleteInitialType}
+        onSuccess={refreshOrders}
+      />
+
+      <OrderDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        order={detailOrder}
+        loading={detailLoading}
+      />
     </div>
   )
 }
