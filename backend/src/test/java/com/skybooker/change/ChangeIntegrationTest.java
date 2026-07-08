@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -270,6 +271,66 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
         assertThat(snapshot(fixture.orderId(), fixture.oldFlightId(), fixture.newFlightId(),
                 fixture.oldSeatIds(), fixture.newSeatIds())).isEqualTo(before);
+    }
+
+    @Test
+    void changeOptions_excludeFlightsEarlierThanOriginalPlus2Hours() throws Exception {
+        // 原航班 now+3天;改签候选需 departure_time >= 原航班出发时间 + 2h
+        LocalDateTime originalDep = LocalDateTime.now().plusDays(3);
+        Long oldFlightId = createFlight("OPTOLD", 1L, 3L, originalDep,
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+        // 候选A: 原航班+1h,晚于 NOW() 但早于原+2h,应被排除
+        Long earlyFlightId = createFlight("OPTA", 1L, 3L, originalDep.plusHours(1),
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+        // 候选B: 原航班+3h,合法
+        Long legalFlightId = createFlight("OPTB", 1L, 3L, originalDep.plusHours(3),
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+        // 候选C: 原航班+1天,合法
+        Long laterFlightId = createFlight("OPTC", 1L, 3L, originalDep.plusDays(1),
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+
+        List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 1);
+        Long orderId = createAndPayOrder(oldFlightId, List.of(1L), oldSeatIds);
+
+        MvcResult result = mockMvc.perform(get("/api/orders/" + orderId + "/change-options")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+
+        JsonNode records = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        Set<Long> candidateIds = new HashSet<>();
+        for (JsonNode r : records) {
+            candidateIds.add(r.path("flightId").asLong());
+        }
+        assertThat(candidateIds).doesNotContain(earlyFlightId);
+        assertThat(candidateIds).contains(legalFlightId, laterFlightId);
+    }
+
+    @Test
+    void changeOrder_rejectsNewFlightEarlierThanOriginalPlus2Hours() throws Exception {
+        // 原航班 now+3天;新航班原+1h(晚于 NOW 但早于原+2h),应被 CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL(50007) 拒绝
+        LocalDateTime originalDep = LocalDateTime.now().plusDays(3);
+        Long oldFlightId = createFlight("REJOLD", 1L, 3L, originalDep,
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+        Long newFlightId = createFlight("REJNEW", 1L, 3L, originalDep.plusHours(1),
+                new BigDecimal("600.00"), "ON_TIME", "PUBLISHED", 12);
+        List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 1);
+        Long orderId = createAndPayOrder(oldFlightId, List.of(1L), oldSeatIds);
+        List<Long> newSeatIds = getAvailableSeatIds(newFlightId, 1);
+
+        ChangeSnapshot before = snapshot(orderId, oldFlightId, newFlightId, oldSeatIds, newSeatIds);
+
+        ChangeOrderDTO dto = changeDto(newFlightId, List.of(mapping(1L, newSeatIds.get(0))));
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/change")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(50007));
+
+        assertThat(snapshot(orderId, oldFlightId, newFlightId, oldSeatIds, newSeatIds)).isEqualTo(before);
     }
 
     @Test

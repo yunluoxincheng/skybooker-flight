@@ -231,6 +231,8 @@ size
 
 `cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。
 
+`sort` 支持的枚举值:`DEFAULT`、`PRICE_ASC`、`DURATION_ASC`、`TIME_ASC`、`SEATS_DESC`、`PUNCTUAL_DESC`(大小写不敏感)。传入不支持的值返回 400 校验错误,不再静默回落默认排序。`departureTimeStart`/`departureTimeEnd` 使用 `HH:mm` 格式,合法区间 `00:00`~`23:59`;`24:00` 等非法时间返回 400 校验错误,不暴露后端类型转换细节。
+
 ### 航班详情
 
 ```http

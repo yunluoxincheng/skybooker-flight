@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -159,5 +160,6 @@ public interface FlightMapper {
     List<Flight> findSameRouteFlights(@Param("departureAirportId") Long departureAirportId,
                                       @Param("arrivalAirportId") Long arrivalAirportId,
                                       @Param("excludeFlightId") Long excludeFlightId,
-                                      @Param("passengerCount") int passengerCount);
+                                      @Param("passengerCount") int passengerCount,
+                                      @Param("earliestDepartureTime") LocalDateTime earliestDepartureTime);
 }
