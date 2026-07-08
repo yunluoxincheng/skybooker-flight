@@ -38,6 +38,7 @@ public class FlightRecommendationService {
                 condition.getDirectOnly(),
                 condition.getPassengerCount(),
                 condition.getCabinClass(),
+                condition.getIncludeSoldOut(),
                 orderBy,
                 DEFAULT_LIMIT
         );
@@ -72,6 +73,7 @@ public class FlightRecommendationService {
         addQueryParam(builder, "sort", condition.getSort());
         addQueryParam(builder, "passengerCount", condition.getPassengerCount());
         addQueryParam(builder, "cabinClass", condition.getCabinClass());
+        addQueryParam(builder, "includeSoldOut", condition.getIncludeSoldOut());
         return builder.build().encode().toUriString();
     }
 

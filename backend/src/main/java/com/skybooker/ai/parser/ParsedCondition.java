@@ -18,6 +18,7 @@ public class ParsedCondition {
     private LocalDate departureDateEnd;
     private Integer passengerCount;
     private String cabinClass;
+    private Boolean includeSoldOut;
     private String airlineRaw;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
