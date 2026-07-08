@@ -89,7 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         User user = authMapper.findById(userId);
-        if (user == null || "DISABLED".equals(user.getStatus())
+        if (user == null || !"NORMAL".equals(user.getStatus())
                 || !email.equals(user.getEmail()) || !role.equals(user.getRole())) {
             return false;
         }

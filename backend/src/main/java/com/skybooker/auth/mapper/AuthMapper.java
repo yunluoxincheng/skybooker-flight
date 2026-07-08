@@ -16,6 +16,8 @@ public interface AuthMapper {
 
     void insertUser(User user);
 
+    void insertByAdmin(User user);
+
     void updatePassword(@Param("id") Long id, @Param("passwordHash") String passwordHash);
 
     void insertVerificationCodeLog(@Param("target") String target,
@@ -29,4 +31,14 @@ public interface AuthMapper {
     long countUsersByRole(@Param("role") String role);
 
     void updateUserStatus(@Param("id") Long id, @Param("status") String status);
+
+    int updateStatusCAS(@Param("id") Long id,
+                        @Param("fromStatus") String fromStatus,
+                        @Param("toStatus") String toStatus);
+
+    int countActiveOrdersByUserId(@Param("userId") Long userId);
+
+    boolean existsPendingWaitlistByUserId(@Param("userId") Long userId);
+
+    boolean existsProcessingRefundOrChangeByUserId(@Param("userId") Long userId);
 }

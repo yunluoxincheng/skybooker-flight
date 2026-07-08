@@ -52,5 +52,7 @@ public interface OrderMapper {
                                   @Param("seatNo") String seatNo,
                                   @Param("ticketPrice") java.math.BigDecimal ticketPrice);
 
+    int updateAdminNote(@Param("id") Long id, @Param("adminNote") String adminNote);
+
     List<OrderPassenger> findPassengersByOrderId(@Param("orderId") Long orderId);
 }

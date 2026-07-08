@@ -1,9 +1,16 @@
 package com.skybooker.admin.controller;
 
+import com.skybooker.admin.dto.AdminChangeDTO;
+import com.skybooker.admin.dto.AdminCreateOrderDTO;
+import com.skybooker.admin.dto.AdminCreateUserDTO;
+import com.skybooker.admin.dto.AdminNoteDTO;
+import com.skybooker.admin.dto.AdminRefundDTO;
+import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
+import com.skybooker.admin.service.AdminOrderService;
 import com.skybooker.admin.service.AdminService;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
@@ -14,6 +21,10 @@ import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.vo.FlightCabinVO;
 import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.order.vo.OrderVO;
+import com.skybooker.refund.entity.RefundRecord;
+import com.skybooker.change.entity.ChangeRecord;
+import com.skybooker.change.vo.ChangeOrderResultVO;
+import com.skybooker.refund.vo.RefundVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +39,7 @@ public class AdminController {
     private final AdminFlightService adminFlightService;
     private final AdminService adminService;
     private final AdminDashboardService adminDashboardService;
+    private final AdminOrderService adminOrderService;
 
     @GetMapping("/flights")
     public ApiResponse<PageResponse<FlightVO>> listFlights(
@@ -88,11 +100,57 @@ public class AdminController {
         return ApiResponse.success(adminService.getOrderDetail(id));
     }
 
+    @PostMapping("/orders")
+    public ApiResponse<OrderVO> createOrderForUser(@Valid @RequestBody AdminCreateOrderDTO dto) {
+        return ApiResponse.success(adminOrderService.createOrderForUser(dto));
+    }
+
+    @PostMapping("/orders/{id}/refund")
+    public ApiResponse<RefundVO> refundOrder(@PathVariable Long id, @Valid @RequestBody AdminRefundDTO dto) {
+        return ApiResponse.success(adminOrderService.refund(id, dto));
+    }
+
+    @PostMapping("/orders/{id}/change")
+    public ApiResponse<ChangeOrderResultVO> changeOrder(@PathVariable Long id, @Valid @RequestBody AdminChangeDTO dto) {
+        return ApiResponse.success(adminOrderService.change(id, dto));
+    }
+
+    @PostMapping("/orders/{id}/void")
+    public ApiResponse<OrderVO> voidOrder(@PathVariable Long id, @Valid @RequestBody AdminVoidDTO dto) {
+        return ApiResponse.success(adminOrderService.voidOrder(id, dto));
+    }
+
+    @PatchMapping("/orders/{id}/admin-note")
+    public ApiResponse<OrderVO> updateAdminNote(@PathVariable Long id, @Valid @RequestBody AdminNoteDTO dto) {
+        return ApiResponse.success(adminOrderService.updateAdminNote(id, dto));
+    }
+
+    @GetMapping("/orders/{id}/refunds")
+    public ApiResponse<List<RefundRecord>> listRefundRecords(@PathVariable Long id) {
+        return ApiResponse.success(adminOrderService.listRefundRecords(id));
+    }
+
+    @GetMapping("/orders/{id}/changes")
+    public ApiResponse<List<ChangeRecord>> listChangeRecords(@PathVariable Long id) {
+        return ApiResponse.success(adminOrderService.listChangeRecords(id));
+    }
+
     @GetMapping("/users")
     public ApiResponse<PageResponse<UserAdminVO>> listUsers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ApiResponse.success(adminService.listUsers(page, size));
+    }
+
+    @PostMapping("/users")
+    public ApiResponse<UserAdminVO> createUser(@Valid @RequestBody AdminCreateUserDTO dto) {
+        return ApiResponse.success(adminService.createUser(dto));
+    }
+
+    @DeleteMapping("/users/{id}")
+    public ApiResponse<Void> deleteUser(@PathVariable Long id) {
+        adminService.deleteUser(id);
+        return ApiResponse.success();
     }
 
     @PostMapping("/users/{id}/disable")

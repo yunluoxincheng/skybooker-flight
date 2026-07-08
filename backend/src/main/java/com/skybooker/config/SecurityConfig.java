@@ -68,7 +68,7 @@ public class SecurityConfig {
                             .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
                             .requestMatchers("/api/auth/me")
                             .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
-                            // /api/admin/** 通配收敛为 ADMIN portal，含 /api/admin/ai/llm-config（GET/PUT LLM 运行时配置）
+                            // /api/admin/** 通配收敛为 ADMIN portal，覆盖本变更新增的订单/用户维护端点。
                             .requestMatchers("/api/admin/**")
                             .access((authSupplier, ctx) -> requireAdminPortal(authSupplier));
 
@@ -123,7 +123,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         // 显式 origin 列表（不可用 "*"，因 allowCredentials=true）；逗号分隔，来自 app.cors.allowed-origins
         config.setAllowedOrigins(List.of(corsAllowedOrigins));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
