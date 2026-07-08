@@ -224,12 +224,13 @@ directOnly
 status
 cabinClass
 passengerCount
+includeSoldOut
 sort
 page
 size
 ```
 
-`cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。
+`cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。候补入口可传 `includeSoldOut=true` 跳过 `cabinClass`/`passengerCount` 的可售余票过滤,以展示售罄航班或售罄舱位;默认不传或为 `false` 时保持普通购票搜索过滤不可售结果。响应仍返回 `remainingSeats` 和 `cabins[].availableSeats`,供前端决定展示“预订”或“加入候补”。
 
 `sort` 支持的枚举值:`DEFAULT`、`PRICE_ASC`、`DURATION_ASC`、`TIME_ASC`、`SEATS_DESC`、`PUNCTUAL_DESC`(大小写不敏感)。传入不支持的值返回 400 校验错误,不再静默回落默认排序。`departureTimeStart`/`departureTimeEnd` 使用 `HH:mm` 格式,合法区间 `00:00`~`23:59`;`24:00` 等非法时间返回 400 校验错误,不暴露后端类型转换细节。
 

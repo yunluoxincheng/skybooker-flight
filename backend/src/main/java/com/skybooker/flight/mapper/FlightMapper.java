@@ -48,6 +48,7 @@ public interface FlightMapper {
                                           @Param("status") String status,
                                           @Param("passengerCount") Integer passengerCount,
                                           @Param("cabinClass") String cabinClass,
+                                          @Param("includeSoldOut") Boolean includeSoldOut,
                                           @Param("orderBy") String orderBy,
                                           @Param("offset") int offset,
                                           @Param("size") int size);
@@ -67,7 +68,8 @@ public interface FlightMapper {
                                @Param("directOnly") Boolean directOnly,
                                @Param("status") String status,
                                @Param("passengerCount") Integer passengerCount,
-                               @Param("cabinClass") String cabinClass);
+                               @Param("cabinClass") String cabinClass,
+                               @Param("includeSoldOut") Boolean includeSoldOut);
 
     List<FlightVO> searchRecommendationFlights(@Param("departureCity") String departureCity,
                                                 @Param("arrivalCity") String arrivalCity,
@@ -83,6 +85,7 @@ public interface FlightMapper {
                                                 @Param("directOnly") Boolean directOnly,
                                                 @Param("passengerCount") Integer passengerCount,
                                                 @Param("cabinClass") String cabinClass,
+                                                @Param("includeSoldOut") Boolean includeSoldOut,
                                                 @Param("orderBy") String orderBy,
                                                 @Param("limit") int limit);
 

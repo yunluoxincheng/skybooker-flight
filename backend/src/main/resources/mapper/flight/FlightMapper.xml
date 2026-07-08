@@ -119,23 +119,25 @@
     </sql>
 
     <sql id="passengerCapacity">
-        <choose>
-            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
-                AND (
-                    SELECT COUNT(*) FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                ) >= #{passengerCount}
-            </when>
-            <when test="cabinClass != null and cabinClass != ''">
-                AND EXISTS (
-                    SELECT 1 FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                )
-            </when>
-            <when test="passengerCount != null and passengerCount > 0">
-                AND f.remaining_seats >= #{passengerCount}
-            </when>
-        </choose>
+        <if test="includeSoldOut == null or includeSoldOut == false">
+            <choose>
+                <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
+                    AND (
+                        SELECT COUNT(*) FROM flight_seat fs
+                        WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                    ) >= #{passengerCount}
+                </when>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (
+                        SELECT 1 FROM flight_seat fs
+                        WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                    )
+                </when>
+                <when test="passengerCount != null and passengerCount > 0">
+                    AND f.remaining_seats >= #{passengerCount}
+                </when>
+            </choose>
+        </if>
     </sql>
 
     <select id="searchFlights" resultMap="flightVOResult">
@@ -234,23 +236,7 @@
         <if test="directOnly != null and directOnly">
             AND f.direct_flag = 1
         </if>
-        <choose>
-            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
-                AND (
-                    SELECT COUNT(*) FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                ) >= #{passengerCount}
-            </when>
-            <when test="cabinClass != null and cabinClass != ''">
-                AND EXISTS (
-                    SELECT 1 FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                )
-            </when>
-            <when test="passengerCount != null and passengerCount > 0">
-                AND f.remaining_seats >= #{passengerCount}
-            </when>
-        </choose>
+        <include refid="passengerCapacity"/>
         ORDER BY ${orderBy}
         LIMIT #{limit}
     </select>

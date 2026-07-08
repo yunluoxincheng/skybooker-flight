@@ -38,6 +38,7 @@ public class FlightSearchDTO {
     private String sort;
     private Integer passengerCount;
     private String cabinClass;
+    private Boolean includeSoldOut;
 
     private Integer page = 1;
     private Integer size = 10;

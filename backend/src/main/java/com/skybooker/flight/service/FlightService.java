@@ -37,6 +37,7 @@ public class FlightService {
                 || dto.getStatus() != null
                 || dto.getPassengerCount() != null
                 || dto.getCabinClass() != null
+                || dto.getIncludeSoldOut() != null
                 || dto.getSort() != null;
 
         if (hasAdvanced) {
@@ -55,13 +56,14 @@ public class FlightService {
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
                     dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
-                    orderBy, offset, size);
+                    dto.getIncludeSoldOut(), orderBy, offset, size);
             long total = flightMapper.countFlightsAdvanced(
                     dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
                     dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
-                    dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass());
+                    dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
+                    dto.getIncludeSoldOut());
 
             return new PageResponse<>(records, total, page, size);
         }

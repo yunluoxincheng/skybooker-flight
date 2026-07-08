@@ -36,6 +36,14 @@ class FlightCatalogIntegrationTest {
                 "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
                         "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id BETWEEN 2 AND 5",
                 tomorrow, tomorrow);
+        jdbcTemplate.update("UPDATE flight SET remaining_seats = 29 WHERE id BETWEEN 2 AND 5");
+        jdbcTemplate.update("""
+                UPDATE flight_seat
+                SET status = CASE WHEN seat_no = '3A' THEN 'DISABLED' ELSE 'AVAILABLE' END,
+                    locked_by_order_id = NULL,
+                    lock_expire_time = NULL
+                WHERE flight_id BETWEEN 2 AND 5
+                """);
     }
 
     @Test
@@ -255,6 +263,35 @@ class FlightCatalogIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_includeSoldOutKeepsWaitlistCandidatesWithoutChangingDefault() throws Exception {
+        jdbcTemplate.update("UPDATE flight SET remaining_seats = 0 WHERE id = 2");
+        jdbcTemplate.update("UPDATE flight_seat SET status = 'SOLD' WHERE flight_id = 2 AND cabin_class = 'ECONOMY'");
+
+        mockMvc.perform(get("/api/flights")
+                        .param("departureCity", "上海")
+                        .param("arrivalCity", "北京")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "1")
+                        .param("cabinClass", "ECONOMY")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[*].flightNo", not(hasItem("CZ3101"))));
+
+        mockMvc.perform(get("/api/flights")
+                        .param("departureCity", "上海")
+                        .param("arrivalCity", "北京")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "1")
+                        .param("cabinClass", "ECONOMY")
+                        .param("includeSoldOut", "true")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[*].flightNo", hasItem("CZ3101")))
+                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].remainingSeats", contains(0)))
+                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].cabins[0].availableSeats", contains(0)));
     }
 
     // --- Sort tests ---
