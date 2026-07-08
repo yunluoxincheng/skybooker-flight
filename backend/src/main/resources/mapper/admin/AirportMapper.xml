@@ -58,4 +58,8 @@
         UPDATE airport SET status = #{status} WHERE id = #{id}
     </update>
 
+    <delete id="deleteById">
+        DELETE FROM airport WHERE id = #{id}
+    </delete>
+
 </mapper>

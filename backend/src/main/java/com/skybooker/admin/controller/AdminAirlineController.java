@@ -52,4 +52,10 @@ public class AdminAirlineController {
         adminAirlineService.enable(id);
         return ApiResponse.success();
     }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        adminAirlineService.delete(id);
+        return ApiResponse.success();
+    }
 }

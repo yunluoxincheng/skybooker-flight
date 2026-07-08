@@ -41,4 +41,22 @@ public interface AuthMapper {
     boolean existsPendingWaitlistByUserId(@Param("userId") Long userId);
 
     boolean existsProcessingRefundOrChangeByUserId(@Param("userId") Long userId);
+
+    // ---- 硬删除预检查:统计所有业务引用(FK RESTRICT 不分状态) ----
+
+    int countAllOrdersByUserId(@Param("userId") Long userId);
+
+    int countAllPassengersByUserId(@Param("userId") Long userId);
+
+    int countAllWaitlistByUserId(@Param("userId") Long userId);
+
+    int countAllRefundOrChangeByUserId(@Param("userId") Long userId);
+
+    boolean existsOauthBindingByUserId(@Param("userId") Long userId);
+
+    /**
+     * 物理删除用户。仅在 Service 层确认零业务数据后调用,
+     * 否则会被 ticket_order / passenger 等表的 FK RESTRICT 兜底拒绝。
+     */
+    int deleteUserById(@Param("id") Long id);
 }

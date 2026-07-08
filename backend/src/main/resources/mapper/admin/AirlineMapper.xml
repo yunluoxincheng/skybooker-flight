@@ -56,4 +56,8 @@
         UPDATE airline SET status = #{status} WHERE id = #{id}
     </update>
 
+    <delete id="deleteById">
+        DELETE FROM airline WHERE id = #{id}
+    </delete>
+
 </mapper>

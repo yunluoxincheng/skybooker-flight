@@ -16,6 +16,7 @@ import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
 import com.skybooker.admin.vo.UserAdminVO;
+import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.vo.FlightCabinVO;
@@ -145,6 +146,11 @@ public class AdminController {
     @PostMapping("/users")
     public ApiResponse<UserAdminVO> createUser(@Valid @RequestBody AdminCreateUserDTO dto) {
         return ApiResponse.success(adminService.createUser(dto));
+    }
+
+    @GetMapping("/users/{id}/delete-check")
+    public ApiResponse<UserDeleteCheckVO> deleteUserCheck(@PathVariable Long id) {
+        return ApiResponse.success(adminService.getUserDeleteCheck(id));
     }
 
     @DeleteMapping("/users/{id}")

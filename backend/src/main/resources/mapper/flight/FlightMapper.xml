@@ -389,6 +389,15 @@
         SELECT COUNT(*) > 0 FROM airport WHERE id = #{id}
     </select>
 
+    <select id="countFlightsByAirlineId" resultType="int">
+        SELECT COUNT(*) FROM flight WHERE airline_id = #{airlineId}
+    </select>
+
+    <select id="countFlightsByAirportId" resultType="int">
+        SELECT COUNT(*) FROM flight
+        WHERE departure_airport_id = #{airportId} OR arrival_airport_id = #{airportId}
+    </select>
+
     <select id="countAvailableSeatsByFlightAndCabin" resultType="int">
         SELECT COUNT(*)
         FROM flight_seat

@@ -1,15 +1,13 @@
 package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AdminCreateUserDTO;
-import com.skybooker.admin.entity.AdminUser;
-import com.skybooker.admin.mapper.AdminMapper;
 import com.skybooker.admin.vo.UserAdminVO;
+import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
-import com.skybooker.common.security.SecurityUtil;
 import com.skybooker.order.mapper.OrderMapper;
 import com.skybooker.order.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -25,7 +24,6 @@ public class AdminService {
 
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
-    private final AdminMapper adminMapper;
     private final AdminOperationLogService operationLogService;
     private final PasswordEncoder passwordEncoder;
 
@@ -61,6 +59,20 @@ public class AdminService {
         return toUserAdminVO(authMapper.findById(user.getId()));
     }
 
+    /**
+     * 用户删除预检查:聚合所有业务引用,返回明细供前端展示 CTA 与阻断原因。
+     * 仅校验账号存在且为普通用户;不抛业务阻断异常。
+     */
+    public UserDeleteCheckVO getUserDeleteCheck(Long userId) {
+        requireOrdinaryUser(userId);
+        return collectDeleteCheck(userId);
+    }
+
+    /**
+     * 物理删除用户(硬删除)。只有零业务数据的"干净账号"才能删除,
+     * 否则抛 {@link ErrorCode#USER_HAS_BUSINESS_DATA} 引导管理员改用 {@link #disableUser}。
+     * 应用层先拦给出友好错误,并发兜底由 ticket_order / passenger 等表的 FK RESTRICT 保证。
+     */
     @Transactional
     public void deleteUser(Long userId) {
         Long adminUserId = currentAdminId();
@@ -68,11 +80,11 @@ public class AdminService {
         if ("DELETED".equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
-        validateNoActiveBusiness(userId);
-        int updated = authMapper.updateStatusCAS(userId, user.getStatus(), "DELETED");
-        if (updated == 0) {
-            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
+        UserDeleteCheckVO check = collectDeleteCheck(userId);
+        if (!check.canDelete()) {
+            throw new BusinessException(ErrorCode.USER_HAS_BUSINESS_DATA);
         }
+        authMapper.deleteUserById(userId);
         operationLogService.log(adminUserId, AdminOperationLogService.TARGET_USER, userId,
                 AdminOperationLogService.ACTION_USER_DELETE, null);
     }
@@ -131,6 +143,10 @@ public class AdminService {
         return user;
     }
 
+    /**
+     * 禁用前的活跃业务校验:有未完成订单 / 进行中候补 / 处理中退改则拒绝。
+     * 这是"活跃"子集语义,与硬删除的"所有业务数据"校验({@link #collectDeleteCheck})不同。
+     */
     private void validateNoActiveBusiness(Long userId) {
         if (authMapper.countActiveOrdersByUserId(userId) > 0) {
             throw new BusinessException(ErrorCode.USER_HAS_ACTIVE_ORDERS);
@@ -143,12 +159,29 @@ public class AdminService {
         }
     }
 
+    /**
+     * 硬删除预检查:统计所有业务引用(FK RESTRICT 不分状态),聚合成可读的阻断原因。
+     */
+    private UserDeleteCheckVO collectDeleteCheck(Long userId) {
+        int orders = authMapper.countAllOrdersByUserId(userId);
+        int passengers = authMapper.countAllPassengersByUserId(userId);
+        int waitlist = authMapper.countAllWaitlistByUserId(userId);
+        int refundOrChange = authMapper.countAllRefundOrChangeByUserId(userId);
+        boolean oauthBound = authMapper.existsOauthBindingByUserId(userId);
+
+        List<String> blockReasons = new ArrayList<>();
+        if (orders > 0) blockReasons.add("存在 " + orders + " 笔订单记录");
+        if (passengers > 0) blockReasons.add("存在 " + passengers + " 个乘机人记录");
+        if (waitlist > 0) blockReasons.add("存在 " + waitlist + " 条候补记录");
+        if (refundOrChange > 0) blockReasons.add("存在 " + refundOrChange + " 条退款/改签记录");
+        if (oauthBound) blockReasons.add("已绑定第三方登录账号");
+
+        return new UserDeleteCheckVO(blockReasons.isEmpty(), orders, passengers, waitlist,
+                refundOrChange, oauthBound, blockReasons);
+    }
+
     private Long currentAdminId() {
-        AdminUser adminUser = adminMapper.findByUserId(SecurityUtil.getCurrentUserId());
-        if (adminUser == null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
-        return adminUser.getId();
+        return operationLogService.currentAdminId();
     }
 
     private UserAdminVO toUserAdminVO(User user) {
