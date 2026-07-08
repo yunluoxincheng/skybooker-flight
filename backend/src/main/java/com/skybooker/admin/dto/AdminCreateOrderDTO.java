@@ -7,12 +7,14 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Objects;
 
 @Data
 public class AdminCreateOrderDTO {
 
-    @NotNull(message = "目标用户ID不能为空")
     private Long targetUserId;
+
+    private Long userId;
 
     @NotNull(message = "航班ID不能为空")
     private Long flightId;
@@ -20,6 +22,17 @@ public class AdminCreateOrderDTO {
     @NotEmpty(message = "订单项不能为空")
     @Valid
     private List<CreateOrderDTO.OrderItemDTO> items;
+
+    public Long resolveTargetUserId() {
+        if (targetUserId != null && userId != null && !Objects.equals(targetUserId, userId)) {
+            return null;
+        }
+        return targetUserId != null ? targetUserId : userId;
+    }
+
+    public boolean hasConflictingUserAlias() {
+        return targetUserId != null && userId != null && !Objects.equals(targetUserId, userId);
+    }
 
     public CreateOrderDTO toCreateOrderDTO() {
         CreateOrderDTO dto = new CreateOrderDTO();

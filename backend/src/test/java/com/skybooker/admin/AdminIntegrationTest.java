@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -461,6 +462,62 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void listOrders_filtersByStatusAndOrderNoAndRejectsInvalidStatus() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
+        String orderNo = jdbcTemplate.queryForObject(
+                "SELECT order_no FROM ticket_order WHERE id = ?", String.class, orderId);
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .param("status", "PENDING_PAYMENT")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[?(@.status != 'PENDING_PAYMENT')]").isEmpty())
+                .andExpect(jsonPath("$.data.total").value(greaterThanOrEqualTo(1)));
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .param("orderNo", orderNo)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value(orderId));
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .param("orderNo", "NO_SUCH_ORDER_SHOULD_NOT_MATCH")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records.length()").value(0));
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .param("status", "BOGUS")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void listOrders_filtersByUserFlightAndDepartureDate() throws Exception {
+        LocalDateTime departureTime = LocalDateTime.now().plusDays(12);
+        Long flightId = createPublishedFlight(departureTime);
+        Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
+        String flightNo = "UF" + COUNTER.incrementAndGet();
+        jdbcTemplate.update("UPDATE flight SET flight_no = ? WHERE id = ?", flightNo, flightId);
+        LocalDate departureDate = departureTime.toLocalDate();
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .param("userId", "2")
+                        .param("flightNo", flightNo)
+                        .param("departureDateStart", departureDate.toString())
+                        .param("departureDateEnd", departureDate.toString())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[?(@.id == %d)]".formatted(orderId)).isNotEmpty())
+                .andExpect(jsonPath("$.data.records[?(@.flightNo != '%s')]".formatted(flightNo)).isEmpty());
+    }
+
+    @Test
     void getOrderDetail_success() throws Exception {
         mockMvc.perform(get("/api/admin/orders/1")
                         .header("Authorization", "Bearer " + adminToken))
@@ -469,6 +526,24 @@ class AdminIntegrationTest {
                 .andExpect(jsonPath("$.data.orderNo").value("DEMO202605260001"))
                 .andExpect(jsonPath("$.data.passengers").isArray())
                 .andExpect(jsonPath("$.data.passengers.length()").value(1));
+    }
+
+    @Test
+    void getEnhancedOrderDetail_returnsAggregatesAndTimeline() throws Exception {
+        mockMvc.perform(get("/api/admin/orders/1/detail")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.orderNo").value("DEMO202605260001"))
+                .andExpect(jsonPath("$.data.passengers").isArray())
+                .andExpect(jsonPath("$.data.refunds").isArray())
+                .andExpect(jsonPath("$.data.changes").isArray())
+                .andExpect(jsonPath("$.data.timeline").isArray())
+                .andExpect(jsonPath("$.data.timeline").isNotEmpty());
+
+        mockMvc.perform(get("/api/admin/orders/99999/detail")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -494,6 +569,53 @@ class AdminIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(auditCount).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(remainingSeats).isEqualTo(11);
         org.assertj.core.api.Assertions.assertThat(orderStatus).isEqualTo("PENDING_PAYMENT");
+    }
+
+    @Test
+    void adminCreateOrder_acceptsUserIdAliasAndRejectsConflictingAlias() throws Exception {
+        Long aliasFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long aliasSeatId = getAvailableSeatId(aliasFlightId);
+
+        mockMvc.perform(post("/api/admin/orders")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": 2,
+                                  "flightId": %d,
+                                  "items": [{"passengerId": 1, "seatId": %d}]
+                                }
+                                """.formatted(aliasFlightId, aliasSeatId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userId").value(2))
+                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
+
+        Long conflictUserId = createCleanUser(uniqueEmail("conflict-alias"));
+        Long conflictFlightId = createPublishedFlight(LocalDateTime.now().plusDays(8));
+        Long conflictSeatId = getAvailableSeatId(conflictFlightId);
+        Integer remainingBefore = jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, conflictFlightId);
+
+        mockMvc.perform(post("/api/admin/orders")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "targetUserId": 2,
+                                  "userId": %d,
+                                  "flightId": %d,
+                                  "items": [{"passengerId": 1, "seatId": %d}]
+                                }
+                                """.formatted(conflictUserId, conflictFlightId, conflictSeatId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        Integer remainingAfter = jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, conflictFlightId);
+        String seatStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, conflictSeatId);
+        org.assertj.core.api.Assertions.assertThat(remainingAfter).isEqualTo(remainingBefore);
+        org.assertj.core.api.Assertions.assertThat(seatStatus).isEqualTo("AVAILABLE");
     }
 
     @Test
@@ -742,6 +864,49 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void adminHelperReads_returnPassengersSeatsAndChangeOptions() throws Exception {
+        Long oldFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long newFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long orderId = createAdminOrder(oldFlightId, getAvailableSeatId(oldFlightId));
+        mockMvc.perform(post("/api/orders/{id}/pay", orderId)
+                        .header("Authorization", "Bearer " + loginAsUser()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/orders/{id}/change-options", orderId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.flightId == %d)]".formatted(newFlightId)).isNotEmpty());
+
+        mockMvc.perform(get("/api/admin/passengers")
+                        .param("userId", "2")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].passengerType").value("ADULT"));
+
+        mockMvc.perform(get("/api/admin/passengers")
+                        .param("userId", "1")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40009));
+
+        mockMvc.perform(get("/api/admin/flights/{id}/seats", oldFlightId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(12))
+                .andExpect(jsonPath("$.data[0].seatNo").exists());
+
+        String userToken = loginAsUser();
+        mockMvc.perform(get("/api/admin/passengers")
+                        .param("userId", "2")
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/admin/flights/{id}/seats", oldFlightId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void adminVoidAndAdminNoteOnlyTouchOrderMetadata() throws Exception {
         Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
@@ -800,6 +965,64 @@ class AdminIntegrationTest {
                                 }
                                 """.formatted(newFlightId, getAvailableSeatId(newFlightId))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminDeleteOrderAsVoidNeverHardDeletesAndValidatesInputs() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
+        String userToken = loginAsUser();
+        mockMvc.perform(post("/api/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+        Integer remainingBeforeDelete = jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId);
+
+        mockMvc.perform(delete("/api/admin/orders/{id}", orderId)
+                        .param("type", "delete")
+                        .param("reason", "ops cleanup")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("VOIDED"));
+
+        Integer orderRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM ticket_order WHERE id = ?", Integer.class, orderId);
+        Integer passengerRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM order_passenger WHERE order_id = ?", Integer.class, orderId);
+        Integer remainingAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId);
+        org.assertj.core.api.Assertions.assertThat(orderRows).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(passengerRows).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(remainingAfterDelete).isEqualTo(remainingBeforeDelete);
+        org.assertj.core.api.Assertions.assertThat(countAudit(orderId, "VOID")).isEqualTo(1);
+
+        Long pendingFlightId = createPublishedFlight(LocalDateTime.now().plusDays(8));
+        Long pendingOrderId = createAdminOrder(pendingFlightId, getAvailableSeatId(pendingFlightId));
+        mockMvc.perform(delete("/api/admin/orders/{id}", pendingOrderId)
+                        .param("type", "delete")
+                        .param("reason", "not terminal")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40020));
+        org.assertj.core.api.Assertions.assertThat(countAudit(pendingOrderId, "VOID")).isZero();
+
+        Long missingReasonFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long missingReasonOrderId = createAdminOrder(missingReasonFlightId, getAvailableSeatId(missingReasonFlightId));
+        mockMvc.perform(post("/api/orders/{id}/cancel", missingReasonOrderId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/api/admin/orders/{id}", missingReasonOrderId)
+                        .param("type", "delete")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        mockMvc.perform(delete("/api/admin/orders/{id}", missingReasonOrderId)
+                        .param("type", "hard")
+                        .param("reason", "unsupported")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
     }
 
     @Test

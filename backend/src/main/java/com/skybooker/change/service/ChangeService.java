@@ -40,8 +40,16 @@ public class ChangeService {
 
     public List<ChangeOptionVO> listChangeOptions(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return listChangeOptionsCore(orderId, userId);
+    }
+
+    public List<ChangeOptionVO> listChangeOptionsForAdmin(Long orderId) {
+        return listChangeOptionsCore(orderId, null);
+    }
+
+    private List<ChangeOptionVO> listChangeOptionsCore(Long orderId, Long userId) {
         TicketOrder order = orderMapper.findById(orderId);
-        if (order == null || !order.getUserId().equals(userId)) {
+        if (order == null || (userId != null && !order.getUserId().equals(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
