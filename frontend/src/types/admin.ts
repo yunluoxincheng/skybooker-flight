@@ -39,7 +39,7 @@ export interface UserAdminVO {
   phone?: string
   avatarUrl?: string
   role: "USER" | "ADMIN"
-  status: "NORMAL" | "DISABLED"
+  status: "NORMAL" | "DISABLED" | "DELETED"
   emailVerified: boolean
   phoneVerified: boolean
   lastLoginAt?: string

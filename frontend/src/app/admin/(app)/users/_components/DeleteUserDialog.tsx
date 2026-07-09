@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { getDisplayName } from "@/lib/user-utils"
 import type { DeleteUserBlockInfoVO, UserAdminVO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
@@ -30,8 +29,8 @@ function buildFallbackBlockInfo(): DeleteUserBlockInfoVO {
     waitlistCount: 0,
     pendingRefundCount: 0,
     pendingChangeCount: 0,
-    canDelete: false,
-    blockReasons: [],
+    canDelete: true,
+    blockReasons: ["预检查暂不可用，删除结果以后端实际为准"],
   }
 }
 
@@ -41,18 +40,18 @@ export function DeleteUserDialog({
   user,
   onSuccess,
 }: DeleteUserDialogProps) {
-  const [deleteType, setDeleteType] = useState<"soft" | "hard">("soft")
   const [checkInfo, setCheckInfo] = useState<DeleteUserBlockInfoVO | null>(null)
   const [isChecking, setIsChecking] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open || !user) return
 
-    setDeleteType("soft")
     setCheckInfo(null)
     setError(null)
+    setInfo(null)
     setIsSubmitting(false)
     setIsChecking(true)
 
@@ -62,7 +61,11 @@ export function DeleteUserDialog({
         setCheckInfo(data)
       })
       .catch((err: ApiError) => {
-        setError(err.message || "检查删除条件失败")
+        if (err.code === 404) {
+          setInfo("删除预检查接口暂未上线，系统将直接执行删除")
+        } else {
+          setError(err.message || "检查删除条件失败")
+        }
         setCheckInfo(buildFallbackBlockInfo())
       })
       .finally(() => setIsChecking(false))
@@ -73,7 +76,7 @@ export function DeleteUserDialog({
     setIsSubmitting(true)
     setError(null)
     try {
-      await adminApi.deleteAdminUser(user.id, deleteType)
+      await adminApi.deleteAdminUser(user.id, "soft")
       onOpenChange(false)
       await onSuccess?.()
     } catch (err) {
@@ -90,17 +93,15 @@ export function DeleteUserDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>删除用户</DialogTitle>
-          <DialogDescription>
-            删除前会先校验订单、候补、退款和改签等阻断条件。
-          </DialogDescription>
+          <DialogDescription>删除后用户将从当前管理列表中移除，请确认后继续。</DialogDescription>
         </DialogHeader>
 
         {!user ? null : (
           <div className="space-y-4">
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-              <p className="font-medium">{user.realName}</p>
-              <p className="text-muted-foreground">{user.email}</p>
-              {user.phone && <p className="text-muted-foreground">{user.phone}</p>}
+                <p className="font-medium">{getDisplayName(user)}</p>
+                <p className="text-muted-foreground">{user.email}</p>
+                {user.phone && <p className="text-muted-foreground">{user.phone}</p>}
             </div>
 
             {isChecking ? (
@@ -130,6 +131,12 @@ export function DeleteUserDialog({
                   </div>
                 )}
 
+                {info && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                    {info}
+                  </div>
+                )}
+
                 {isBlocked ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                     <p className="font-medium">当前用户暂不可删除</p>
@@ -141,31 +148,6 @@ export function DeleteUserDialog({
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-3">
-                      <Label>删除方式</Label>
-                      <RadioGroup
-                        value={deleteType}
-                        onValueChange={(value) => setDeleteType(value as "soft" | "hard")}
-                      >
-                        <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
-                          <RadioGroupItem value="soft" />
-                          <div>
-                            <p className="font-medium">软删除</p>
-                            <p className="text-muted-foreground">默认推荐，保留审计信息并隐藏用户。</p>
-                          </div>
-                        </label>
-                        <label className="flex items-start gap-3 rounded-xl border border-destructive/30 p-3 text-sm">
-                          <RadioGroupItem value="hard" />
-                          <div>
-                            <p className="font-medium text-destructive">硬删除</p>
-                            <p className="text-muted-foreground">
-                              彻底删除用户数据，不可撤销，请二次确认业务影响。
-                            </p>
-                          </div>
-                        </label>
-                      </RadioGroup>
-                    </div>
-
                     <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                       此操作不可撤销，删除后将刷新当前用户列表。
                     </div>
@@ -192,7 +174,7 @@ export function DeleteUserDialog({
             disabled={isChecking || isSubmitting || !checkInfo?.canDelete}
           >
             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {deleteType === "soft" ? "确认软删除" : "确认硬删除"}
+            确认删除
           </Button>
         </DialogFooter>
       </DialogContent>

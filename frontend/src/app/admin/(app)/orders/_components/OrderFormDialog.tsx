@@ -25,6 +25,7 @@ import {
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
 import type { ApiError } from "@/lib/request"
+import { getDisplayName } from "@/lib/user-utils"
 import * as adminApi from "@/services/adminApi"
 import type { UserAdminVO } from "@/types/admin"
 import type { FlightSeatVO, FlightVO } from "@/types/flight"
@@ -300,7 +301,7 @@ export function OrderFormDialog({
                   <SelectContent>
                     {users.map((user) => (
                       <SelectItem key={user.id} value={String(user.id)}>
-                        {user.realName} · {user.email}
+                        {getDisplayName(user)} · {user.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
