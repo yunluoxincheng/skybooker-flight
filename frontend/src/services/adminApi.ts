@@ -115,6 +115,10 @@ export function disableAirline(id: number) {
   return post<null>(`/admin/airlines/${id}/disable`, undefined, { auth: "admin" })
 }
 
+export function deleteAirline(id: number) {
+  return del<null>(`/admin/airlines/${id}`, { auth: "admin" })
+}
+
 // ---- Airports ----
 
 export function getAirports(params?: Record<string, string | number | boolean | undefined>) {
@@ -135,6 +139,10 @@ export function enableAirport(id: number) {
 
 export function disableAirport(id: number) {
   return post<null>(`/admin/airports/${id}/disable`, undefined, { auth: "admin" })
+}
+
+export function deleteAirport(id: number) {
+  return del<null>(`/admin/airports/${id}`, { auth: "admin" })
 }
 
 // ---- Orders ----
