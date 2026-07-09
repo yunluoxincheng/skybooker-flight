@@ -76,6 +76,7 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem render={<Link href="/orders">我的订单</Link>} />
                 <DropdownMenuItem render={<Link href="/waitlist">我的候补</Link>} />
+                <DropdownMenuItem render={<Link href="/settings">账号设置</Link>} />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logout()}>退出登录</DropdownMenuItem>
               </DropdownMenuContent>

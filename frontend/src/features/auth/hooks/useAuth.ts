@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth as useAuthContext } from "@/contexts/AuthContext"
 import * as authApi from "@/services/authApi"
 import { getErrorMessage, getLoginErrorMessage } from "@/lib/error-codes"
+import type { EmailCodeScene } from "@/types/auth"
 
 export function useLogin() {
   const { login } = useAuthContext()
@@ -78,7 +79,7 @@ export function useSendCode() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const sendCode = async (email: string, scene: "REGISTER" | "RESET_PASSWORD") => {
+  const sendCode = async (email: string, scene: EmailCodeScene) => {
     setError(null)
     setSending(true)
     try {

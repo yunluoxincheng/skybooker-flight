@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import type { User } from "@/types/auth"
+import type { DeleteAccountRequest, User } from "@/types/auth"
 import * as authApi from "@/services/authApi"
 import {
   getUserToken,
@@ -23,6 +23,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   register: (data: { email: string; code: string; nickname: string; password: string; confirmPassword: string }) => Promise<void>
   logout: () => Promise<void>
+  deleteAccount: (data: DeleteAccountRequest) => Promise<void>
   refreshUser: () => Promise<void>
 }
 
@@ -34,6 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const clearUserSession = useCallback(() => {
+    removeUserToken()
+    removeUserRefreshToken()
+    removeUserData()
+    setToken(null)
+    setUser(null)
+  }, [])
 
   // 初始化：从 localStorage 恢复会话
   useEffect(() => {
@@ -51,9 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         const refreshToken = getUserRefreshToken()
         if (!refreshToken) {
-          removeUserToken()
-          removeUserRefreshToken()
-          removeUserData()
+          clearUserSession()
           return
         }
 
@@ -81,27 +88,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Ignore and clear the session below.
         }
 
-        removeUserToken()
-        removeUserRefreshToken()
-        removeUserData()
+        clearUserSession()
       } finally {
         setIsLoading(false)
       }
     }
 
     void initSession()
-  }, [])
+  }, [clearUserSession])
 
   useEffect(() => {
     const handler = (e: Event) => {
       const { auth } = (e as CustomEvent<{ auth: "user" | "admin" }>).detail
       if (auth !== "user") return
 
-      removeUserToken()
-      removeUserRefreshToken()
-      removeUserData()
-      setToken(null)
-      setUser(null)
+      clearUserSession()
 
       const currentPath = window.location.pathname + window.location.search
       router.push(`/login?redirect=${encodeURIComponent(currentPath)}`)
@@ -109,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("auth:session-expired", handler)
     return () => window.removeEventListener("auth:session-expired", handler)
-  }, [router])
+  }, [clearUserSession, router])
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password)
@@ -135,12 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // 即使 API 失败也清除本地状态
     }
-    removeUserToken()
-    removeUserRefreshToken()
-    removeUserData()
-    setToken(null)
-    setUser(null)
-  }, [])
+    clearUserSession()
+  }, [clearUserSession])
+
+  const deleteAccount = useCallback(
+    async (data: DeleteAccountRequest) => {
+      await authApi.deleteAccount(data)
+      clearUserSession()
+    },
+    [clearUserSession]
+  )
 
   const refreshUser = useCallback(async () => {
     try {
@@ -162,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        deleteAccount,
         refreshUser,
       }}
     >
