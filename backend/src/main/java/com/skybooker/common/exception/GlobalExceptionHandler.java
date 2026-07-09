@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -33,8 +34,11 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
-                .map(FieldError::getDefaultMessage)
+                .map(this::resolveFieldMessage)
                 .collect(Collectors.joining("; "));
+        if (message.isBlank()) {
+            message = ErrorCode.VALIDATION_ERROR.getMessage();
+        }
         return ApiResponse.error(ErrorCode.VALIDATION_ERROR.getCode(), message);
     }
 
@@ -42,6 +46,41 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleRequestParameterException(Exception e) {
         return ApiResponse.error(ErrorCode.VALIDATION_ERROR.getCode(), ErrorCode.VALIDATION_ERROR.getMessage());
+    }
+
+    @ExceptionHandler(BindException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleBindException(BindException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(this::resolveFieldMessage)
+                .collect(Collectors.joining("; "));
+        if (message.isBlank()) {
+            message = ErrorCode.VALIDATION_ERROR.getMessage();
+        }
+        return ApiResponse.error(ErrorCode.VALIDATION_ERROR.getCode(), message);
+    }
+
+    /**
+     * 解析字段绑定/校验错误为用户可读消息。typeMismatch(类型转换失败,如 LocalTime 不支持 24:00)
+     * 的 defaultMessage 会暴露 Spring/Java 实现细节,翻译为友好消息;其余(如 @NotBlank)保留注解 defaultMessage。
+     */
+    private String resolveFieldMessage(FieldError fe) {
+        if (fe.getCode() != null && fe.getCode().startsWith("typeMismatch")) {
+            return friendlyFieldMessage(fe);
+        }
+        String msg = fe.getDefaultMessage();
+        return msg != null ? msg : "参数 " + fe.getField() + " 校验失败";
+    }
+
+    /** 将类型转换失败的字段翻译为用户可读消息,按字段名给出具体格式提示。 */
+    private String friendlyFieldMessage(FieldError fe) {
+        return switch (fe.getField()) {
+            case "departureTimeStart", "departureTimeEnd" ->
+                    "出发时间格式不正确，请使用 HH:mm，最大值为 23:59";
+            case "departureDate", "departureDateStart", "departureDateEnd" ->
+                    "出发日期格式不正确，请使用 yyyy-MM-dd";
+            default -> "参数 " + fe.getField() + " 格式不正确";
+        };
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -95,9 +134,12 @@ public class GlobalExceptionHandler {
             case FLIGHT_NOT_SELLABLE, SEAT_NOT_AVAILABLE, SEAT_LOCK_FAILED, ORDER_STATE_INVALID,
                  ORDER_EXPIRED, SEAT_ALREADY_EXISTS, PASSENGER_HAS_ORDERS, DUPLICATE_PASSENGER,
                  DUPLICATE_SEAT_IN_ORDER, DUPLICATE_PASSENGER_IN_ORDER, FLIGHT_HAS_INVENTORY,
-                 ADMIN_ACCOUNT_PROTECTED, REFUND_WINDOW_CLOSED, CHANGE_WINDOW_CLOSED, WAITLIST_NOT_FOUND,
+                 ADMIN_ACCOUNT_PROTECTED, REFUND_WINDOW_CLOSED, CHANGE_WINDOW_CLOSED, CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL, WAITLIST_NOT_FOUND,
                  WAITLIST_STATE_INVALID, WAITLIST_NOT_NEEDED, DUPLICATE_WAITLIST_PASSENGER,
-                 DUPLICATE_AIRLINE_CODE, DUPLICATE_AIRPORT_CODE
+                 DUPLICATE_AIRLINE_CODE, DUPLICATE_AIRPORT_CODE, AIRLINE_IN_USE, AIRPORT_IN_USE,
+                 ORDER_NOT_VOIDABLE,
+                 USER_HAS_ACTIVE_ORDERS, USER_HAS_PENDING_WAITLIST, USER_HAS_PROCESSING_REFUND_OR_CHANGE,
+                 USER_HAS_BUSINESS_DATA
                  -> HttpStatus.BAD_REQUEST;
             case SYSTEM_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };

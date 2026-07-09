@@ -37,11 +37,17 @@ public class FlightService {
                 || dto.getStatus() != null
                 || dto.getPassengerCount() != null
                 || dto.getCabinClass() != null
+                || dto.getIncludeSoldOut() != null
                 || dto.getSort() != null;
 
         if (hasAdvanced) {
             FlightSort sort = FlightSort.fromParam(dto.getSort());
-            if (sort == null) sort = FlightSort.DEFAULT;
+            // HTTP 入口对非法 sort 显式报 400 并列出合法枚举,不再静默回落默认排序。
+            // AI 模块直接调 FlightSort.fromParam 自行处理回落,不经此校验。
+            if (sort == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "不支持的排序参数，支持：DEFAULT、PRICE_ASC、DURATION_ASC、TIME_ASC、SEATS_DESC、PUNCTUAL_DESC");
+            }
             String orderBy = sort.orderBy(dto.getCabinClass());
 
             List<FlightVO> records = flightMapper.searchFlightsAdvanced(
@@ -50,13 +56,14 @@ public class FlightService {
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
                     dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
-                    orderBy, offset, size);
+                    dto.getIncludeSoldOut(), orderBy, offset, size);
             long total = flightMapper.countFlightsAdvanced(
                     dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
                     dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
-                    dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass());
+                    dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
+                    dto.getIncludeSoldOut());
 
             return new PageResponse<>(records, total, page, size);
         }

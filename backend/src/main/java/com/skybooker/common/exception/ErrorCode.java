@@ -53,12 +53,20 @@ public enum ErrorCode {
     ADMIN_ACCOUNT_PROTECTED(40009, "不允许操作管理员账号"),
     DUPLICATE_AIRLINE_CODE(40010, "航司代码已存在"),
     DUPLICATE_AIRPORT_CODE(40011, "机场代码已存在"),
+    AIRLINE_IN_USE(40012, "航司存在关联航班，无法删除"),
+    AIRPORT_IN_USE(40013, "机场存在关联航班，无法删除"),
+    ORDER_NOT_VOIDABLE(40020, "订单当前状态不可作废"),
+    USER_HAS_ACTIVE_ORDERS(40021, "用户存在未完成订单，无法删除或禁用"),
+    USER_HAS_PENDING_WAITLIST(40022, "用户存在进行中候补，无法删除或禁用"),
+    USER_HAS_PROCESSING_REFUND_OR_CHANGE(40023, "用户存在处理中退票或改签，无法删除或禁用"),
+    USER_HAS_BUSINESS_DATA(40024, "用户存在业务记录，无法删除，请改用禁用"),
     REFUND_WINDOW_CLOSED(50001, "退款窗口已关闭，距起飞不足2小时"),
     WAITLIST_NOT_FOUND(50002, "候补订单不存在"),
     WAITLIST_STATE_INVALID(50003, "候补订单状态不允许此操作"),
     WAITLIST_NOT_NEEDED(50004, "当前舱位余票充足，无需候补"),
     DUPLICATE_WAITLIST_PASSENGER(50005, "候补订单中存在重复乘机人"),
     CHANGE_WINDOW_CLOSED(50006, "改签窗口已关闭，距起飞不足2小时"),
+    CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL(50007, "改签航班出发时间需晚于原航班出发时间至少2小时"),
     AI_LLM_CONFIG_INVALID(10022, "LLM 配置校验失败");
 
     private final int code;

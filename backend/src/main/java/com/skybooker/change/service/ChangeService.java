@@ -40,22 +40,33 @@ public class ChangeService {
 
     public List<ChangeOptionVO> listChangeOptions(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return listChangeOptionsCore(orderId, userId);
+    }
+
+    public List<ChangeOptionVO> listChangeOptionsForAdmin(Long orderId) {
+        return listChangeOptionsCore(orderId, null);
+    }
+
+    private List<ChangeOptionVO> listChangeOptionsCore(Long orderId, Long userId) {
         TicketOrder order = orderMapper.findById(orderId);
-        if (order == null || !order.getUserId().equals(userId)) {
+        if (order == null || (userId != null && !order.getUserId().equals(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if (!"ISSUED".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
         Flight currentFlight = flightMapper.findById(order.getFlightId());
         validateChangeCutoff(currentFlight);
 
+        // 改签候选需晚于原航班出发时间至少 2 小时,与 changeOrder 提交校验保持一致,避免前端展示不可改签的候选。
+        LocalDateTime earliestDeparture = currentFlight.getDepartureTime().plusHours(2);
         List<Flight> candidates = flightMapper.findSameRouteFlights(
                 currentFlight.getDepartureAirportId(),
                 currentFlight.getArrivalAirportId(),
                 currentFlight.getId(),
-                countOrderPassengers(orderId));
+                countOrderPassengers(orderId),
+                earliestDeparture);
 
         return candidates.stream().map(f -> new ChangeOptionVO(
                 f.getId(),
@@ -71,22 +82,29 @@ public class ChangeService {
     @Transactional
     public ChangeOrderResultVO changeOrder(Long orderId, ChangeOrderDTO dto) {
         Long userId = SecurityUtil.getCurrentUserId();
+        return changeOrderCore(orderId, userId, dto, false);
+    }
+
+    @Transactional
+    public ChangeOrderResultVO changeOrderCore(Long orderId, Long userId, ChangeOrderDTO dto, boolean force) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if ("CHANGED".equals(order.getStatus())) {
+        if (TicketOrder.STATUS_CHANGED.equals(order.getStatus())) {
             OrderVO detail = orderMapper.findDetailById(orderId);
             return new ChangeOrderResultVO(
                     detail.getId(), detail.getOrderNo(), detail.getStatus(),
                     detail.getFlightId(), detail.getTotalAmount(), detail.getPassengers());
         }
-        if (!"ISSUED".equals(order.getStatus())) {
+        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
         Flight currentFlight = flightMapper.findById(order.getFlightId());
-        validateChangeCutoff(currentFlight);
+        if (!force) {
+            validateChangeCutoff(currentFlight);
+        }
 
         if (dto.getNewFlightId().equals(order.getFlightId())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -96,7 +114,7 @@ public class ChangeService {
         if (newFlight == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        validateFlightSellability(newFlight);
+        validateFlightSellability(newFlight, currentFlight.getDepartureTime());
         if (!newFlight.getDepartureAirportId().equals(currentFlight.getDepartureAirportId())
                 || !newFlight.getArrivalAirportId().equals(currentFlight.getArrivalAirportId())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -117,7 +135,7 @@ public class ChangeService {
         BigDecimal changeFee = order.getTotalAmount().multiply(changeFeeRate)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, "ISSUED", "CHANGED");
+        int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_ISSUED, TicketOrder.STATUS_CHANGED);
         if (cas == 0) {
             OrderVO detail = orderMapper.findDetailById(orderId);
             return new ChangeOrderResultVO(
@@ -192,12 +210,16 @@ public class ChangeService {
         }
     }
 
-    private void validateFlightSellability(Flight flight) {
+    private void validateFlightSellability(Flight flight, LocalDateTime originalDepartureTime) {
         if (!"PUBLISHED".equals(flight.getPublishStatus())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
         if (flight.getDepartureTime().isBefore(LocalDateTime.now())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
+        }
+        // 改签航班出发时间需晚于原航班出发时间至少 2 小时,候选查询已过滤,此处为直接提交的兜底校验。
+        if (flight.getDepartureTime().isBefore(originalDepartureTime.plusHours(2))) {
+            throw new BusinessException(ErrorCode.CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL);
         }
         if (!"ON_TIME".equals(flight.getStatus()) && !"DELAYED".equals(flight.getStatus())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);

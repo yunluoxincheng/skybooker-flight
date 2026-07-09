@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -47,6 +48,7 @@ public interface FlightMapper {
                                           @Param("status") String status,
                                           @Param("passengerCount") Integer passengerCount,
                                           @Param("cabinClass") String cabinClass,
+                                          @Param("includeSoldOut") Boolean includeSoldOut,
                                           @Param("orderBy") String orderBy,
                                           @Param("offset") int offset,
                                           @Param("size") int size);
@@ -66,7 +68,8 @@ public interface FlightMapper {
                                @Param("directOnly") Boolean directOnly,
                                @Param("status") String status,
                                @Param("passengerCount") Integer passengerCount,
-                               @Param("cabinClass") String cabinClass);
+                               @Param("cabinClass") String cabinClass,
+                               @Param("includeSoldOut") Boolean includeSoldOut);
 
     List<FlightVO> searchRecommendationFlights(@Param("departureCity") String departureCity,
                                                 @Param("arrivalCity") String arrivalCity,
@@ -82,6 +85,7 @@ public interface FlightMapper {
                                                 @Param("directOnly") Boolean directOnly,
                                                 @Param("passengerCount") Integer passengerCount,
                                                 @Param("cabinClass") String cabinClass,
+                                                @Param("includeSoldOut") Boolean includeSoldOut,
                                                 @Param("orderBy") String orderBy,
                                                 @Param("limit") int limit);
 
@@ -124,15 +128,43 @@ public interface FlightMapper {
 
     int countSeatsByFlightId(@Param("flightId") Long flightId);
 
-    List<FlightVO> searchAllFlights(@Param("offset") int offset, @Param("size") int size);
+    /**
+     * 管理端航班列表搜索:支持 keyword / flightNo / airlineId / 出发到达城市 /
+     * 状态 / 发布状态 / 出发日期范围。空参数等价于无条件分页查询。
+     */
+    List<FlightVO> searchFlightsAdmin(
+            @Param("keyword") String keyword,
+            @Param("flightNo") String flightNo,
+            @Param("airlineId") Long airlineId,
+            @Param("departureCity") String departureCity,
+            @Param("arrivalCity") String arrivalCity,
+            @Param("status") String status,
+            @Param("publishStatus") String publishStatus,
+            @Param("departureDateStart") String departureDateStart,
+            @Param("departureDateEnd") String departureDateEnd,
+            @Param("offset") int offset,
+            @Param("size") int size);
 
-    long countAllFlights();
+    long countFlightsAdmin(
+            @Param("keyword") String keyword,
+            @Param("flightNo") String flightNo,
+            @Param("airlineId") Long airlineId,
+            @Param("departureCity") String departureCity,
+            @Param("arrivalCity") String arrivalCity,
+            @Param("status") String status,
+            @Param("publishStatus") String publishStatus,
+            @Param("departureDateStart") String departureDateStart,
+            @Param("departureDateEnd") String departureDateEnd);
 
     FlightVO findFlightByIdAnyStatus(@Param("id") Long id);
 
     boolean existsAirlineById(@Param("id") Long id);
 
     boolean existsAirportById(@Param("id") Long id);
+
+    int countFlightsByAirlineId(@Param("airlineId") Long airlineId);
+
+    int countFlightsByAirportId(@Param("airportId") Long airportId);
 
     int countAvailableSeatsByFlightAndCabin(@Param("flightId") Long flightId,
                                             @Param("cabinClass") String cabinClass);
@@ -159,5 +191,6 @@ public interface FlightMapper {
     List<Flight> findSameRouteFlights(@Param("departureAirportId") Long departureAirportId,
                                       @Param("arrivalAirportId") Long arrivalAirportId,
                                       @Param("excludeFlightId") Long excludeFlightId,
-                                      @Param("passengerCount") int passengerCount);
+                                      @Param("passengerCount") int passengerCount,
+                                      @Param("earliestDepartureTime") LocalDateTime earliestDepartureTime);
 }

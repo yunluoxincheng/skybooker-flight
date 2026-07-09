@@ -36,6 +36,14 @@ class FlightCatalogIntegrationTest {
                 "UPDATE flight SET departure_time = TIMESTAMP(?, TIME(departure_time)), " +
                         "arrival_time = TIMESTAMP(?, TIME(arrival_time)) WHERE id BETWEEN 2 AND 5",
                 tomorrow, tomorrow);
+        jdbcTemplate.update("UPDATE flight SET remaining_seats = 29 WHERE id BETWEEN 2 AND 5");
+        jdbcTemplate.update("""
+                UPDATE flight_seat
+                SET status = CASE WHEN seat_no = '3A' THEN 'DISABLED' ELSE 'AVAILABLE' END,
+                    locked_by_order_id = NULL,
+                    lock_expire_time = NULL
+                WHERE flight_id BETWEEN 2 AND 5
+                """);
     }
 
     @Test
@@ -170,6 +178,41 @@ class FlightCatalogIntegrationTest {
     }
 
     @Test
+    void searchFlights_invalidTimeEnd24_returns400WithFriendlyMessage() throws Exception {
+        // 24:00 不是合法 LocalTime,应返回友好校验错误而非暴露 Java 类型转换细节
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("departureTimeStart", "18:00")
+                        .param("departureTimeEnd", "24:00"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003))
+                .andExpect(jsonPath("$.message").value(containsString("HH:mm")))
+                .andExpect(jsonPath("$.message").value(not(containsString("java.time"))));
+    }
+
+    @Test
+    void searchFlights_invalidSort_returns400WithLegalEnums() throws Exception {
+        // 非法 sort 不再静默回落默认排序,返回 400 并提示合法枚举
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "seats_asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003))
+                .andExpect(jsonPath("$.message").value(containsString("排序参数")))
+                .andExpect(jsonPath("$.message").value(containsString("SEATS_DESC")));
+    }
+
+    @Test
+    void searchFlights_validSortSeatsDesc_returns200() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("departureDate", tomorrowStr)
+                        .param("sort", "SEATS_DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
     void searchFlights_filterByMaxDuration() throws Exception {
         mockMvc.perform(get("/api/flights")
                         .param("departureDate", tomorrowStr)
@@ -220,6 +263,47 @@ class FlightCatalogIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.records").isArray());
+    }
+
+    @Test
+    void searchFlights_includeSoldOutKeepsWaitlistCandidatesWithoutChangingDefault() throws Exception {
+        jdbcTemplate.update("UPDATE flight SET remaining_seats = 0 WHERE id = 2");
+        jdbcTemplate.update("UPDATE flight_seat SET status = 'SOLD' WHERE flight_id = 2 AND cabin_class = 'ECONOMY'");
+
+        mockMvc.perform(get("/api/flights")
+                        .param("departureCity", "上海")
+                        .param("arrivalCity", "北京")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "1")
+                        .param("cabinClass", "ECONOMY")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[*].flightNo", not(hasItem("CZ3101"))));
+
+        mockMvc.perform(get("/api/flights")
+                        .param("departureCity", "上海")
+                        .param("arrivalCity", "北京")
+                        .param("departureDate", tomorrowStr)
+                        .param("passengerCount", "1")
+                        .param("cabinClass", "ECONOMY")
+                        .param("includeSoldOut", "true")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[*].flightNo", hasItem("CZ3101")))
+                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].remainingSeats", contains(0)))
+                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].cabins[0].availableSeats", contains(0)));
+    }
+
+    @Test
+    void searchFlights_includeSoldOutStillRequiresRequestedCabinToExist() throws Exception {
+        mockMvc.perform(get("/api/flights")
+                        .param("flightNo", "CZ3101")
+                        .param("departureDate", tomorrowStr)
+                        .param("cabinClass", "BUSINESS")
+                        .param("includeSoldOut", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records").isEmpty());
     }
 
     // --- Sort tests ---

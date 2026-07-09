@@ -118,24 +118,35 @@
         </if>
     </sql>
 
+    <sql id="cabinClassExists">
+        <if test="cabinClass != null and cabinClass != ''">
+            AND EXISTS (
+                SELECT 1 FROM flight_cabin fc
+                WHERE fc.flight_id = f.id AND fc.cabin_class = #{cabinClass}
+            )
+        </if>
+    </sql>
+
     <sql id="passengerCapacity">
-        <choose>
-            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
-                AND (
-                    SELECT COUNT(*) FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                ) >= #{passengerCount}
-            </when>
-            <when test="cabinClass != null and cabinClass != ''">
-                AND EXISTS (
-                    SELECT 1 FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                )
-            </when>
-            <when test="passengerCount != null and passengerCount > 0">
-                AND f.remaining_seats >= #{passengerCount}
-            </when>
-        </choose>
+        <if test="includeSoldOut == null or includeSoldOut == false">
+            <choose>
+                <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
+                    AND (
+                        SELECT COUNT(*) FROM flight_seat fs
+                        WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                    ) >= #{passengerCount}
+                </when>
+                <when test="cabinClass != null and cabinClass != ''">
+                    AND EXISTS (
+                        SELECT 1 FROM flight_seat fs
+                        WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
+                    )
+                </when>
+                <when test="passengerCount != null and passengerCount > 0">
+                    AND f.remaining_seats >= #{passengerCount}
+                </when>
+            </choose>
+        </if>
     </sql>
 
     <select id="searchFlights" resultMap="flightVOResult">
@@ -158,6 +169,7 @@
         <include refid="flightSelect"/>
         <include refid="publishedWhere"/>
         <include refid="advancedFilters"/>
+        <include refid="cabinClassExists"/>
         <include refid="passengerCapacity"/>
         ORDER BY ${orderBy}
         LIMIT #{offset}, #{size}
@@ -171,6 +183,7 @@
         JOIN airport aa ON f.arrival_airport_id = aa.id
         <include refid="publishedWhere"/>
         <include refid="advancedFilters"/>
+        <include refid="cabinClassExists"/>
         <include refid="passengerCapacity"/>
     </select>
 
@@ -234,23 +247,8 @@
         <if test="directOnly != null and directOnly">
             AND f.direct_flag = 1
         </if>
-        <choose>
-            <when test="cabinClass != null and cabinClass != '' and passengerCount != null and passengerCount > 0">
-                AND (
-                    SELECT COUNT(*) FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                ) >= #{passengerCount}
-            </when>
-            <when test="cabinClass != null and cabinClass != ''">
-                AND EXISTS (
-                    SELECT 1 FROM flight_seat fs
-                    WHERE fs.flight_id = f.id AND fs.cabin_class = #{cabinClass} AND fs.status = 'AVAILABLE'
-                )
-            </when>
-            <when test="passengerCount != null and passengerCount > 0">
-                AND f.remaining_seats >= #{passengerCount}
-            </when>
-        </choose>
+        <include refid="cabinClassExists"/>
+        <include refid="passengerCapacity"/>
         ORDER BY ${orderBy}
         LIMIT #{limit}
     </select>
@@ -366,14 +364,60 @@
         SELECT COUNT(*) FROM flight_seat WHERE flight_id = #{flightId}
     </select>
 
-    <select id="searchAllFlights" resultMap="flightVOResult">
+    <!-- 管理端航班搜索条件(keyword 模糊匹配航班号/航司名/航司代码/机场名/机场代码/城市) -->
+    <sql id="adminFlightWhere">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (f.flight_no LIKE CONCAT('%', #{keyword}, '%')
+                  OR al.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR al.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR da.city LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.name LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.code LIKE CONCAT('%', #{keyword}, '%')
+                  OR aa.city LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="flightNo != null and flightNo != ''">
+                AND f.flight_no LIKE CONCAT('%', #{flightNo}, '%')
+            </if>
+            <if test="airlineId != null">
+                AND f.airline_id = #{airlineId}
+            </if>
+            <if test="departureCity != null and departureCity != ''">
+                AND da.city LIKE CONCAT('%', #{departureCity}, '%')
+            </if>
+            <if test="arrivalCity != null and arrivalCity != ''">
+                AND aa.city LIKE CONCAT('%', #{arrivalCity}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND f.status = #{status}
+            </if>
+            <if test="publishStatus != null and publishStatus != ''">
+                AND f.publish_status = #{publishStatus}
+            </if>
+            <if test="departureDateStart != null and departureDateStart != ''">
+                AND f.departure_time &gt;= #{departureDateStart}
+            </if>
+            <if test="departureDateEnd != null and departureDateEnd != ''">
+                AND f.departure_time &lt; #{departureDateEnd} + INTERVAL 1 DAY
+            </if>
+        </where>
+    </sql>
+
+    <select id="searchFlightsAdmin" resultMap="flightVOResult">
         <include refid="flightSelect"/>
+        <include refid="adminFlightWhere"/>
         ORDER BY f.created_at DESC
         LIMIT #{offset}, #{size}
     </select>
 
-    <select id="countAllFlights" resultType="long">
+    <select id="countFlightsAdmin" resultType="long">
         SELECT COUNT(*) FROM flight f
+        JOIN airline al ON f.airline_id = al.id
+        JOIN airport da ON f.departure_airport_id = da.id
+        JOIN airport aa ON f.arrival_airport_id = aa.id
+        <include refid="adminFlightWhere"/>
     </select>
 
     <select id="findFlightByIdAnyStatus" resultMap="flightVOResult">
@@ -387,6 +431,15 @@
 
     <select id="existsAirportById" resultType="boolean">
         SELECT COUNT(*) > 0 FROM airport WHERE id = #{id}
+    </select>
+
+    <select id="countFlightsByAirlineId" resultType="int">
+        SELECT COUNT(*) FROM flight WHERE airline_id = #{airlineId}
+    </select>
+
+    <select id="countFlightsByAirportId" resultType="int">
+        SELECT COUNT(*) FROM flight
+        WHERE departure_airport_id = #{airportId} OR arrival_airport_id = #{airportId}
     </select>
 
     <select id="countAvailableSeatsByFlightAndCabin" resultType="int">
@@ -472,6 +525,7 @@
           AND id != #{excludeFlightId}
           AND publish_status = 'PUBLISHED'
           AND departure_time > NOW()
+          AND departure_time >= #{earliestDepartureTime}
           AND status IN ('ON_TIME', 'DELAYED')
           AND remaining_seats >= #{passengerCount}
         ORDER BY departure_time

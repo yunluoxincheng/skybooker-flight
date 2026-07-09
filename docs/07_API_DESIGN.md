@@ -224,12 +224,15 @@ directOnly
 status
 cabinClass
 passengerCount
+includeSoldOut
 sort
 page
 size
 ```
 
-`cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。
+`cabinClass`/`passengerCount` 用于按舱位过滤座位可用性;传入 `cabinClass` 时,`minPrice`/`maxPrice` 与 `sort=PRICE_ASC` 基于 `flight_cabin.price`(该舱位票价)筛选与排序,否则基于 `flight.base_price`。候补入口可传 `includeSoldOut=true` 跳过可售余票数量过滤,以展示售罄航班或售罄舱位;但若传入 `cabinClass`,仍要求航班配置了该舱位。默认不传或为 `false` 时保持普通购票搜索过滤不可售结果。响应仍返回 `remainingSeats` 和 `cabins[].availableSeats`,供前端决定展示“预订”或“加入候补”。
+
+`sort` 支持的枚举值:`DEFAULT`、`PRICE_ASC`、`DURATION_ASC`、`TIME_ASC`、`SEATS_DESC`、`PUNCTUAL_DESC`(大小写不敏感)。传入不支持的值返回 400 校验错误,不再静默回落默认排序。`departureTimeStart`/`departureTimeEnd` 使用 `HH:mm` 格式,合法区间 `00:00`~`23:59`;`24:00` 等非法时间返回 400 校验错误,不暴露后端类型转换细节。
 
 ### 航班详情
 
@@ -624,19 +627,21 @@ POST   /api/admin/airlines                      # 新增：code / name / logoUrl
 PUT    /api/admin/airlines/{id}                 # 编辑：name / logoUrl（code 创建后不可改）
 POST   /api/admin/airlines/{id}/disable         # 禁用
 POST   /api/admin/airlines/{id}/enable          # 启用
+DELETE /api/admin/airlines/{id}                 # 物理删除（有关联航班返回 40012 阻断，无关联时删除）
 GET    /api/admin/airports                      # 列表/搜索：?keyword&status&page&size（keyword 命中 code/name/city）
 POST   /api/admin/airports                      # 新增：code / name / city / province
 PUT    /api/admin/airports/{id}                 # 编辑：name / city / province（code 创建后不可改）
 POST   /api/admin/airports/{id}/disable         # 禁用
 POST   /api/admin/airports/{id}/enable          # 启用
+DELETE /api/admin/airports/{id}                 # 物理删除（有关联航班返回 40013 阻断，无关联时删除）
 ```
 
-航司与机场是航班的基础资料，采用软状态（`status = ENABLED | DISABLED`），不提供物理删除——二者被 `flight` 外键引用，物理删除将破坏历史航班数据。新增/编辑航班表单以 `GET /api/admin/airlines?status=ENABLED` 与 `GET /api/admin/airports?status=ENABLED` 拉取候选项。`code` 为稳定标识，创建后不可修改；重复 `code` 新增分别返回 `40010 / 40011`。
+航司与机场是航班的基础资料，采用软状态（`status = ENABLED | DISABLED`），并提供物理删除：被 `flight` 外键引用时删除会被阻断（航司返回 `40012`、机场返回 `40013`），引导管理员对有航班的记录使用禁用；无关联航班时可物理删除。新增/编辑航班表单以 `GET /api/admin/airlines?status=ENABLED` 与 `GET /api/admin/airports?status=ENABLED` 拉取候选项。`code` 为稳定标识，创建后不可修改；重复 `code` 新增分别返回 `40010 / 40011`。
 
 ### 航班管理
 
 ```http
-GET    /api/admin/flights
+GET    /api/admin/flights                       # 列表/搜索：?keyword&flightNo&airlineId&departureCity&arrivalCity&status&publishStatus&departureDateStart&departureDateEnd&page&size（keyword 命中航班号/航司/机场/城市；非法枚举或日期返回 10003）
 POST   /api/admin/flights
 PUT    /api/admin/flights/{id}
 POST   /api/admin/flights/{id}/publish
@@ -649,19 +654,61 @@ POST   /api/admin/flights/{id}/generate-seats
 ### 订单管理
 
 ```http
-GET /api/admin/orders
-GET /api/admin/orders/{id}
+GET    /api/admin/orders                         # 列表/筛选：?status&orderNo&userId&userKeyword&flightNo&flightKeyword&departureDateStart&departureDateEnd&page&size
+GET    /api/admin/orders/{id}                    # 兼容详情：订单 + 乘机人快照
+GET    /api/admin/orders/{id}/detail             # 增强详情：订单、乘机人、退票、改签、状态时间线
+POST   /api/admin/orders                         # 代普通用户下单
+POST   /api/admin/orders/{id}/refund             # 管理端退票
+GET    /api/admin/orders/{id}/change-options     # 管理端可改签航班候选
+POST   /api/admin/orders/{id}/change             # 管理端改签
+POST   /api/admin/orders/{id}/void               # 作废
+DELETE /api/admin/orders/{id}?type=delete        # 前端删除入口：受保护作废，不硬删
+PATCH  /api/admin/orders/{id}/admin-note         # 管理员备注
+GET    /api/admin/orders/{id}/refunds            # 退票记录
+GET    /api/admin/orders/{id}/changes            # 改签记录
+GET    /api/admin/passengers?userId={userId}     # 查询指定普通用户乘机人
+GET    /api/admin/flights/{flightId}/seats       # 查询指定航班座位图
 ```
+
+`GET /api/admin/orders` 支持后台筛选条件：`status` 精确匹配订单状态，`orderNo` 模糊匹配订单号，`userId` 精确匹配用户，`userKeyword` 模糊匹配邮箱、昵称、姓名或手机号，`flightNo` 模糊匹配航班号，`flightKeyword` 模糊匹配航班号、航司、出发/到达城市或机场名，`departureDateStart`/`departureDateEnd` 按航班出发日期范围过滤。筛选条件必须同时作用于 `records` 和 `total`；非法状态或日期返回 `VALIDATION_ERROR`，不得静默返回未筛选列表。
+
+`GET /api/admin/orders/{id}/detail` 返回管理端专用详情模型，包含基础订单字段、乘机人快照、退票记录、改签记录和 `timeline[{eventType,status,description,occurredAt}]`。`GET /api/admin/orders/{id}` 保持兼容，仍返回原订单详情。
+
+`POST /api/admin/orders` 用于管理员代普通用户下单，请求体推荐使用 `targetUserId`、`flightId` 和 `items[{passengerId, seatId}]`。后端兼容旧前端字段 `userId`：当只传 `userId` 时按目标普通用户处理；当 `targetUserId` 与 `userId` 同时存在且不一致时返回 `VALIDATION_ERROR`。订单创建仍复用普通下单规则：乘机人必须属于目标用户，座位必须可售，金额、锁座、余票扣减和乘客快照一致；创建后状态保持 `PENDING_PAYMENT`，不创建支付记录、不自动出票。
+
+`POST /api/admin/orders/{id}/refund` 请求体为 `reason` 与可选 `force`。`reason` 必填；`force=true` 时管理员可绕过距起飞不足 2 小时的普通退票窗口，但座位释放、余票回补、候补兑现和手续费计算仍复用普通退票逻辑，强制场景按不足 24 小时档 30% 计费。
+
+`GET /api/admin/orders/{id}/change-options` 返回管理端可改签候选航班。候选规则与用户端一致：订单必须可改签，候选航班必须同出发/到达机场、已发布、未起飞、状态可售且余座满足订单乘机人数；该查询接口不使用 `force` 绕过 cutoff，`force` 只在提交改签时生效。
+
+`POST /api/admin/orders/{id}/change` 请求体为 `newFlightId`、`seatMappings[{passengerId,newSeatId}]`、`reason` 与可选 `force`。`force=true` 只绕过普通改签 cutoff，航线一致性、座位可用性、先占新座再放旧座、改签记录和金额重算规则不变，强制场景 `change_fee` 按 30% 档计费。
+
+`POST /api/admin/orders/{id}/void` 请求体为 `reason`。作废只允许 `CANCELLED` 或 `REFUNDED` 订单转为 `VOIDED`；非终态返回 `ORDER_NOT_VOIDABLE`。作废不修改座位、余票、支付、退票或改签记录。
+
+`DELETE /api/admin/orders/{id}?type=delete` 是前端删除按钮兼容入口，不做硬删除。请求必须提供 `reason`（JSON body 或查询参数），且只允许 `CANCELLED` 或 `REFUNDED` 订单按同一作废规则转为 `VOIDED`；不得物理删除 `ticket_order`、`order_passenger`、退票、改签、座位、航班或审计记录。非终态返回 `ORDER_NOT_VOIDABLE`，不支持的 `type` 返回 `VALIDATION_ERROR`。
+
+`GET /api/admin/passengers?userId=...` 仅允许查询普通用户乘机人，不允许查询管理员账号。`GET /api/admin/flights/{flightId}/seats` 返回座位图字段 `id/seatNo/cabinClass/seatType/price/status/version`，用于后台下单和改签选座。
+
+`PATCH /admin-note` 只允许更新 `ticket_order.admin_note`，其余订单字段不得自由编辑。
+
+上述订单写操作均记录 `admin_operation_log`；查询订单、退票记录和改签记录不写审计。
 
 ### 普通用户管理
 
 ```http
 GET  /api/admin/users
+POST /api/admin/users
+DELETE /api/admin/users/{id}
 POST /api/admin/users/{id}/disable
 POST /api/admin/users/{id}/enable
 ```
 
-普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口禁用 `role = ADMIN` 的管理员账号，也不能禁用当前登录管理员自身。管理员启停应通过单独的管理员管理能力扩展。
+普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口删除、禁用或启用 `role = ADMIN` 的管理员账号。
+
+`POST /api/admin/users` 创建普通用户，请求体为 `email`、`password`、`nickname`，可选 `phone`、`realName`。服务端固定写入 `role = USER`、`status = NORMAL`、`email_verified = 0`，使用 BCrypt 存储密码，不发送验证码或验证邮件；请求体中的未知 `role` 字段会被忽略，不能创建管理员账号。
+
+`DELETE /api/admin/users/{id}` 为逻辑删除，成功后把 `users.status` 置为 `DELETED`，不物理删除历史订单、乘机人或候补数据。删除和禁用前都必须校验目标用户没有 `PENDING_PAYMENT`、`ISSUED`、`CHANGED`、`CHANGE_PENDING` 订单，没有 `WAITING` 候补，没有处理中退票或改签；否则分别返回 `USER_HAS_ACTIVE_ORDERS`、`USER_HAS_PENDING_WAITLIST`、`USER_HAS_PROCESSING_REFUND_OR_CHANGE`。
+
+`POST /api/admin/users/{id}/enable` 仅允许 `DISABLED -> NORMAL`，不得把 `DELETED` 账号恢复。`DELETED` 和 `DISABLED` 用户都不能通过用户端登录或刷新 Token。
 
 ### AI LLM 配置管理
 

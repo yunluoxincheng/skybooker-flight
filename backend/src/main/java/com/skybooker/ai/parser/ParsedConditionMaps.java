@@ -26,6 +26,7 @@ public final class ParsedConditionMaps {
         if (condition.getDepartureDateEnd() != null) map.put("departureDateEnd", condition.getDepartureDateEnd().toString());
         if (condition.getPassengerCount() != null) map.put("passengerCount", condition.getPassengerCount());
         if (condition.getCabinClass() != null) map.put("cabinClass", condition.getCabinClass());
+        if (condition.getIncludeSoldOut() != null) map.put("includeSoldOut", condition.getIncludeSoldOut());
         if (condition.getAirlineRaw() != null) map.put("airlineRaw", condition.getAirlineRaw());
         if (condition.getMinPrice() != null) map.put("minPrice", condition.getMinPrice());
         if (condition.getMaxPrice() != null) map.put("maxPrice", condition.getMaxPrice());
@@ -56,6 +57,7 @@ public final class ParsedConditionMaps {
                 .departureDateEnd(date(map.get("departureDateEnd")))
                 .passengerCount(integer(map.get("passengerCount")))
                 .cabinClass(string(map.get("cabinClass")))
+                .includeSoldOut(bool(map.get("includeSoldOut")))
                 .airlineRaw(string(map.get("airlineRaw")))
                 .minPrice(decimal(map.get("minPrice")))
                 .maxPrice(decimal(map.get("maxPrice")))
@@ -127,6 +129,7 @@ public final class ParsedConditionMaps {
         if (current.getDepartureDateEnd() == null) merged.departureDateEnd(previous.getDepartureDateEnd());
         if (current.getPassengerCount() == null) merged.passengerCount(previous.getPassengerCount());
         if (current.getCabinClass() == null) merged.cabinClass(previous.getCabinClass());
+        if (current.getIncludeSoldOut() == null) merged.includeSoldOut(previous.getIncludeSoldOut());
         if (current.getAirlineRaw() == null) merged.airlineRaw(previous.getAirlineRaw());
         if (current.getMinPrice() == null) merged.minPrice(previous.getMinPrice());
         if (current.getMaxPrice() == null) merged.maxPrice(previous.getMaxPrice());

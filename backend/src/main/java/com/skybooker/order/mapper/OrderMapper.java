@@ -1,5 +1,6 @@
 package com.skybooker.order.mapper;
 
+import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.order.entity.OrderPassenger;
 import com.skybooker.order.entity.TicketOrder;
 import com.skybooker.order.vo.OrderVO;
@@ -39,6 +40,12 @@ public interface OrderMapper {
 
     long countAllOrders();
 
+    List<OrderVO> searchOrdersAdmin(@Param("query") AdminOrderQueryDTO query,
+                                    @Param("offset") int offset,
+                                    @Param("size") int size);
+
+    long countOrdersAdmin(@Param("query") AdminOrderQueryDTO query);
+
     void updateOrderFlightAndAmounts(@Param("id") Long id,
                                      @Param("flightId") Long flightId,
                                      @Param("ticketAmount") java.math.BigDecimal ticketAmount,
@@ -51,6 +58,8 @@ public interface OrderMapper {
                                   @Param("seatId") Long seatId,
                                   @Param("seatNo") String seatNo,
                                   @Param("ticketPrice") java.math.BigDecimal ticketPrice);
+
+    int updateAdminNote(@Param("id") Long id, @Param("adminNote") String adminNote);
 
     List<OrderPassenger> findPassengersByOrderId(@Param("orderId") Long orderId);
 }

@@ -54,7 +54,7 @@ public class AuthService {
         if (!"USER".equals(user.getRole())) {
             throw new BusinessException(ErrorCode.ACCOUNT_TYPE_MISMATCH);
         }
-        if ("DISABLED".equals(user.getStatus())) {
+        if (!"NORMAL".equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
         if (!passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
@@ -84,7 +84,7 @@ public class AuthService {
 
         User user = authMapper.findById(claims.userId());
         if (user == null || !"USER".equals(user.getRole())
-                || "DISABLED".equals(user.getStatus())) {
+                || !"NORMAL".equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 

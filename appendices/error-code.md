@@ -56,12 +56,20 @@
 | 40009 | ADMIN_ACCOUNT_PROTECTED | 不允许操作管理员账号 | 400 |
 | 40010 | DUPLICATE_AIRLINE_CODE | 航司代码已存在 | 400 |
 | 40011 | DUPLICATE_AIRPORT_CODE | 机场代码已存在 | 400 |
+| 40012 | AIRLINE_IN_USE | 航司存在关联航班，无法删除 | 400 |
+| 40013 | AIRPORT_IN_USE | 机场存在关联航班，无法删除 | 400 |
+| 40020 | ORDER_NOT_VOIDABLE | 订单当前状态不可作废 | 400 |
+| 40021 | USER_HAS_ACTIVE_ORDERS | 用户存在未完成订单，无法删除或禁用 | 400 |
+| 40022 | USER_HAS_PENDING_WAITLIST | 用户存在进行中候补，无法删除或禁用 | 400 |
+| 40023 | USER_HAS_PROCESSING_REFUND_OR_CHANGE | 用户存在处理中退票或改签，无法删除或禁用 | 400 |
+| 40024 | USER_HAS_BUSINESS_DATA | 用户存在业务记录，无法删除，请改用禁用 | 400 |
 | 50001 | REFUND_WINDOW_CLOSED | 退款窗口已关闭，距起飞不足 2 小时 | 400 |
 | 50002 | WAITLIST_NOT_FOUND | 候补订单不存在 | 400 |
 | 50003 | WAITLIST_STATE_INVALID | 候补订单状态不允许此操作 | 400 |
 | 50004 | WAITLIST_NOT_NEEDED | 当前舱位余票充足，无需候补 | 400 |
 | 50005 | DUPLICATE_WAITLIST_PASSENGER | 候补订单中存在重复乘机人 | 400 |
 | 50006 | CHANGE_WINDOW_CLOSED | 改签窗口已关闭，距起飞不足 2 小时 | 400 |
+| 50007 | CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL | 改签航班出发时间需晚于原航班出发时间至少 2 小时 | 400 |
 | 90000 | SYSTEM_ERROR | 系统异常 | 500 |
 
 ## 码段划分
@@ -69,8 +77,9 @@
 - `10001-10022`:认证 / 验证码 / 限流 / Token / AI 配置校验
 - `20001`:通用资源
 - `30001-30003`:航班 / 座位
-- `40001-40011`:订单 / 乘机人 / 座位 / 航司机场业务
+- `40001-40024`:订单 / 乘机人 / 座位 / 航司机场 / 管理端用户维护业务
 - `50001-50005`:退款 / 候补
+- `50006-50007`:改签
 - `90000`:系统
 
 > 新增业务码时按所属码段递增,并在本表与 `ErrorCode.java` 同步登记,禁止复用已有码值。
