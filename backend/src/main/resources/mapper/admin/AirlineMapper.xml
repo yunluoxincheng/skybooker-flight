@@ -7,12 +7,12 @@
         SELECT id, code, name, logo_url, status, created_at, updated_at
         FROM airline
         <where>
-            <if test="keyword != null and keyword != ''">
-                AND (code LIKE CONCAT('%', #{keyword}, '%')
-                  OR name LIKE CONCAT('%', #{keyword}, '%'))
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (code LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR name LIKE CONCAT('%', #{query.keyword}, '%'))
             </if>
-            <if test="status != null and status != ''">
-                AND status = #{status}
+            <if test="query.status != null and query.status != ''">
+                AND status = #{query.status}
             </if>
         </where>
         ORDER BY created_at DESC
@@ -22,12 +22,12 @@
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM airline
         <where>
-            <if test="keyword != null and keyword != ''">
-                AND (code LIKE CONCAT('%', #{keyword}, '%')
-                  OR name LIKE CONCAT('%', #{keyword}, '%'))
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (code LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR name LIKE CONCAT('%', #{query.keyword}, '%'))
             </if>
-            <if test="status != null and status != ''">
-                AND status = #{status}
+            <if test="query.status != null and query.status != ''">
+                AND status = #{query.status}
             </if>
         </where>
     </select>

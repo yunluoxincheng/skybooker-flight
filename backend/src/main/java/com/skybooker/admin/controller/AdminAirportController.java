@@ -2,6 +2,7 @@ package com.skybooker.admin.controller;
 
 import com.skybooker.admin.dto.AirportDTO;
 import com.skybooker.admin.dto.AirportUpdateDTO;
+import com.skybooker.admin.dto.AdminKeywordStatusQueryDTO;
 import com.skybooker.admin.service.AdminAirportService;
 import com.skybooker.admin.vo.AirportVO;
 import com.skybooker.common.response.ApiResponse;
@@ -23,12 +24,8 @@ public class AdminAirportController {
     private final AdminAirportService adminAirportService;
 
     @GetMapping
-    public ApiResponse<PageResponse<AirportVO>> list(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(adminAirportService.listAirports(keyword, status, page, size));
+    public ApiResponse<PageResponse<AirportVO>> list(AdminKeywordStatusQueryDTO query) {
+        return ApiResponse.success(adminAirportService.listAirports(query));
     }
 
     @PostMapping

@@ -1,5 +1,6 @@
 package com.skybooker.flight.mapper;
 
+import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.flight.entity.Flight;
 import com.skybooker.flight.entity.FlightSeat;
 import com.skybooker.flight.vo.FlightVO;
@@ -133,28 +134,12 @@ public interface FlightMapper {
      * 状态 / 发布状态 / 出发日期范围。空参数等价于无条件分页查询。
      */
     List<FlightVO> searchFlightsAdmin(
-            @Param("keyword") String keyword,
-            @Param("flightNo") String flightNo,
-            @Param("airlineId") Long airlineId,
-            @Param("departureCity") String departureCity,
-            @Param("arrivalCity") String arrivalCity,
-            @Param("status") String status,
-            @Param("publishStatus") String publishStatus,
-            @Param("departureDateStart") String departureDateStart,
-            @Param("departureDateEnd") String departureDateEnd,
+            @Param("query") AdminFlightQueryDTO query,
             @Param("offset") int offset,
             @Param("size") int size);
 
     long countFlightsAdmin(
-            @Param("keyword") String keyword,
-            @Param("flightNo") String flightNo,
-            @Param("airlineId") Long airlineId,
-            @Param("departureCity") String departureCity,
-            @Param("arrivalCity") String arrivalCity,
-            @Param("status") String status,
-            @Param("publishStatus") String publishStatus,
-            @Param("departureDateStart") String departureDateStart,
-            @Param("departureDateEnd") String departureDateEnd);
+            @Param("query") AdminFlightQueryDTO query);
 
     FlightVO findFlightByIdAnyStatus(@Param("id") Long id);
 

@@ -1,7 +1,9 @@
 package com.skybooker.admin.service;
 
+import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
@@ -36,25 +38,17 @@ public class AdminFlightService {
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
 
-    public PageResponse<FlightVO> listFlights(
-            String keyword, String flightNo, Long airlineId,
-            String departureCity, String arrivalCity,
-            String status, String publishStatus,
-            String departureDateStart, String departureDateEnd,
-            int page, int size) {
-        validateEnum(status, VALID_STATUSES);
-        validateEnum(publishStatus, VALID_PUBLISH_STATUSES);
-        validateDate(departureDateStart);
-        validateDate(departureDateEnd);
+    public PageResponse<FlightVO> listFlights(AdminFlightQueryDTO query) {
+        AdminListQuerySupport.normalize(query);
+        validateEnum(query.getStatus(), VALID_STATUSES);
+        validateEnum(query.getPublishStatus(), VALID_PUBLISH_STATUSES);
+        validateDate(query.getDepartureDateStart());
+        validateDate(query.getDepartureDateEnd());
 
-        int offset = (page - 1) * size;
-        List<FlightVO> records = flightMapper.searchFlightsAdmin(
-                keyword, flightNo, airlineId, departureCity, arrivalCity,
-                status, publishStatus, departureDateStart, departureDateEnd, offset, size);
-        long total = flightMapper.countFlightsAdmin(
-                keyword, flightNo, airlineId, departureCity, arrivalCity,
-                status, publishStatus, departureDateStart, departureDateEnd);
-        return new PageResponse<>(records, total, page, size);
+        int offset = AdminListQuerySupport.offset(query);
+        List<FlightVO> records = flightMapper.searchFlightsAdmin(query, offset, query.getSize());
+        long total = flightMapper.countFlightsAdmin(query);
+        return new PageResponse<>(records, total, query.getPage(), query.getSize());
     }
 
     /** 枚举白名单校验:空值放过(不过滤),非空但非法返回 VALIDATION_ERROR(不 500)。 */

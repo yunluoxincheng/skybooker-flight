@@ -1,9 +1,11 @@
 package com.skybooker.admin.dto;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 @Data
-public class AdminOrderQueryDTO {
+@EqualsAndHashCode(callSuper = true)
+public class AdminOrderQueryDTO extends PageQueryDTO {
     private String status;
     private String orderNo;
     private Long userId;
@@ -12,6 +14,4 @@ public class AdminOrderQueryDTO {
     private String flightKeyword;
     private String departureDateStart;
     private String departureDateEnd;
-    private int page = 1;
-    private int size = 10;
 }
