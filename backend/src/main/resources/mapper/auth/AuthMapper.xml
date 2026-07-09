@@ -60,6 +60,27 @@
         WHERE id = #{id} AND status = #{fromStatus}
     </update>
 
+    <update id="cancelUserAccount">
+        UPDATE users
+        SET email = #{email},
+            phone = NULL,
+            password_hash = #{passwordHash},
+            nickname = #{nickname},
+            real_name = NULL,
+            avatar_url = NULL,
+            status = 'DELETED',
+            email_verified = 0,
+            phone_verified = 0
+        WHERE id = #{id}
+          AND role = 'USER'
+          AND status = 'NORMAL'
+    </update>
+
+    <insert id="insertAccountCancellationLog" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_account_cancellation_log(user_id, action, client_ip)
+        VALUES(#{userId}, #{action}, #{clientIp})
+    </insert>
+
     <select id="countActiveOrdersByUserId" resultType="int">
         SELECT COUNT(*)
         FROM ticket_order

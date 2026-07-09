@@ -1,9 +1,11 @@
 package com.skybooker.auth.service;
 
+import com.skybooker.auth.dto.CancelAccountDTO;
 import com.skybooker.auth.dto.RegisterDTO;
 import com.skybooker.auth.dto.ResetPasswordDTO;
 import com.skybooker.auth.dto.UserLoginDTO;
 import com.skybooker.auth.entity.User;
+import com.skybooker.auth.entity.UserAccountCancellationLog;
 import com.skybooker.auth.mail.MailSendException;
 import com.skybooker.auth.mail.MailService;
 import com.skybooker.auth.mapper.AuthMapper;
@@ -23,15 +25,19 @@ import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private static final String PORTAL = "USER";
+    private static final String CANCELLED_NICKNAME = "Cancelled User";
+    private static final String SELF_CANCEL_ACTION = "SELF_CANCEL";
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AuthMapper authMapper;
@@ -112,6 +118,69 @@ public class AuthService {
             }
         } catch (JwtException | IllegalArgumentException e) {
             // token 已不可解析，refresh 记录可能已过期或不存在，幂等返回
+        }
+    }
+
+    @Transactional
+    public void cancelCurrentAccount(CancelAccountDTO dto, String clientIp) {
+        if (dto == null || dto.getCurrentPassword() == null || dto.getCurrentPassword().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        LoginUserPrincipal principal = SecurityUtil.getCurrentPrincipal();
+        if (principal == null || !PORTAL.equals(principal.loginPortal())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        User user = authMapper.findById(principal.userId());
+        if (user == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        if (!"USER".equals(user.getRole())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (!"NORMAL".equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
+        }
+
+        if (loginRateLimiter.isLimited(user.getEmail(), clientIp)) {
+            throw new BusinessException(ErrorCode.LOGIN_RATE_LIMITED);
+        }
+        if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPasswordHash())) {
+            loginRateLimiter.recordFailure(user.getEmail(), clientIp);
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        validateNoActiveBusiness(user.getId());
+
+        String tombstoneEmail = "deleted-user-" + user.getId() + "-"
+                + UUID.randomUUID().toString().replace("-", "")
+                + "@deleted.skybooker.invalid";
+        String unusablePasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+        int updated = authMapper.cancelUserAccount(
+                user.getId(), tombstoneEmail, unusablePasswordHash, CANCELLED_NICKNAME);
+        if (updated == 0) {
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
+        }
+
+        UserAccountCancellationLog log = new UserAccountCancellationLog();
+        log.setUserId(user.getId());
+        log.setAction(SELF_CANCEL_ACTION);
+        log.setClientIp(clientIp);
+        authMapper.insertAccountCancellationLog(log);
+
+        refreshTokenStore.revokeAllByUser(PORTAL, user.getId());
+    }
+
+    private void validateNoActiveBusiness(Long userId) {
+        if (authMapper.countActiveOrdersByUserId(userId) > 0) {
+            throw new BusinessException(ErrorCode.USER_HAS_ACTIVE_ORDERS);
+        }
+        if (authMapper.existsPendingWaitlistByUserId(userId)) {
+            throw new BusinessException(ErrorCode.USER_HAS_PENDING_WAITLIST);
+        }
+        if (authMapper.existsProcessingRefundOrChangeByUserId(userId)) {
+            throw new BusinessException(ErrorCode.USER_HAS_PROCESSING_REFUND_OR_CHANGE);
         }
     }
 

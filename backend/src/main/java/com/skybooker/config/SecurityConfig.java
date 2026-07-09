@@ -66,7 +66,7 @@ public class SecurityConfig {
                                     (authSupplier, ctx) -> checkAiAccess(authSupplier))
                             .requestMatchers("/api/orders/**", "/api/passengers/**", "/api/waitlist/**")
                             .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
-                            .requestMatchers("/api/auth/me")
+                            .requestMatchers("/api/auth/me", "/api/auth/account")
                             .access((authSupplier, ctx) -> requireUserPortal(authSupplier))
                             // /api/admin/** 通配收敛为 ADMIN portal，覆盖本变更新增的订单/用户维护端点。
                             .requestMatchers("/api/admin/**")

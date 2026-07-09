@@ -2,6 +2,7 @@ package com.skybooker.auth.mapper;
 
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.auth.entity.User;
+import com.skybooker.auth.entity.UserAccountCancellationLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -35,6 +36,13 @@ public interface AuthMapper {
     int updateStatusCAS(@Param("id") Long id,
                         @Param("fromStatus") String fromStatus,
                         @Param("toStatus") String toStatus);
+
+    int cancelUserAccount(@Param("id") Long id,
+                          @Param("email") String email,
+                          @Param("passwordHash") String passwordHash,
+                          @Param("nickname") String nickname);
+
+    void insertAccountCancellationLog(UserAccountCancellationLog log);
 
     int countActiveOrdersByUserId(@Param("userId") Long userId);
 

@@ -193,6 +193,29 @@ POST /api/auth/logout
 
 仅处理用户端 Token。管理员退出登录使用 `/api/admin/logout`。
 
+### 用户本人账号注销
+
+```http
+DELETE /api/auth/account
+Authorization: Bearer <user-access-token>
+```
+
+请求：
+
+```json
+{
+  "currentPassword": "User@123456"
+}
+```
+
+该接口仅接受用户端 Token，并且只从当前登录态读取用户身份；请求体、查询参数或路径中传入的 `userId` 不会作为注销目标。管理员 Token 或未登录请求分别返回无权限或未登录。
+
+注销前必须校验当前密码。密码缺失返回 `VALIDATION_ERROR`，密码错误返回 `INVALID_CREDENTIALS`，连续错误会复用登录失败限流并返回 `LOGIN_RATE_LIMITED`。
+
+注销前会阻断仍有活跃业务的账号：存在 `PENDING_PAYMENT`、`ISSUED`、`CHANGED`、`CHANGE_PENDING` 订单时返回 `USER_HAS_ACTIVE_ORDERS`；存在 `PENDING_PAYMENT` 或 `WAITING` 候补时返回 `USER_HAS_PENDING_WAITLIST`；存在处理中退票或改签时返回 `USER_HAS_PROCESSING_REFUND_OR_CHANGE`。接口不会自动取消候补、触发候补退款、取消订单或修改退改签状态。
+
+注销成功后，`users.status` 置为 `DELETED`，账号直接身份字段会被匿名化或清空以释放原邮箱和手机号；历史订单、乘机人、候补、退票、改签、AI 会话和推荐记录保留，不做硬删除。服务端会吊销该用户所有用户端会话，旧 refresh token 不能再刷新，旧 access token 不能再访问受保护用户接口；原邮箱可重新走正常注册流程。
+
 ### 管理员退出登录
 
 ```http
