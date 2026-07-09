@@ -23,6 +23,11 @@ export const CABIN_CLASS_LABEL: Record<CabinClass, string> = {
   FIRST: "头等舱",
 }
 
+/** 舱位类型守卫 */
+export function isCabinClass(value: string | null | undefined): value is CabinClass {
+  return value === "ECONOMY" || value === "BUSINESS" || value === "FIRST"
+}
+
 /** 舱位摘要 */
 export interface FlightCabinVO {
   cabinClass: CabinClass

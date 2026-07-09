@@ -4,11 +4,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FlightStatusBadge } from "./FlightStatusBadge"
 import { FlightPriceTag } from "./FlightPriceTag"
+import { getCabinAvailableSeats } from "@/lib/cabin-utils"
 import { formatDate, formatTime, getCrossDayLabel } from "@/lib/date-utils"
-import type { FlightVO } from "@/types/flight"
+import { isFlightBookable } from "@/lib/flight-utils"
+import type { CabinClass, FlightVO } from "@/types/flight"
 
 interface FlightCardProps {
   flight: FlightVO
+  cabinClass?: CabinClass
   showBookButton?: boolean
   showStatus?: boolean
   className?: string
@@ -17,6 +20,7 @@ interface FlightCardProps {
 
 export function FlightCard({
   flight,
+  cabinClass,
   showBookButton = true,
   showStatus = false,
   className,
@@ -28,7 +32,35 @@ export function FlightCard({
     return `${h}时${m > 0 ? `${m}分` : ""}`
   }
 
+  const getRemainingSeats = (currentFlight: FlightVO, currentCabinClass?: CabinClass) => {
+    if (!currentCabinClass) {
+      return currentFlight.remainingSeats
+    }
+
+    const selectedCabin = currentFlight.cabins?.find((cabin) => cabin.cabinClass === currentCabinClass)
+
+    return selectedCabin ? getCabinAvailableSeats(selectedCabin) : currentFlight.remainingSeats
+  }
+
+  const isFlightSoldOut = (currentFlight: FlightVO) => {
+    const remainingSeats = getRemainingSeats(currentFlight, cabinClass)
+    return isFlightBookable({ ...currentFlight, remainingSeats }).reason === "该航班已售罄"
+  }
+
+  const buildWaitlistUrl = (flightId: number, currentCabinClass?: CabinClass) => {
+    const params = new URLSearchParams({ flightId: String(flightId) })
+
+    if (currentCabinClass) {
+      params.set("cabinClass", currentCabinClass)
+    }
+
+    return `/waitlist/create?${params.toString()}`
+  }
+
   const crossDayLabel = getCrossDayLabel(flight.departureTime, flight.arrivalTime)
+  const remainingSeats = getRemainingSeats(flight, cabinClass)
+  const isSoldOut = isFlightSoldOut(flight)
+  const waitlistUrl = buildWaitlistUrl(flight.id, cabinClass)
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${className || ""}`}>
@@ -82,13 +114,27 @@ export function FlightCard({
               <div>
                 <FlightPriceTag price={flight.basePrice} className="text-lg" />
               </div>
-              {flight.remainingSeats > 0 && (
-                <p className="text-xs text-muted-foreground">余 {flight.remainingSeats} 座</p>
+              {remainingSeats > 0 ? (
+                <p className="text-xs text-muted-foreground">余 {remainingSeats} 座</p>
+              ) : (
+                <p className="text-xs text-destructive">已售罄</p>
               )}
             </div>
             {actionSlot || (
               showBookButton && (
-                <Button render={<Link href={`/flights/${flight.id}`}>查看详情</Link>} size="sm" nativeButton={false} />
+                isSoldOut ? (
+                  <div className="flex flex-col items-end gap-1.5">
+                    <Button render={<Link href={waitlistUrl}>加入候补</Link>} size="sm" nativeButton={false} />
+                    <Link
+                      href={`/flights/${flight.id}`}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      查看详情
+                    </Link>
+                  </div>
+                ) : (
+                  <Button render={<Link href={`/flights/${flight.id}`}>查看详情</Link>} size="sm" nativeButton={false} />
+                )
               )
             )}
           </div>
