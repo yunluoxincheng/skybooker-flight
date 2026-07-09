@@ -10,8 +10,8 @@ import { PasswordInput } from "@/components/common/PasswordInput"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getLoginErrorMessage } from "@/lib/error-codes"
 import { Shield } from "lucide-react"
-import { ApiError } from "@/lib/request"
 
 const adminLoginSchema = z.object({
   username: z.string().min(1, "请输入管理员用户名"),
@@ -39,11 +39,7 @@ export function AdminLoginForm() {
       await login(data.username, data.password)
       router.push("/admin/dashboard")
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("登录失败，请稍后重试")
-      }
+      setError(getLoginErrorMessage(err))
     }
   }
 

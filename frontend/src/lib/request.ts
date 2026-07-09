@@ -79,18 +79,23 @@ async function request<T>(
     clearTimeout(timer)
 
     if (res.status === 401) {
-      if (auth !== "none") {
-        handleUnauthorized(auth)
-        throw new ApiError(401, "未登录或登录已过期")
-      }
+      let serverCode = 401
+      let serverMessage = ""
 
       try {
         const json: ApiResponse = await res.json()
-        throw new ApiError(401, json.message || "用户名或密码错误")
-      } catch (err) {
-        if (err instanceof ApiError) throw err
-        throw new ApiError(401, "用户名或密码错误")
+        serverCode = typeof json.code === "number" ? json.code : 401
+        serverMessage = json.message || ""
+      } catch {
+        // Ignore non-JSON 401 responses and fall back to generic copy.
       }
+
+      if (auth !== "none") {
+        handleUnauthorized(auth)
+        throw new ApiError(serverCode, serverMessage || "未登录或登录已过期")
+      }
+
+      throw new ApiError(serverCode, serverMessage || "用户名或密码错误")
     }
 
     const json: ApiResponse<T> = await res.json()
