@@ -64,4 +64,11 @@ public class AuthController {
         authService.logout(refreshToken);
         return ApiResponse.success();
     }
+
+    @DeleteMapping("/account")
+    public ApiResponse<Void> cancelAccount(@Valid @RequestBody(required = false) CancelAccountDTO dto,
+                                           HttpServletRequest request) {
+        authService.cancelCurrentAccount(dto, ClientIpResolver.resolve(request));
+        return ApiResponse.success();
+    }
 }

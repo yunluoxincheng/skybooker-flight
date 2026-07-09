@@ -26,7 +26,7 @@
 | 10005 | VERIFICATION_CODE_SEND_TOO_FREQUENT | 验证码发送过于频繁 | 400 |
 | 10006 | VERIFICATION_CODE_DAILY_LIMIT | 验证码发送次数已达每日上限 | 400 |
 | 10007 | INVALID_CREDENTIALS | 邮箱或密码错误 | 401 |
-| 10008 | ACCOUNT_DISABLED | 账号已被禁用 | 403 |
+| 10008 | ACCOUNT_DISABLED | 账号已被禁用或已注销 | 403 |
 | 10009 | EMAIL_ALREADY_REGISTERED | 邮箱已注册 | 400 |
 | 10010 | PASSWORD_MISMATCH | 两次密码输入不一致 | 400 |
 | 10011 | TOKEN_EXPIRED | Token 已失效 | 401 |
@@ -59,9 +59,9 @@
 | 40012 | AIRLINE_IN_USE | 航司存在关联航班，无法删除 | 400 |
 | 40013 | AIRPORT_IN_USE | 机场存在关联航班，无法删除 | 400 |
 | 40020 | ORDER_NOT_VOIDABLE | 订单当前状态不可作废 | 400 |
-| 40021 | USER_HAS_ACTIVE_ORDERS | 用户存在未完成订单，无法删除或禁用 | 400 |
-| 40022 | USER_HAS_PENDING_WAITLIST | 用户存在进行中候补，无法删除或禁用 | 400 |
-| 40023 | USER_HAS_PROCESSING_REFUND_OR_CHANGE | 用户存在处理中退票或改签，无法删除或禁用 | 400 |
+| 40021 | USER_HAS_ACTIVE_ORDERS | 用户存在未完成订单，无法删除、禁用或注销 | 400 |
+| 40022 | USER_HAS_PENDING_WAITLIST | 用户存在进行中候补，无法删除、禁用或注销 | 400 |
+| 40023 | USER_HAS_PROCESSING_REFUND_OR_CHANGE | 用户存在处理中退票或改签，无法删除、禁用或注销 | 400 |
 | 40024 | USER_HAS_BUSINESS_DATA | 用户存在业务记录，无法删除，请改用禁用 | 400 |
 | 50001 | REFUND_WINDOW_CLOSED | 退款窗口已关闭，距起飞不足 2 小时 | 400 |
 | 50002 | WAITLIST_NOT_FOUND | 候补订单不存在 | 400 |

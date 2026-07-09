@@ -224,6 +224,19 @@ EXPIRED         支付超时
 
 该表只记录元数据，不保存密码哈希、Token、AI API key 等密钥材料。航班、座位和 AI LLM 配置等既有管理端写操作的审计策略不由本表变更。
 
+### user_account_cancellation_log 用户注销审计表
+
+`user_account_cancellation_log` 记录普通用户本人账号注销成功事件，用于追踪账号生命周期操作。
+
+关键字段：
+
+- `user_id`：被注销的用户 ID，外键关联 `users.id`；
+- `action`：动作，当前为 `SELF_CANCEL`；
+- `client_ip`：注销请求的客户端 IP，可为空；
+- `created_at`：审计时间。
+
+该表只记录注销元数据，不保存当前密码、密码哈希、access token、refresh token、验证码、原邮箱或原手机号。账号注销后的历史业务记录仍关联原 `users.id`，账号直接身份字段在 `users` 表内匿名化以释放邮箱和手机号唯一约束。
+
 ## 7.1 V11 管理维护迁移
 
 `V11__add_admin_order_user_maintenance.sql` 新增 `admin_operation_log` 表，给 `ticket_order` 增加 `admin_note` 列，并同步重建两个 V8 引入的 CHECK 约束：
@@ -232,6 +245,10 @@ EXPIRED         支付超时
 - `chk_users_status`：扩展为允许 `NORMAL`、`DISABLED`、`DELETED`。
 
 这两个约束必须先 `DROP CHECK` 再 `ADD CONSTRAINT`，否则新增的订单作废态和用户删除态会被数据库拒绝落库。
+
+## 7.2 V13 用户本人注销审计迁移
+
+`V13__add_user_account_cancellation_log.sql` 新增 `user_account_cancellation_log` 表。用户本人注销成功后写入一条审计元数据，并通过 `users.status = DELETED` 与账号字段匿名化表达注销结果；历史业务表不做硬删除。
 
 ## 8. ER 关系概览
 
