@@ -303,6 +303,14 @@ export function put<T>(
   return request<T>("PUT", url, body, options)
 }
 
+export function patch<T>(
+  url: string,
+  body?: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  return request<T>("PATCH", url, body, options)
+}
+
 export function del<T>(url: string, options?: RequestOptions): Promise<T>
 export function del<T>(
   url: string,

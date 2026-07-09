@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { z } from "zod"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,10 +14,17 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Textarea } from "@/components/ui/textarea"
+import { getErrorMessage } from "@/lib/error-codes"
+import * as adminApi from "@/services/adminApi"
 import type { OrderVO } from "@/types/order"
 
 export type DeleteOrderAction = "cancel" | "delete"
+
+const deleteCancelSchema = z.object({
+  type: z.enum(["cancel", "delete"]),
+  reason: z.string().trim().min(1, "请输入操作原因").max(100, "操作原因不能超过 100 字"),
+})
 
 interface DeleteCancelDialogProps {
   open: boolean
@@ -30,13 +39,20 @@ export function DeleteCancelDialog({
   onOpenChange,
   order,
   initialType = "cancel",
+  onSuccess,
 }: DeleteCancelDialogProps) {
-  const featureDisabledMessage = "管理端删除/作废订单功能依赖后端接口，当前暂不可用。"
   const [type, setType] = useState<DeleteOrderAction>(initialType)
+  const [reason, setReason] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [reasonError, setReasonError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setType(initialType)
+    setReason("")
+    setError(null)
+    setReasonError(null)
   }, [initialType, open, order?.id])
 
   const riskTips = useMemo(() => {
@@ -50,7 +66,31 @@ export function DeleteCancelDialog({
   }, [order])
 
   const handleSubmit = async () => {
-    if (!order) return
+    if (!order || isSubmitting) return
+
+    const parsed = deleteCancelSchema.safeParse({ type, reason })
+    if (!parsed.success) {
+      setReasonError(parsed.error.issues[0]?.message || "请输入操作原因")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+    setReasonError(null)
+
+    try {
+      if (parsed.data.type === "cancel") {
+        await adminApi.voidAdminOrder(order.id, { reason: parsed.data.reason })
+      } else {
+        await adminApi.deleteAdminOrder(order.id, "delete", parsed.data.reason)
+      }
+      onOpenChange(false)
+      await onSuccess?.()
+    } catch (err) {
+      setError(getErrorMessage(err, parsed.data.type === "cancel" ? "作废订单失败" : "删除订单失败"))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -65,10 +105,6 @@ export function DeleteCancelDialog({
 
         {!order ? null : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {featureDisabledMessage}
-            </div>
-
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{order.orderNo}</p>
               <p className="mt-1 text-muted-foreground">
@@ -79,7 +115,6 @@ export function DeleteCancelDialog({
             <div className="space-y-3">
               <Label>操作类型</Label>
               <RadioGroup
-                disabled
                 value={type}
                 onValueChange={(value) => setType(value as DeleteOrderAction)}
                 className="gap-3"
@@ -105,6 +140,23 @@ export function DeleteCancelDialog({
               </RadioGroup>
             </div>
 
+            <div className="space-y-1.5">
+              <Label htmlFor="delete-cancel-reason">操作原因</Label>
+              <Textarea
+                id="delete-cancel-reason"
+                rows={4}
+                value={reason}
+                disabled={isSubmitting}
+                onChange={(event) => {
+                  setReason(event.target.value)
+                  setReasonError(null)
+                }}
+                placeholder={type === "cancel" ? "请输入作废原因" : "请输入删除原因"}
+                aria-invalid={reasonError ? "true" : "false"}
+              />
+              {reasonError ? <p className="text-xs text-destructive">{reasonError}</p> : null}
+            </div>
+
             {riskTips.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                 <p className="font-medium">风险提示</p>
@@ -115,21 +167,23 @@ export function DeleteCancelDialog({
                 </ul>
               </div>
             )}
+
+            {error ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            ) : null}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             取消
           </Button>
-          <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
-              <Button variant="destructive" onClick={handleSubmit} disabled>
-                {type === "cancel" ? "确认作废" : "确认删除"}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{featureDisabledMessage}</TooltipContent>
-          </Tooltip>
+          <Button variant="destructive" onClick={handleSubmit} disabled={isSubmitting || !order}>
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {type === "cancel" ? "确认作废" : "确认删除"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

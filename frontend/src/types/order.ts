@@ -79,7 +79,11 @@ export interface SeatMapping {
 export interface ChangeOrderDTO {
   newFlightId: number
   seatMappings: SeatMapping[]
+  reason: string
+  force?: boolean
 }
+
+export type AdminChangeDTO = ChangeOrderDTO
 
 /** 退票结果 VO — 匹配后端 RefundVO */
 export interface RefundVO {
@@ -101,67 +105,61 @@ export interface ChangeOrderResultVO {
   passengers: OrderPassengerVO[]
 }
 
-/* PENDING BACKEND: 管理端创建、更新、退票、增强详情、删除接口尚未提供，以下类型暂未启用。
 export interface CreateAdminOrderDTO {
   userId: number
   flightId: number
   items: OrderItemDTO[]
 }
 
-export interface UpdateAdminOrderDTO {
-  items?: OrderItemDTO[]
-}
-
 export interface AdminRefundDTO {
   reason: string
-  refundFee?: number
+  force?: boolean
+}
+
+export interface AdminVoidDTO {
+  reason: string
+}
+
+export interface AdminNoteDTO {
+  adminNote?: string
 }
 
 export interface RefundRecordVO {
   id: number
   orderId: number
+  userId: number
   refundAmount: number
   feeAmount: number
   reason: string
   status: string
   createdAt: string
-  completedAt?: string
 }
 
 export interface ChangeRecordVO {
   id: number
-  orderNo: string
-  oldFlightNo: string
-  newFlightNo: string
-  oldDepartureTime: string
-  newDepartureTime: string
-  feeAmount: number
+  orderId: number
+  oldFlightId: number
+  newFlightId: number
+  oldSeatId: number
+  newSeatId: number
   priceDiff: number
+  changeFee: number
   status: string
   createdAt: string
 }
 
-export interface PaymentInfoVO {
-  payTime?: string
-  payAmount?: number
-  payMethod?: string
-  tradeNo?: string
-}
-
-export interface OrderStatusTimelineItemVO {
-  status: OrderStatus
-  title?: string
+export interface AdminOrderTimelineItemVO {
+  eventType: string
+  status?: string
   description?: string
-  operatorName?: string
   occurredAt?: string
 }
 
 export interface AdminOrderDetailVO extends OrderVO {
-  refundRecords: RefundRecordVO[]
-  changeRecords: ChangeRecordVO[]
-  paymentInfo?: PaymentInfoVO
-  statusTimeline: OrderStatusTimelineItemVO[]
+  refunds: RefundRecordVO[]
+  changes: ChangeRecordVO[]
+  timeline: AdminOrderTimelineItemVO[]
+  adminNote?: string
 }
 
 export type OrderDeleteType = "cancel" | "delete"
-*/

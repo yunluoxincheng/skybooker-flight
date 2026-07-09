@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { z } from "zod"
+import { Loader2 } from "lucide-react"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -12,23 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { getErrorMessage } from "@/lib/error-codes"
+import * as adminApi from "@/services/adminApi"
 import type { OrderVO } from "@/types/order"
 
 const refundFormSchema = z.object({
-  reason: z.string().trim().min(1, "请输入退票原因").max(500, "退票原因不能超过 500 字"),
-  refundFee: z.preprocess(
-    (value) => {
-      if (value === "" || value === undefined || value === null) return undefined
-      if (typeof value === "number") return Number.isNaN(value) ? undefined : value
-      const numericValue = Number(value)
-      return Number.isNaN(numericValue) ? value : numericValue
-    },
-    z.number().min(0, "手续费不能小于 0").optional()
-  ),
+  reason: z.string().trim().min(1, "请输入退票原因").max(100, "退票原因不能超过 100 字"),
+  force: z.boolean().optional(),
 })
 
 type RefundFormValues = z.infer<typeof refundFormSchema>
@@ -44,33 +38,29 @@ export function RefundConfirmDialog({
   open,
   onOpenChange,
   order,
+  onSuccess,
 }: RefundConfirmDialogProps) {
-  const featureDisabledMessage = "管理端退票功能依赖后端接口，当前暂不可用。"
-  const [form, setForm] = useState<{ reason: string; refundFee: string }>({
+  const [form, setForm] = useState<{ reason: string; force: boolean }>({
     reason: "",
-    refundFee: "",
+    force: false,
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RefundFormValues, string>>>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setForm({ reason: "", refundFee: "" })
+    setForm({ reason: "", force: false })
     setErrors({})
+    setSubmitError(null)
   }, [open, order?.id])
 
-  const estimatedRefund = useMemo(() => {
-    if (!order) return 0
-    const fee = form.refundFee.trim() ? Number(form.refundFee) : 0
-    if (Number.isNaN(fee)) return order.totalAmount
-    return Math.max(order.totalAmount - fee, 0)
-  }, [form.refundFee, order])
-
   const handleSubmit = async () => {
-    if (!order) return
+    if (!order || isSubmitting) return
 
     const parsed = refundFormSchema.safeParse({
       reason: form.reason,
-      refundFee: form.refundFee,
+      force: form.force,
     })
 
     if (!parsed.success) {
@@ -85,7 +75,22 @@ export function RefundConfirmDialog({
       return
     }
 
+    setIsSubmitting(true)
     setErrors({})
+    setSubmitError(null)
+
+    try {
+      await adminApi.refundAdminOrder(order.id, {
+        reason: parsed.data.reason.trim(),
+        force: parsed.data.force,
+      })
+      onOpenChange(false)
+      await onSuccess?.()
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, "退票失败，请稍后重试"))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -94,16 +99,12 @@ export function RefundConfirmDialog({
         <DialogHeader>
           <DialogTitle>确认退票</DialogTitle>
           <DialogDescription>
-            提交后会按管理员退票流程执行，请确认退款原因和手续费覆盖金额。
+            提交后会按管理员退票流程执行，请确认退款原因和是否需要强制执行。
           </DialogDescription>
         </DialogHeader>
 
         {!order ? null : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {featureDisabledMessage}
-            </div>
-
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -114,14 +115,10 @@ export function RefundConfirmDialog({
                 </div>
                 <FlightPriceTag price={order.totalAmount} />
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3">
                 <div>
                   <p className="text-xs text-muted-foreground">订单金额</p>
                   <p className="font-medium">¥{order.totalAmount.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">预计退款金额</p>
-                  <p className="font-medium text-primary">¥{estimatedRefund.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -131,7 +128,7 @@ export function RefundConfirmDialog({
               <Textarea
                 id="refund-reason"
                 rows={4}
-                disabled
+                disabled={isSubmitting}
                 value={form.reason}
                 onChange={(event) => {
                   setForm((current) => ({ ...current, reason: event.target.value }))
@@ -143,43 +140,40 @@ export function RefundConfirmDialog({
               {errors.reason && <p className="text-xs text-destructive">{errors.reason}</p>}
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="refund-fee">手续费覆盖</Label>
-              <Input
-                id="refund-fee"
-                type="number"
-                min="0"
-                step="0.01"
-                disabled
-                value={form.refundFee}
-                onChange={(event) => {
-                  setForm((current) => ({ ...current, refundFee: event.target.value }))
-                  setErrors((current) => ({ ...current, refundFee: undefined }))
-                }}
-                placeholder="留空则按后端默认规则计算"
-                aria-invalid={errors.refundFee ? "true" : "false"}
-              />
-              {errors.refundFee && <p className="text-xs text-destructive">{errors.refundFee}</p>}
+            <div className="rounded-xl border p-4">
+              <label className="flex items-start gap-3 text-sm">
+                <Checkbox
+                  checked={form.force}
+                  disabled={isSubmitting}
+                  onCheckedChange={(checked) => {
+                    setForm((current) => ({ ...current, force: checked === true }))
+                    setErrors((current) => ({ ...current, force: undefined }))
+                  }}
+                />
+                <div className="space-y-1">
+                  <span className="font-medium">强制执行</span>
+                  <p className="text-muted-foreground">跳过费用检查，由管理员直接发起退票处理。</p>
+                </div>
+              </label>
+              {errors.force && <p className="mt-2 text-xs text-destructive">{errors.force}</p>}
             </div>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              当前仅保留表单结构展示，退票提交需后端管理接口支持。
-            </div>
+            {submitError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {submitError}
+              </div>
+            ) : null}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             取消
           </Button>
-          <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
-              <Button variant="destructive" onClick={handleSubmit} disabled>
-                确认退票
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{featureDisabledMessage}</TooltipContent>
-          </Tooltip>
+          <Button variant="destructive" onClick={handleSubmit} disabled={isSubmitting || !order}>
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isSubmitting ? "提交中..." : "确认退票"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

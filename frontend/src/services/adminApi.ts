@@ -1,4 +1,4 @@
-import { del, get, post, put } from "@/lib/request"
+import { del, get, patch, post, put } from "@/lib/request"
 import { getFlightSeats as getPublicFlightSeats } from "@/services/flightApi"
 import type { AdminLoginResponse, AdminUser } from "@/types/auth"
 import type {
@@ -23,7 +23,22 @@ import type {
   DeleteUserBlockInfoVO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightVO } from "@/types/flight"
-import type { OrderVO } from "@/types/order"
+import type { PassengerVO } from "@/types/passenger"
+import type {
+  AdminChangeDTO,
+  AdminNoteDTO,
+  AdminOrderDetailVO,
+  AdminRefundDTO,
+  AdminVoidDTO,
+  ChangeOptionVO,
+  ChangeOrderResultVO,
+  ChangeRecordVO,
+  CreateAdminOrderDTO,
+  OrderDeleteType,
+  OrderVO,
+  RefundRecordVO,
+  RefundVO,
+} from "@/types/order"
 import type { PageData } from "@/types/api"
 
 // ---- Auth ----
@@ -146,59 +161,53 @@ export function getAdminOrderById(id: number) {
   return get<OrderVO>(`/admin/orders/${id}`, undefined, { auth: "admin" })
 }
 
-/* --- PENDING BACKEND: POST /api/admin/orders ---
 export function createAdminOrder(data: CreateAdminOrderDTO) {
   return post<OrderVO>("/admin/orders", data, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: PUT /api/admin/orders/{id} ---
-export function updateAdminOrder(id: number, data: UpdateAdminOrderDTO) {
-  return put<OrderVO>(`/admin/orders/${id}`, data, { auth: "admin" })
-}
-*/
-
-/* --- PENDING BACKEND: POST /api/admin/orders/{id}/refund ---
 export function refundAdminOrder(id: number, data: AdminRefundDTO) {
-  return post<OrderVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
+  return post<RefundVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: GET /api/admin/orders/{id}/change-options ---
 export function getAdminChangeOptions(id: number) {
   return get<ChangeOptionVO[]>(`/admin/orders/${id}/change-options`, undefined, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: POST /api/admin/orders/{id}/change ---
-export function changeAdminOrder(id: number, data: ChangeOrderDTO) {
-  return post<OrderVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
+export function changeAdminOrder(id: number, data: AdminChangeDTO) {
+  return post<ChangeOrderResultVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: DELETE /api/admin/orders/{id} ---
-export function deleteAdminOrder(id: number, type: OrderDeleteType) {
-  return del<null>(`/admin/orders/${id}?type=${type}`, { auth: "admin" })
+export function voidAdminOrder(id: number, data: AdminVoidDTO) {
+  return post<OrderVO>(`/admin/orders/${id}/void`, data, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: GET /api/admin/orders/{id}/detail ---
+export function deleteAdminOrder(id: number, type: OrderDeleteType, reason?: string) {
+  const searchParams = new URLSearchParams({ type })
+  if (reason?.trim()) {
+    searchParams.set("reason", reason.trim())
+  }
+  return del<OrderVO>(`/admin/orders/${id}?${searchParams.toString()}`, { auth: "admin" })
+}
+
 export function getAdminOrderDetailEnhanced(id: number) {
   return get<AdminOrderDetailVO>(`/admin/orders/${id}/detail`, undefined, { auth: "admin" })
 }
-*/
 
-/* --- PENDING BACKEND: GET /api/admin/flights?publishedOnly=true ---
-export function getPublishedFlights(params?: Record<string, string | number | boolean | undefined>) {
-  return get<PageData<FlightVO>>("/admin/flights", { ...params, publishedOnly: true }, { auth: "admin" })
-}
-*/
-
-/* --- PENDING BACKEND: GET /api/admin/passengers?userId= ---
 export function getPassengersByUser(userId: number) {
   return get<PassengerVO[]>("/admin/passengers", { userId }, { auth: "admin" })
 }
-*/
+
+export function getAdminOrderRefunds(id: number) {
+  return get<RefundRecordVO[]>(`/admin/orders/${id}/refunds`, undefined, { auth: "admin" })
+}
+
+export function getAdminOrderChanges(id: number) {
+  return get<ChangeRecordVO[]>(`/admin/orders/${id}/changes`, undefined, { auth: "admin" })
+}
+
+export function updateAdminNote(id: number, data: AdminNoteDTO) {
+  return patch<OrderVO>(`/admin/orders/${id}/admin-note`, data, { auth: "admin" })
+}
 
 export function getAdminFlightSeats(flightId: number) {
   return getPublicFlightSeats(flightId)
