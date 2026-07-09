@@ -2,6 +2,8 @@ package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
+import com.skybooker.admin.dto.PageQueryDTO;
+import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.auth.entity.User;
@@ -34,11 +36,12 @@ public class AdminService {
     private final AdminOperationLogService operationLogService;
     private final PasswordEncoder passwordEncoder;
 
-    public PageResponse<UserAdminVO> listUsers(int page, int size) {
-        int offset = (page - 1) * size;
-        List<UserAdminVO> users = authMapper.findUsersByRole("USER", offset, size);
+    public PageResponse<UserAdminVO> listUsers(PageQueryDTO query) {
+        AdminListQuerySupport.validatePage(query);
+        int offset = AdminListQuerySupport.offset(query);
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", offset, query.getSize());
         long total = authMapper.countUsersByRole("USER");
-        return new PageResponse<>(users, total, page, size);
+        return new PageResponse<>(users, total, query.getPage(), query.getSize());
     }
 
     @Transactional
@@ -130,7 +133,7 @@ public class AdminService {
 
     public PageResponse<OrderVO> listOrders(AdminOrderQueryDTO query) {
         validateOrderQuery(query);
-        int offset = (query.getPage() - 1) * query.getSize();
+        int offset = AdminListQuerySupport.offset(query);
         List<OrderVO> orders = orderMapper.searchOrdersAdmin(query, offset, query.getSize());
         long total = orderMapper.countOrdersAdmin(query);
         return new PageResponse<>(orders, total, query.getPage(), query.getSize());
@@ -204,9 +207,7 @@ public class AdminService {
     }
 
     private void validateOrderQuery(AdminOrderQueryDTO query) {
-        if (query.getPage() < 1 || query.getSize() < 1) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
-        }
+        AdminListQuerySupport.normalize(query);
         validateEnum(query.getStatus(), VALID_ORDER_STATUSES);
         validateDate(query.getDepartureDateStart());
         validateDate(query.getDepartureDateEnd());

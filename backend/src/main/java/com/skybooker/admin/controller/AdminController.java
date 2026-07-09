@@ -4,22 +4,26 @@ import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminDeleteOrderDTO;
+import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.admin.dto.AdminNoteDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
 import com.skybooker.admin.service.AdminOrderService;
 import com.skybooker.admin.service.AdminService;
+import com.skybooker.admin.vo.AdminOrderDetailVO;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
-import com.skybooker.admin.vo.AdminOrderDetailVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
+import com.skybooker.change.entity.ChangeRecord;
+import com.skybooker.change.vo.ChangeOrderResultVO;
 import com.skybooker.change.vo.ChangeOptionVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
@@ -29,8 +33,6 @@ import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.order.vo.OrderVO;
 import com.skybooker.passenger.vo.PassengerVO;
 import com.skybooker.refund.entity.RefundRecord;
-import com.skybooker.change.entity.ChangeRecord;
-import com.skybooker.change.vo.ChangeOrderResultVO;
 import com.skybooker.refund.vo.RefundVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,21 +51,8 @@ public class AdminController {
     private final AdminOrderService adminOrderService;
 
     @GetMapping("/flights")
-    public ApiResponse<PageResponse<FlightVO>> listFlights(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String flightNo,
-            @RequestParam(required = false) Long airlineId,
-            @RequestParam(required = false) String departureCity,
-            @RequestParam(required = false) String arrivalCity,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String publishStatus,
-            @RequestParam(required = false) String departureDateStart,
-            @RequestParam(required = false) String departureDateEnd,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(adminFlightService.listFlights(
-                keyword, flightNo, airlineId, departureCity, arrivalCity,
-                status, publishStatus, departureDateStart, departureDateEnd, page, size));
+    public ApiResponse<PageResponse<FlightVO>> listFlights(AdminFlightQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listFlights(query));
     }
 
     @PostMapping("/flights")
@@ -183,10 +172,8 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<PageResponse<UserAdminVO>> listUsers(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(adminService.listUsers(page, size));
+    public ApiResponse<PageResponse<UserAdminVO>> listUsers(PageQueryDTO query) {
+        return ApiResponse.success(adminService.listUsers(query));
     }
 
     @PostMapping("/users")

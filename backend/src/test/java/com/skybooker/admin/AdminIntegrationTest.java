@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -219,6 +220,64 @@ class AdminIntegrationTest {
                 // keyword 模糊匹配应命中刚创建的航班
                 .andExpect(jsonPath("$.data.records.length()").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.data.records[0].flightNo").value(flightNo));
+    }
+
+    @Test
+    void listFlights_blankKeywordBehavesLikeMissingKeyword() throws Exception {
+        MvcResult withoutKeyword = mockMvc.perform(get("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MvcResult blankKeyword = mockMvc.perform(get("/api/admin/flights")
+                        .param("keyword", "   ")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(objectMapper.readTree(blankKeyword.getResponse().getContentAsString())
+                .get("data").get("total").asLong())
+                .isEqualTo(objectMapper.readTree(withoutKeyword.getResponse().getContentAsString())
+                        .get("data").get("total").asLong());
+    }
+
+    @Test
+    void listFlights_trimsKeywordBeforeSearch() throws Exception {
+        FlightFormDTO dto = buildValidFlightForm();
+        dto.setFlightNo(unique("MU"));
+        mockMvc.perform(post("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("keyword", "  MU  ")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.records[?(@.flightNo == '%s')]".formatted(dto.getFlightNo())).isNotEmpty());
+    }
+
+    @Test
+    void listFlights_rejectsInvalidPagination() throws Exception {
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("page", "0")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("size", "0")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        mockMvc.perform(get("/api/admin/flights")
+                        .param("size", "101")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
     }
 
     @Test

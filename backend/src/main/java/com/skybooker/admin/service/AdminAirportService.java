@@ -2,8 +2,10 @@ package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AirportDTO;
 import com.skybooker.admin.dto.AirportUpdateDTO;
+import com.skybooker.admin.dto.AdminKeywordStatusQueryDTO;
 import com.skybooker.admin.entity.Airport;
 import com.skybooker.admin.mapper.AirportMapper;
+import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.AirportVO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -21,16 +24,19 @@ public class AdminAirportService {
 
     private static final String STATUS_ENABLED = "ENABLED";
     private static final String STATUS_DISABLED = "DISABLED";
+    private static final Set<String> VALID_STATUSES = Set.of(STATUS_ENABLED, STATUS_DISABLED);
 
     private final AirportMapper airportMapper;
     private final FlightMapper flightMapper;
     private final AdminOperationLogService operationLogService;
 
-    public PageResponse<AirportVO> listAirports(String keyword, String status, int page, int size) {
-        int offset = (page - 1) * size;
-        List<AirportVO> records = airportMapper.search(keyword, status, offset, size);
-        long total = airportMapper.count(keyword, status);
-        return new PageResponse<>(records, total, page, size);
+    public PageResponse<AirportVO> listAirports(AdminKeywordStatusQueryDTO query) {
+        AdminListQuerySupport.normalize(query);
+        validateEnum(query.getStatus());
+        int offset = AdminListQuerySupport.offset(query);
+        List<AirportVO> records = airportMapper.search(query, offset, query.getSize());
+        long total = airportMapper.count(query);
+        return new PageResponse<>(records, total, query.getPage(), query.getSize());
     }
 
     @Transactional
@@ -98,5 +104,11 @@ public class AdminAirportService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         airportMapper.updateStatus(id, status);
+    }
+
+    private void validateEnum(String status) {
+        if (status != null && !VALID_STATUSES.contains(status)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 }

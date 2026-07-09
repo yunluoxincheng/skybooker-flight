@@ -1,5 +1,6 @@
 package com.skybooker.admin.mapper;
 
+import com.skybooker.admin.dto.AdminKeywordStatusQueryDTO;
 import com.skybooker.admin.entity.Airline;
 import com.skybooker.admin.vo.AirlineVO;
 import org.apache.ibatis.annotations.Mapper;
@@ -10,12 +11,11 @@ import java.util.List;
 @Mapper
 public interface AirlineMapper {
 
-    List<AirlineVO> search(@Param("keyword") String keyword,
-                           @Param("status") String status,
+    List<AirlineVO> search(@Param("query") AdminKeywordStatusQueryDTO query,
                            @Param("offset") int offset,
                            @Param("size") int size);
 
-    long count(@Param("keyword") String keyword, @Param("status") String status);
+    long count(@Param("query") AdminKeywordStatusQueryDTO query);
 
     AirlineVO findById(@Param("id") Long id);
 

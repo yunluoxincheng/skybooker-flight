@@ -367,40 +367,40 @@
     <!-- 管理端航班搜索条件(keyword 模糊匹配航班号/航司名/航司代码/机场名/机场代码/城市) -->
     <sql id="adminFlightWhere">
         <where>
-            <if test="keyword != null and keyword != ''">
-                AND (f.flight_no LIKE CONCAT('%', #{keyword}, '%')
-                  OR al.name LIKE CONCAT('%', #{keyword}, '%')
-                  OR al.code LIKE CONCAT('%', #{keyword}, '%')
-                  OR da.name LIKE CONCAT('%', #{keyword}, '%')
-                  OR da.code LIKE CONCAT('%', #{keyword}, '%')
-                  OR da.city LIKE CONCAT('%', #{keyword}, '%')
-                  OR aa.name LIKE CONCAT('%', #{keyword}, '%')
-                  OR aa.code LIKE CONCAT('%', #{keyword}, '%')
-                  OR aa.city LIKE CONCAT('%', #{keyword}, '%'))
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (f.flight_no LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR al.name LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR al.code LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR da.name LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR da.code LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR da.city LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR aa.name LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR aa.code LIKE CONCAT('%', #{query.keyword}, '%')
+                  OR aa.city LIKE CONCAT('%', #{query.keyword}, '%'))
             </if>
-            <if test="flightNo != null and flightNo != ''">
-                AND f.flight_no LIKE CONCAT('%', #{flightNo}, '%')
+            <if test="query.flightNo != null and query.flightNo != ''">
+                AND f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
             </if>
-            <if test="airlineId != null">
-                AND f.airline_id = #{airlineId}
+            <if test="query.airlineId != null">
+                AND f.airline_id = #{query.airlineId}
             </if>
-            <if test="departureCity != null and departureCity != ''">
-                AND da.city LIKE CONCAT('%', #{departureCity}, '%')
+            <if test="query.departureCity != null and query.departureCity != ''">
+                AND da.city LIKE CONCAT('%', #{query.departureCity}, '%')
             </if>
-            <if test="arrivalCity != null and arrivalCity != ''">
-                AND aa.city LIKE CONCAT('%', #{arrivalCity}, '%')
+            <if test="query.arrivalCity != null and query.arrivalCity != ''">
+                AND aa.city LIKE CONCAT('%', #{query.arrivalCity}, '%')
             </if>
-            <if test="status != null and status != ''">
-                AND f.status = #{status}
+            <if test="query.status != null and query.status != ''">
+                AND f.status = #{query.status}
             </if>
-            <if test="publishStatus != null and publishStatus != ''">
-                AND f.publish_status = #{publishStatus}
+            <if test="query.publishStatus != null and query.publishStatus != ''">
+                AND f.publish_status = #{query.publishStatus}
             </if>
-            <if test="departureDateStart != null and departureDateStart != ''">
-                AND f.departure_time &gt;= #{departureDateStart}
+            <if test="query.departureDateStart != null and query.departureDateStart != ''">
+                AND f.departure_time &gt;= #{query.departureDateStart}
             </if>
-            <if test="departureDateEnd != null and departureDateEnd != ''">
-                AND f.departure_time &lt; #{departureDateEnd} + INTERVAL 1 DAY
+            <if test="query.departureDateEnd != null and query.departureDateEnd != ''">
+                AND f.departure_time &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
             </if>
         </where>
     </sql>
