@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { z } from "zod"
-import { ArrowRightLeft, Loader2 } from "lucide-react"
+import { ArrowRightLeft } from "lucide-react"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,12 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
-import type { ApiError } from "@/lib/request"
-import * as adminApi from "@/services/adminApi"
 import type { ChangeOptionVO, OrderVO } from "@/types/order"
-import type { FlightSeatVO } from "@/types/flight"
 
 const changeSeatMappingSchema = z.object({
   newFlightId: z.coerce.number().min(1, "请选择改签航班"),
@@ -55,43 +53,23 @@ export function ChangeOrderDialog({
   open,
   onOpenChange,
   order,
-  onSuccess,
 }: ChangeOrderDialogProps) {
+  const featureDisabledMessage = "管理端改签功能依赖后端接口，当前暂不可用。"
   const [step, setStep] = useState<1 | 2>(1)
-  const [options, setOptions] = useState<ChangeOptionVO[]>([])
+  const [options] = useState<ChangeOptionVO[]>([])
   const [selectedFlightId, setSelectedFlightId] = useState("")
-  const [seats, setSeats] = useState<FlightSeatVO[]>([])
   const [seatMappings, setSeatMappings] = useState<Record<number, string>>({})
-  const [loadingOptions, setLoadingOptions] = useState(false)
-  const [loadingSeats, setLoadingSeats] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [flightError, setFlightError] = useState<string | null>(null)
   const [seatErrors, setSeatErrors] = useState<Record<number, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open || !order) return
 
     setStep(1)
     setSelectedFlightId("")
-    setSeats([])
     setSeatMappings({})
-    setSubmitError(null)
     setFlightError(null)
     setSeatErrors({})
-    setIsSubmitting(false)
-    setLoadingOptions(true)
-
-    adminApi
-      .getAdminChangeOptions(order.id)
-      .then((data) => {
-        setOptions(data)
-      })
-      .catch((error: ApiError) => {
-        setOptions([])
-        setSubmitError(error.message || "加载改签选项失败")
-      })
-      .finally(() => setLoadingOptions(false))
   }, [open, order])
 
   const selectedOption = useMemo(
@@ -104,49 +82,7 @@ export function ChangeOrderDialog({
     return selectedOption.basePrice * order.passengers.length - order.ticketAmount
   }, [order, selectedOption])
 
-  const selectedSeatTotal = useMemo(() => {
-    return Object.values(seatMappings).reduce((sum, seatId) => {
-      const seat = seats.find((item) => item.id === Number(seatId))
-      return sum + (seat?.price ?? 0)
-    }, 0)
-  }, [seatMappings, seats])
-
-  const loadSeats = async () => {
-    if (!selectedFlightId || !order) {
-      setFlightError("请选择改签航班")
-      return
-    }
-
-    setFlightError(null)
-    setSubmitError(null)
-    setLoadingSeats(true)
-    try {
-      const data = await adminApi.getAdminFlightSeats(Number(selectedFlightId))
-      setSeats(data)
-      setSeatMappings({})
-      setSeatErrors({})
-      setStep(2)
-    } catch (error) {
-      setSubmitError((error as ApiError).message || "加载新航班座位失败")
-    } finally {
-      setLoadingSeats(false)
-    }
-  }
-
-  const getSeatOptions = (passengerId: number) => {
-    const currentSeatId = Number(seatMappings[passengerId] || "0")
-    const occupiedByOthers = new Set(
-      Object.entries(seatMappings)
-        .filter(([mappedPassengerId, seatId]) => Number(mappedPassengerId) !== passengerId && Boolean(seatId))
-        .map(([, seatId]) => Number(seatId))
-    )
-
-    return seats.filter((seat) => {
-      if (seat.status !== "AVAILABLE" && seat.id !== currentSeatId) return false
-      if (occupiedByOthers.has(seat.id) && seat.id !== currentSeatId) return false
-      return true
-    })
-  }
+  const selectedSeatTotal = useMemo(() => 0, [])
 
   const handleSubmit = async () => {
     if (!order) return
@@ -182,19 +118,6 @@ export function ChangeOrderDialog({
       setSeatErrors(nextSeatErrors)
       return
     }
-
-    setSubmitError(null)
-    setSeatErrors({})
-    setIsSubmitting(true)
-    try {
-      await adminApi.changeAdminOrder(order.id, parsed.data)
-      onOpenChange(false)
-      await onSuccess?.()
-    } catch (error) {
-      setSubmitError((error as ApiError).message || "改签失败")
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   return (
@@ -209,6 +132,10 @@ export function ChangeOrderDialog({
 
         {!order ? null : (
           <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {featureDisabledMessage}
+            </div>
+
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -235,78 +162,33 @@ export function ChangeOrderDialog({
 
             {step === 1 ? (
               <div className="space-y-4">
-                {loadingOptions ? (
-                  <div className="flex min-h-[220px] items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : options.length === 0 ? (
-                  <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-                    暂无可改签航班
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label>改签到航班</Label>
-                      <Select
-                        value={selectedFlightId}
-                        onValueChange={(value) => {
-                          setSelectedFlightId(value ?? "")
-                          setFlightError(null)
-                        }}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="请选择可改签航班" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map((option) => (
-                            <SelectItem key={option.flightId} value={String(option.flightId)}>
-                              {option.flightNo} · {formatDateTime(option.departureTime)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {flightError && <p className="text-xs text-destructive">{flightError}</p>}
-                    </div>
+                <div className="space-y-1.5">
+                  <Label>改签到航班</Label>
+                  <Select
+                    disabled
+                    value={selectedFlightId}
+                    onValueChange={(value) => {
+                      setSelectedFlightId(value ?? "")
+                      setFlightError(null)
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="后端接口补齐后可选择改签航班" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((option) => (
+                        <SelectItem key={option.flightId} value={String(option.flightId)}>
+                          {option.flightNo} · {formatDateTime(option.departureTime)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {flightError && <p className="text-xs text-destructive">{flightError}</p>}
+                </div>
 
-                    <div className="grid gap-3">
-                      {options.map((option) => {
-                        const diff = option.basePrice * order.passengers.length - order.ticketAmount
-                        const active = option.flightId === Number(selectedFlightId)
-
-                        return (
-                          <button
-                            key={option.flightId}
-                            type="button"
-                            onClick={() => {
-                              setSelectedFlightId(String(option.flightId))
-                              setFlightError(null)
-                            }}
-                            className={`rounded-xl border p-4 text-left transition-colors ${active ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{option.flightNo}</span>
-                                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-muted-foreground">{order.flightNo}</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {formatDateTime(option.departureTime)} → {formatDateTime(option.arrivalTime)}
-                                </p>
-                              </div>
-                              <div className="text-right text-sm">
-                                <p>余座 {option.remainingSeats}</p>
-                                <p className={diff >= 0 ? "text-amber-700" : "text-emerald-700"}>
-                                  预估差价 {diff >= 0 ? "+" : ""}¥{Math.abs(diff).toLocaleString()}
-                                </p>
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
+                <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+                  当前暂不可加载可改签航班与座位数据，待后端接口补齐后恢复。
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -327,70 +209,34 @@ export function ChangeOrderDialog({
                   </div>
                 </div>
 
-                {loadingSeats ? (
-                  <div className="flex min-h-[220px] items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {order.passengers.map((passenger) => {
-                      const seatOptions = getSeatOptions(passenger.passengerId)
-
-                      return (
-                        <div key={passenger.passengerId} className="rounded-xl border p-4">
-                          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="font-medium">{passenger.passengerName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {PASSENGER_TYPE_LABEL[passenger.passengerType]} · 原座位 {passenger.seatNo}
-                              </p>
-                            </div>
-                            <FlightPriceTag price={passenger.ticketPrice} className="text-sm" />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label>新座位</Label>
-                            <Select
-                              value={seatMappings[passenger.passengerId] || ""}
-                              onValueChange={(value) => {
-                                setSeatMappings((current) => ({
-                                  ...current,
-                                  [passenger.passengerId]: value ?? "",
-                                }))
-                                setSeatErrors((current) => ({
-                                  ...current,
-                                  [passenger.passengerId]: "",
-                                }))
-                              }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="请选择新座位" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {seatOptions.map((seat) => (
-                                  <SelectItem key={seat.id} value={String(seat.id)}>
-                                    {seat.seatNo} · ¥{seat.price.toLocaleString()}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {seatErrors[passenger.passengerId] && (
-                              <p className="text-xs text-destructive">
-                                {seatErrors[passenger.passengerId]}
-                              </p>
-                            )}
-                          </div>
+                <div className="space-y-4">
+                  {order.passengers.map((passenger) => (
+                    <div key={passenger.passengerId} className="rounded-xl border p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{passenger.passengerName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {PASSENGER_TYPE_LABEL[passenger.passengerType]} · 原座位 {passenger.seatNo}
+                          </p>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                        <FlightPriceTag price={passenger.ticketPrice} className="text-sm" />
+                      </div>
 
-            {submitError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {submitError}
+                      <div className="space-y-1.5">
+                        <Label>新座位</Label>
+                        <Select disabled value={seatMappings[passenger.passengerId] || ""}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="后端接口补齐后可选择新座位" />
+                          </SelectTrigger>
+                          <SelectContent />
+                        </Select>
+                        {seatErrors[passenger.passengerId] && (
+                          <p className="text-xs text-destructive">{seatErrors[passenger.passengerId]}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -402,24 +248,31 @@ export function ChangeOrderDialog({
               <Button
                 variant="outline"
                 onClick={() => setStep(1)}
-                disabled={isSubmitting || loadingSeats}
               >
                 上一步
               </Button>
-              <Button variant="destructive" onClick={handleSubmit} disabled={!order || isSubmitting}>
-                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                确认改签
-              </Button>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+                  <Button variant="destructive" onClick={handleSubmit} disabled>
+                    确认改签
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{featureDisabledMessage}</TooltipContent>
+              </Tooltip>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loadingSeats}>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
                 取消
               </Button>
-              <Button onClick={loadSeats} disabled={!order || loadingOptions || loadingSeats}>
-                {loadingSeats && <Loader2 className="h-4 w-4 animate-spin" />}
-                下一步
-              </Button>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+                  <Button onClick={() => setStep(2)} disabled>
+                    下一步
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{featureDisabledMessage}</TooltipContent>
+              </Tooltip>
             </>
           )}
         </DialogFooter>

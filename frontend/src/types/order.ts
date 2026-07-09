@@ -101,25 +101,22 @@ export interface ChangeOrderResultVO {
   passengers: OrderPassengerVO[]
 }
 
-/** 管理端创建订单 DTO */
+/* PENDING BACKEND: 管理端创建、更新、退票、增强详情、删除接口尚未提供，以下类型暂未启用。
 export interface CreateAdminOrderDTO {
   userId: number
   flightId: number
   items: OrderItemDTO[]
 }
 
-/** 管理端更新订单 DTO */
 export interface UpdateAdminOrderDTO {
   items?: OrderItemDTO[]
 }
 
-/** 管理端退票 DTO */
 export interface AdminRefundDTO {
   reason: string
   refundFee?: number
 }
 
-/** 退款记录 VO */
 export interface RefundRecordVO {
   id: number
   orderId: number
@@ -131,7 +128,6 @@ export interface RefundRecordVO {
   completedAt?: string
 }
 
-/** 改签记录 VO */
 export interface ChangeRecordVO {
   id: number
   orderNo: string
@@ -145,7 +141,6 @@ export interface ChangeRecordVO {
   createdAt: string
 }
 
-/** 支付信息 VO */
 export interface PaymentInfoVO {
   payTime?: string
   payAmount?: number
@@ -153,7 +148,6 @@ export interface PaymentInfoVO {
   tradeNo?: string
 }
 
-/** 状态流转项 */
 export interface OrderStatusTimelineItemVO {
   status: OrderStatus
   title?: string
@@ -162,7 +156,6 @@ export interface OrderStatusTimelineItemVO {
   occurredAt?: string
 }
 
-/** 管理端增强订单详情 */
 export interface AdminOrderDetailVO extends OrderVO {
   refundRecords: RefundRecordVO[]
   changeRecords: ChangeRecordVO[]
@@ -170,5 +163,5 @@ export interface AdminOrderDetailVO extends OrderVO {
   statusTimeline: OrderStatusTimelineItemVO[]
 }
 
-/** 订单删除类型 */
 export type OrderDeleteType = "cancel" | "delete"
+*/

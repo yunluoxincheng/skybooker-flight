@@ -1,4 +1,5 @@
 import { del, get, post, put } from "@/lib/request"
+import { getFlightSeats as getPublicFlightSeats } from "@/services/flightApi"
 import type { AdminLoginResponse, AdminUser } from "@/types/auth"
 import type {
   AirlineFormDTO,
@@ -21,19 +22,9 @@ import type {
   CreateUserAdminDTO,
   DeleteUserBlockInfoVO,
 } from "@/types/admin"
-import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
-import type {
-  AdminOrderDetailVO,
-  AdminRefundDTO,
-  ChangeOptionVO,
-  ChangeOrderDTO,
-  CreateAdminOrderDTO,
-  OrderDeleteType,
-  OrderVO,
-  UpdateAdminOrderDTO,
-} from "@/types/order"
+import type { FlightCabinVO, FlightVO } from "@/types/flight"
+import type { OrderVO } from "@/types/order"
 import type { PageData } from "@/types/api"
-import type { PassengerVO } from "@/types/passenger"
 
 // ---- Auth ----
 
@@ -155,44 +146,62 @@ export function getAdminOrderById(id: number) {
   return get<OrderVO>(`/admin/orders/${id}`, undefined, { auth: "admin" })
 }
 
+/* --- PENDING BACKEND: POST /api/admin/orders ---
 export function createAdminOrder(data: CreateAdminOrderDTO) {
   return post<OrderVO>("/admin/orders", data, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: PUT /api/admin/orders/{id} ---
 export function updateAdminOrder(id: number, data: UpdateAdminOrderDTO) {
   return put<OrderVO>(`/admin/orders/${id}`, data, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: POST /api/admin/orders/{id}/refund ---
 export function refundAdminOrder(id: number, data: AdminRefundDTO) {
   return post<OrderVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: GET /api/admin/orders/{id}/change-options ---
 export function getAdminChangeOptions(id: number) {
   return get<ChangeOptionVO[]>(`/admin/orders/${id}/change-options`, undefined, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: POST /api/admin/orders/{id}/change ---
 export function changeAdminOrder(id: number, data: ChangeOrderDTO) {
   return post<OrderVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: DELETE /api/admin/orders/{id} ---
 export function deleteAdminOrder(id: number, type: OrderDeleteType) {
   return del<null>(`/admin/orders/${id}?type=${type}`, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: GET /api/admin/orders/{id}/detail ---
 export function getAdminOrderDetailEnhanced(id: number) {
   return get<AdminOrderDetailVO>(`/admin/orders/${id}/detail`, undefined, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: GET /api/admin/flights?publishedOnly=true ---
 export function getPublishedFlights(params?: Record<string, string | number | boolean | undefined>) {
   return get<PageData<FlightVO>>("/admin/flights", { ...params, publishedOnly: true }, { auth: "admin" })
 }
+*/
 
+/* --- PENDING BACKEND: GET /api/admin/passengers?userId= ---
 export function getPassengersByUser(userId: number) {
   return get<PassengerVO[]>("/admin/passengers", { userId }, { auth: "admin" })
 }
+*/
 
 export function getAdminFlightSeats(flightId: number) {
-  return get<FlightSeatVO[]>(`/admin/flights/${flightId}/seats`, undefined, { auth: "admin" })
+  return getPublicFlightSeats(flightId)
 }
 
 // ---- Users ----

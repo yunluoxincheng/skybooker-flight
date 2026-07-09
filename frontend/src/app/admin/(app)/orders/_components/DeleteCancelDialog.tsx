@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,15 +12,16 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import type { ApiError } from "@/lib/request"
-import * as adminApi from "@/services/adminApi"
-import type { OrderDeleteType, OrderVO } from "@/types/order"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { OrderVO } from "@/types/order"
+
+export type DeleteOrderAction = "cancel" | "delete"
 
 interface DeleteCancelDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order: OrderVO | null
-  initialType?: OrderDeleteType
+  initialType?: DeleteOrderAction
   onSuccess?: () => Promise<void> | void
 }
 
@@ -30,17 +30,13 @@ export function DeleteCancelDialog({
   onOpenChange,
   order,
   initialType = "cancel",
-  onSuccess,
 }: DeleteCancelDialogProps) {
-  const [type, setType] = useState<OrderDeleteType>(initialType)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const featureDisabledMessage = "管理端删除/作废订单功能依赖后端接口，当前暂不可用。"
+  const [type, setType] = useState<DeleteOrderAction>(initialType)
 
   useEffect(() => {
     if (!open) return
     setType(initialType)
-    setSubmitError(null)
-    setIsSubmitting(false)
   }, [initialType, open, order?.id])
 
   const riskTips = useMemo(() => {
@@ -55,17 +51,6 @@ export function DeleteCancelDialog({
 
   const handleSubmit = async () => {
     if (!order) return
-    setSubmitError(null)
-    setIsSubmitting(true)
-    try {
-      await adminApi.deleteAdminOrder(order.id, type)
-      onOpenChange(false)
-      await onSuccess?.()
-    } catch (error) {
-      setSubmitError((error as ApiError).message || "操作失败")
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   return (
@@ -80,6 +65,10 @@ export function DeleteCancelDialog({
 
         {!order ? null : (
           <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {featureDisabledMessage}
+            </div>
+
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{order.orderNo}</p>
               <p className="mt-1 text-muted-foreground">
@@ -90,8 +79,9 @@ export function DeleteCancelDialog({
             <div className="space-y-3">
               <Label>操作类型</Label>
               <RadioGroup
+                disabled
                 value={type}
-                onValueChange={(value) => setType(value as OrderDeleteType)}
+                onValueChange={(value) => setType(value as DeleteOrderAction)}
                 className="gap-3"
               >
                 <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
@@ -125,23 +115,21 @@ export function DeleteCancelDialog({
                 </ul>
               </div>
             )}
-
-            {submitError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {submitError}
-              </div>
-            )}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button variant="destructive" onClick={handleSubmit} disabled={!order || isSubmitting}>
-            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {type === "cancel" ? "确认作废" : "确认删除"}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+              <Button variant="destructive" onClick={handleSubmit} disabled>
+                {type === "cancel" ? "确认作废" : "确认删除"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{featureDisabledMessage}</TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

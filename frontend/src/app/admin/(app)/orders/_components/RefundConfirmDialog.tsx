@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { z } from "zod"
-import { Loader2 } from "lucide-react"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,8 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import type { ApiError } from "@/lib/request"
-import * as adminApi from "@/services/adminApi"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { OrderVO } from "@/types/order"
 
 const refundFormSchema = z.object({
@@ -46,22 +44,18 @@ export function RefundConfirmDialog({
   open,
   onOpenChange,
   order,
-  onSuccess,
 }: RefundConfirmDialogProps) {
+  const featureDisabledMessage = "管理端退票功能依赖后端接口，当前暂不可用。"
   const [form, setForm] = useState<{ reason: string; refundFee: string }>({
     reason: "",
     refundFee: "",
   })
   const [errors, setErrors] = useState<Partial<Record<keyof RefundFormValues, string>>>({})
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setForm({ reason: "", refundFee: "" })
     setErrors({})
-    setSubmitError(null)
-    setIsSubmitting(false)
   }, [open, order?.id])
 
   const estimatedRefund = useMemo(() => {
@@ -92,17 +86,6 @@ export function RefundConfirmDialog({
     }
 
     setErrors({})
-    setSubmitError(null)
-    setIsSubmitting(true)
-    try {
-      await adminApi.refundAdminOrder(order.id, parsed.data)
-      onOpenChange(false)
-      await onSuccess?.()
-    } catch (error) {
-      setSubmitError((error as ApiError).message || "退票失败")
-    } finally {
-      setIsSubmitting(false)
-    }
   }
 
   return (
@@ -117,6 +100,10 @@ export function RefundConfirmDialog({
 
         {!order ? null : (
           <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {featureDisabledMessage}
+            </div>
+
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -144,6 +131,7 @@ export function RefundConfirmDialog({
               <Textarea
                 id="refund-reason"
                 rows={4}
+                disabled
                 value={form.reason}
                 onChange={(event) => {
                   setForm((current) => ({ ...current, reason: event.target.value }))
@@ -162,6 +150,7 @@ export function RefundConfirmDialog({
                 type="number"
                 min="0"
                 step="0.01"
+                disabled
                 value={form.refundFee}
                 onChange={(event) => {
                   setForm((current) => ({ ...current, refundFee: event.target.value }))
@@ -174,25 +163,23 @@ export function RefundConfirmDialog({
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              确认后将立即发起退票，已出票或已改签订单会同步写入退票记录。
+              当前仅保留表单结构展示，退票提交需后端管理接口支持。
             </div>
-
-            {submitError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {submitError}
-              </div>
-            )}
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button variant="destructive" onClick={handleSubmit} disabled={!order || isSubmitting}>
-            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            确认退票
-          </Button>
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+              <Button variant="destructive" onClick={handleSubmit} disabled>
+                确认退票
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{featureDisabledMessage}</TooltipContent>
+          </Tooltip>
         </DialogFooter>
       </DialogContent>
     </Dialog>

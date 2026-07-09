@@ -14,12 +14,58 @@ import {
 } from "@/components/ui/sheet"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils"
-import type { AdminOrderDetailVO } from "@/types/order"
+import type { OrderStatus, OrderVO } from "@/types/order"
+
+interface RefundRecordItem {
+  id: number
+  orderId: number
+  refundAmount: number
+  feeAmount: number
+  reason: string
+  status: string
+  createdAt: string
+  completedAt?: string
+}
+
+interface ChangeRecordItem {
+  id: number
+  orderNo: string
+  oldFlightNo: string
+  newFlightNo: string
+  oldDepartureTime: string
+  newDepartureTime: string
+  feeAmount: number
+  priceDiff: number
+  status: string
+  createdAt: string
+}
+
+interface PaymentInfoItem {
+  payTime?: string
+  payAmount?: number
+  payMethod?: string
+  tradeNo?: string
+}
+
+interface OrderStatusTimelineItem {
+  status: OrderStatus
+  title?: string
+  description?: string
+  operatorName?: string
+  occurredAt?: string
+}
+
+export interface AdminOrderDetailData extends OrderVO {
+  refundRecords: RefundRecordItem[]
+  changeRecords: ChangeRecordItem[]
+  paymentInfo?: PaymentInfoItem
+  statusTimeline: OrderStatusTimelineItem[]
+}
 
 interface OrderDetailSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  order: AdminOrderDetailVO | null
+  order: AdminOrderDetailData | null
   loading?: boolean
 }
 
@@ -29,7 +75,7 @@ function formatDateTime(iso?: string | null) {
 }
 
 function formatMoney(value?: number | null) {
-  if (typeof value !== "number") return "—"
+  if (typeof value !== "number") return "暂无数据"
   return `¥${value.toLocaleString()}`
 }
 
@@ -45,7 +91,7 @@ export function OrderDetailSheet({
         <SheetHeader className="space-y-2 border-b">
           <SheetTitle>订单详情</SheetTitle>
           <SheetDescription>
-            查看订单基础信息、支付信息、退票/改签记录和状态流转。
+            查看订单基础信息与乘机人详情。退票/改签记录和状态流转需后端增强接口支持。
           </SheetDescription>
         </SheetHeader>
 
@@ -142,21 +188,22 @@ export function OrderDetailSheet({
               <div className="grid gap-3 text-sm md:grid-cols-2">
                 <div>
                   <p className="text-xs text-muted-foreground">支付方式</p>
-                  <p>{order.paymentInfo?.payMethod || "—"}</p>
+                  <p>{order.paymentInfo?.payMethod || "暂无数据"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">支付金额</p>
-                  <p>{formatMoney(order.paymentInfo?.payAmount ?? order.totalAmount)}</p>
+                  <p>{formatMoney(order.paymentInfo?.payAmount)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">交易号</p>
-                  <p className="break-all">{order.paymentInfo?.tradeNo || "—"}</p>
+                  <p className="break-all">{order.paymentInfo?.tradeNo || "暂无数据"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">支付时间</p>
-                  <p>{formatDateTime(order.paymentInfo?.payTime ?? order.payTime)}</p>
+                  <p>{order.paymentInfo?.payTime ? formatDateTime(order.paymentInfo.payTime) : "暂无数据"}</p>
                 </div>
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">支付详情需后端增强接口支持</p>
             </section>
 
             <section className="rounded-xl border p-4">
@@ -165,7 +212,7 @@ export function OrderDetailSheet({
                 <Badge variant="outline">{order.refundRecords.length}</Badge>
               </div>
               {order.refundRecords.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无退票记录</p>
+                <p className="text-sm text-muted-foreground">暂无退票记录（需后端增强接口支持）</p>
               ) : (
                 <div className="space-y-3">
                   {order.refundRecords.map((record) => (
@@ -193,7 +240,7 @@ export function OrderDetailSheet({
                 <Badge variant="outline">{order.changeRecords.length}</Badge>
               </div>
               {order.changeRecords.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无改签记录</p>
+                <p className="text-sm text-muted-foreground">暂无改签记录（需后端增强接口支持）</p>
               ) : (
                 <div className="space-y-3">
                   {order.changeRecords.map((record) => (
@@ -225,7 +272,7 @@ export function OrderDetailSheet({
                 <Badge variant="outline">{order.statusTimeline.length}</Badge>
               </div>
               {order.statusTimeline.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无状态流转记录</p>
+                <p className="text-sm text-muted-foreground">暂无状态流转记录（需后端增强接口支持）</p>
               ) : (
                 <div className="space-y-4">
                   {order.statusTimeline.map((item, index) => (

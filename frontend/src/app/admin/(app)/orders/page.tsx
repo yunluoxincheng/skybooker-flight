@@ -11,6 +11,7 @@ import {
   Plus,
   Trash2,
   Undo2,
+  type LucideIcon,
 } from "lucide-react"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
@@ -39,76 +40,105 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
-import type { UserAdminVO } from "@/types/admin"
-import type { FlightVO } from "@/types/flight"
-import type { AdminOrderDetailVO, OrderDeleteType, OrderVO } from "@/types/order"
+import type { OrderVO } from "@/types/order"
 import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
-import { DeleteCancelDialog } from "./_components/DeleteCancelDialog"
-import { OrderDetailSheet } from "./_components/OrderDetailSheet"
+import { DeleteCancelDialog, type DeleteOrderAction } from "./_components/DeleteCancelDialog"
+import { OrderDetailSheet, type AdminOrderDetailData } from "./_components/OrderDetailSheet"
 import { OrderFormDialog } from "./_components/OrderFormDialog"
 import { RefundConfirmDialog } from "./_components/RefundConfirmDialog"
 
 type OrderFormMode = "create" | "edit"
+const PAGE_SIZE = 10
+const CLIENT_FILTER_BATCH_SIZE = 200
+const PENDING_BACKEND_TOOLTIP = "后端接口尚未实现"
 
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—"
   return `${formatDateFull(iso)} ${formatTime(iso)}`
 }
 
-function toDetailPreview(order: OrderVO): AdminOrderDetailVO {
+function toDetailPreview(order: OrderVO): AdminOrderDetailData {
   return {
     ...order,
     refundRecords: [],
     changeRecords: [],
-    paymentInfo: {
-      payTime: order.payTime,
-      payAmount: order.totalAmount,
-    },
+    paymentInfo: undefined,
     statusTimeline: [],
   }
 }
 
+function DisabledMenuAction({
+  icon: Icon,
+  children,
+  variant = "default",
+}: {
+  icon: LucideIcon
+  children: string
+  variant?: "default" | "destructive"
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="block w-full" tabIndex={0} />}>
+        <span className="block w-full">
+          <DropdownMenuItem disabled variant={variant}>
+            <Icon className="h-4 w-4" />
+            {children}
+          </DropdownMenuItem>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{PENDING_BACKEND_TOOLTIP}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderVO[]>([])
-  const [users, setUsers] = useState<UserAdminVO[]>([])
-  const [flights, setFlights] = useState<FlightVO[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [orderNoFilter, setOrderNoFilter] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [refsLoading, setRefsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refsError, setRefsError] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState<OrderFormMode>("create")
   const [editingOrder, setEditingOrder] = useState<OrderVO | null>(null)
 
   const [detailOpen, setDetailOpen] = useState(false)
-  const [detailOrder, setDetailOrder] = useState<AdminOrderDetailVO | null>(null)
+  const [detailOrder, setDetailOrder] = useState<AdminOrderDetailData | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
   const [refundOrder, setRefundOrder] = useState<OrderVO | null>(null)
   const [changeOrder, setChangeOrder] = useState<OrderVO | null>(null)
   const [deleteOrder, setDeleteOrder] = useState<OrderVO | null>(null)
-  const [deleteInitialType, setDeleteInitialType] = useState<OrderDeleteType>("cancel")
+  const [deleteInitialType, setDeleteInitialType] = useState<DeleteOrderAction>("cancel")
 
   const fetchOrders = useCallback(async () => {
+    setIsLoading(true)
     try {
-      const params: Record<string, string | number | boolean | undefined> = {
-        page,
-        size: 10,
-      }
-      if (statusFilter !== "ALL") params.status = statusFilter
-      if (orderNoFilter.trim()) params.orderNo = orderNoFilter.trim()
-
+      const hasClientFilter = statusFilter !== "ALL" || Boolean(orderNoFilter.trim())
+      const params: Record<string, string | number | boolean | undefined> = hasClientFilter
+        ? { page: 1, size: CLIENT_FILTER_BATCH_SIZE }
+        : { page, size: PAGE_SIZE }
       const data = await adminApi.getAdminOrders(params)
-      setOrders(data.records)
-      setTotal(data.total)
+      if (hasClientFilter) {
+        const normalizedKeyword = orderNoFilter.trim().toLowerCase()
+        const filtered = data.records.filter((order) => {
+          const matchesStatus = statusFilter === "ALL" || order.status === statusFilter
+          const matchesOrderNo = !normalizedKeyword || order.orderNo.toLowerCase().includes(normalizedKeyword)
+          return matchesStatus && matchesOrderNo
+        })
+        const startIndex = (page - 1) * PAGE_SIZE
+        setOrders(filtered.slice(startIndex, startIndex + PAGE_SIZE))
+        setTotal(filtered.length)
+      } else {
+        setOrders(data.records)
+        setTotal(data.total)
+      }
       setError(null)
     } catch (err) {
       setError((err as ApiError).message || "加载订单失败")
@@ -117,34 +147,11 @@ export default function AdminOrdersPage() {
     }
   }, [orderNoFilter, page, statusFilter])
 
-  const fetchRefs = useCallback(async () => {
-    try {
-      const [userData, flightData] = await Promise.all([
-        adminApi.getUsers({ page: 1, size: 200, role: "USER" }),
-        adminApi.getPublishedFlights({ page: 1, size: 200 }),
-      ])
-      setUsers(userData.records)
-      setFlights(flightData.records)
-      setRefsError(null)
-    } catch (err) {
-      setUsers([])
-      setFlights([])
-      setRefsError((err as ApiError).message || "加载用户和航班参考数据失败")
-    } finally {
-      setRefsLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
 
-  useEffect(() => {
-    fetchRefs()
-  }, [fetchRefs])
-
   const refreshOrders = useCallback(async () => {
-    setIsLoading(true)
     await fetchOrders()
   }, [fetchOrders])
 
@@ -161,20 +168,21 @@ export default function AdminOrdersPage() {
   }
 
   const openDetail = async (order: OrderVO) => {
+    const preview = toDetailPreview(order)
     setDetailOpen(true)
-    setDetailOrder(toDetailPreview(order))
+    setDetailOrder(preview)
     setDetailLoading(true)
     try {
-      const fresh = await adminApi.getAdminOrderDetailEnhanced(order.id)
-      setDetailOrder(fresh)
+      const fresh = await adminApi.getAdminOrderById(order.id)
+      setDetailOrder(toDetailPreview(fresh))
     } catch {
-      setDetailOrder(toDetailPreview(order))
+      setDetailOrder(preview)
     } finally {
       setDetailLoading(false)
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / 10))
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="space-y-4">
@@ -185,25 +193,23 @@ export default function AdminOrdersPage() {
             支持新增、编辑、退票、改签、作废和高风险删除操作。
           </p>
         </div>
-        <Button onClick={openCreate} disabled={refsLoading}>
-          <Plus className="h-4 w-4" />
-          新增订单
-        </Button>
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex" tabIndex={0} />}>
+            <Button onClick={openCreate} disabled>
+              <Plus className="h-4 w-4" />
+              新增订单
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{PENDING_BACKEND_TOOLTIP}</TooltipContent>
+        </Tooltip>
       </div>
-
-      {refsError && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {refsError}
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-3">
         <Input
-          placeholder="搜索订单号..."
+          placeholder="搜索订单号（客户端筛选）"
           className="w-60"
           value={orderNoFilter}
           onChange={(event) => {
-            setIsLoading(true)
             setOrderNoFilter(event.target.value)
             setPage(1)
           }}
@@ -211,7 +217,6 @@ export default function AdminOrdersPage() {
         <Select
           value={statusFilter}
           onValueChange={(value) => {
-            setIsLoading(true)
             setStatusFilter(value ?? "ALL")
             setPage(1)
           }}
@@ -233,7 +238,6 @@ export default function AdminOrdersPage() {
           variant="outline"
           size="sm"
           onClick={() => {
-            setIsLoading(true)
             setStatusFilter("ALL")
             setOrderNoFilter("")
             setPage(1)
@@ -241,6 +245,10 @@ export default function AdminOrdersPage() {
         >
           清除
         </Button>
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        部分操作（新增、编辑、退票、改签、删除）依赖后端管理接口，当前暂不可用。
       </div>
 
       {isLoading ? (
@@ -276,14 +284,6 @@ export default function AdminOrdersPage() {
                 </TableRow>
               ) : (
                 orders.map((order) => {
-                  const canEdit = order.status === "ISSUED" || order.status === "PENDING_PAYMENT"
-                  const canRefund = order.status === "ISSUED" || order.status === "CHANGED"
-                  const canChange = order.status === "ISSUED"
-                  const canCancel =
-                    order.status === "PENDING_PAYMENT" ||
-                    order.status === "CANCELLED" ||
-                    order.status === "EXPIRED"
-
                   return (
                     <TableRow key={order.id}>
                       <TableCell className="font-mono text-xs">{order.orderNo}</TableCell>
@@ -310,48 +310,14 @@ export default function AdminOrdersPage() {
                               <Eye className="h-4 w-4" />
                               查看详情
                             </DropdownMenuItem>
-                            {canEdit && (
-                              <DropdownMenuItem onClick={() => openEdit(order)}>
-                                <Pencil className="h-4 w-4" />
-                                编辑
-                              </DropdownMenuItem>
-                            )}
-                            {canRefund && (
-                              <DropdownMenuItem onClick={() => setRefundOrder(order)}>
-                                <Undo2 className="h-4 w-4" />
-                                退票
-                              </DropdownMenuItem>
-                            )}
-                            {canChange && (
-                              <DropdownMenuItem onClick={() => setChangeOrder(order)}>
-                                <ArrowRightLeft className="h-4 w-4" />
-                                改签
-                              </DropdownMenuItem>
-                            )}
-                            {canCancel && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setDeleteOrder(order)
-                                    setDeleteInitialType("cancel")
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  作废订单
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => {
-                                setDeleteOrder(order)
-                                setDeleteInitialType("delete")
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
+                            <DisabledMenuAction icon={Pencil}>编辑</DisabledMenuAction>
+                            <DisabledMenuAction icon={Undo2}>退票</DisabledMenuAction>
+                            <DisabledMenuAction icon={ArrowRightLeft}>改签</DisabledMenuAction>
+                            <DropdownMenuSeparator />
+                            <DisabledMenuAction icon={Trash2}>作废订单</DisabledMenuAction>
+                            <DisabledMenuAction icon={Trash2} variant="destructive">
                               删除订单
-                            </DropdownMenuItem>
+                            </DisabledMenuAction>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -371,7 +337,6 @@ export default function AdminOrdersPage() {
             size="sm"
             disabled={page <= 1}
             onClick={() => {
-              setIsLoading(true)
               setPage(page - 1)
             }}
           >
@@ -385,7 +350,6 @@ export default function AdminOrdersPage() {
             size="sm"
             disabled={page >= totalPages}
             onClick={() => {
-              setIsLoading(true)
               setPage(page + 1)
             }}
           >
@@ -399,8 +363,6 @@ export default function AdminOrdersPage() {
         onOpenChange={setFormOpen}
         mode={formMode}
         order={editingOrder}
-        users={users}
-        flights={flights}
         onSuccess={refreshOrders}
       />
 
