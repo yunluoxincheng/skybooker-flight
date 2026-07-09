@@ -243,7 +243,7 @@ public class WaitlistService {
     }
 
     private String generateWaitlistNo() {
-        return "WL" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
-                + String.format("%04d", new Random().nextInt(10000));
+        return "WL" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     }
 }

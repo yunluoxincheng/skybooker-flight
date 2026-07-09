@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -31,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class WaitlistIntegrationTest {
+
+    private static final AtomicLong UNIQUE_SUFFIX = new AtomicLong();
 
     @Autowired
     private MockMvc mockMvc;
@@ -320,7 +323,7 @@ class WaitlistIntegrationTest {
 
     private Long createFlight(LocalDateTime departure, String publishStatus, String flightStatus) throws Exception {
         FlightFormDTO dto = new FlightFormDTO();
-        dto.setFlightNo("WL" + System.currentTimeMillis() % 100000);
+        dto.setFlightNo(nextTestNumber("WL"));
         dto.setAirlineId(1L);
         dto.setDepartureAirportId(1L);
         dto.setArrivalAirportId(3L);
@@ -380,12 +383,16 @@ class WaitlistIntegrationTest {
         jdbcTemplate.update(
                 "INSERT INTO waitlist_order(waitlist_no, user_id, flight_id, passenger_count, cabin_class, pay_amount, status, paid_at) " +
                         "VALUES(?, 1, ?, 1, 'ECONOMY', 580, 'WAITING', NOW())",
-                "WLTEST" + System.currentTimeMillis(), flightId);
+                nextTestNumber("WLTEST"), flightId);
         Long wlId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
         jdbcTemplate.update(
                 "INSERT INTO waitlist_passenger(waitlist_id, passenger_id, passenger_name, passenger_type) " +
                         "VALUES(?, 1, '测试乘机人', 'ADULT')", wlId);
         return wlId;
+    }
+
+    private String nextTestNumber(String prefix) {
+        return prefix + System.currentTimeMillis() + UNIQUE_SUFFIX.incrementAndGet();
     }
 }
