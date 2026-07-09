@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import type { User } from "@/types/auth"
 import * as authApi from "@/services/authApi"
 import {
@@ -26,8 +27,10 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null)
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -40,20 +43,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // 验证 token 是否仍然有效
-    authApi
-      .getMe()
-      .then((u) => {
+    const initSession = async () => {
+      try {
+        const u = await authApi.getMe()
         setUser(u)
         setToken(storedToken)
-      })
-      .catch(() => {
+      } catch {
+        const refreshToken = getUserRefreshToken()
+        if (!refreshToken) {
+          removeUserToken()
+          removeUserRefreshToken()
+          removeUserData()
+          return
+        }
+
+        try {
+          const res = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          })
+
+          if (res.ok) {
+            const json = await res.json()
+            if (json.code === 200 && json.data?.accessToken && json.data?.refreshToken) {
+              setUserToken(json.data.accessToken)
+              setUserRefreshToken(json.data.refreshToken)
+              if (json.data.user) {
+                setUserData(json.data.user)
+                setUser(json.data.user)
+              }
+              setToken(json.data.accessToken)
+              return
+            }
+          }
+        } catch {
+          // Ignore and clear the session below.
+        }
+
         removeUserToken()
         removeUserRefreshToken()
         removeUserData()
-      })
-      .finally(() => setIsLoading(false))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void initSession()
   }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { auth } = (e as CustomEvent<{ auth: "user" | "admin" }>).detail
+      if (auth !== "user") return
+
+      removeUserToken()
+      removeUserRefreshToken()
+      removeUserData()
+      setToken(null)
+      setUser(null)
+
+      const currentPath = window.location.pathname + window.location.search
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`)
+    }
+
+    window.addEventListener("auth:session-expired", handler)
+    return () => window.removeEventListener("auth:session-expired", handler)
+  }, [router])
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password)

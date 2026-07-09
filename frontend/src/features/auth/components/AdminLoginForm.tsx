@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -22,6 +22,7 @@ type AdminLoginFormData = z.infer<typeof adminLoginSchema>
 
 export function AdminLoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useAdminAuth()
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +38,8 @@ export function AdminLoginForm() {
     setError(null)
     try {
       await login(data.username, data.password)
-      router.push("/admin/dashboard")
+      const redirect = searchParams.get("redirect")
+      router.push(redirect || "/admin/dashboard")
     } catch (err) {
       setError(getLoginErrorMessage(err))
     }

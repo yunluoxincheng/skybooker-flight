@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import type { AdminUser } from "@/types/auth"
 import * as adminApi from "@/services/adminApi"
 import {
@@ -25,8 +26,10 @@ interface AdminAuthState {
 }
 
 const AdminAuthContext = createContext<AdminAuthState | null>(null)
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const [admin, setAdmin] = useState<AdminUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,19 +41,71 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    adminApi
-      .getAdminMe()
-      .then((u) => {
+    const initSession = async () => {
+      try {
+        const u = await adminApi.getAdminMe()
         setAdmin(u)
         setToken(storedToken)
-      })
-      .catch(() => {
+      } catch {
+        const refreshToken = getAdminRefreshToken()
+        if (!refreshToken) {
+          removeAdminToken()
+          removeAdminRefreshToken()
+          removeAdminData()
+          return
+        }
+
+        try {
+          const res = await fetch(`${BASE_URL}/admin/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          })
+
+          if (res.ok) {
+            const json = await res.json()
+            if (json.code === 200 && json.data?.accessToken && json.data?.refreshToken) {
+              setAdminToken(json.data.accessToken)
+              setAdminRefreshToken(json.data.refreshToken)
+              if (json.data.admin) {
+                setAdminData(json.data.admin)
+                setAdmin(json.data.admin)
+              }
+              setToken(json.data.accessToken)
+              return
+            }
+          }
+        } catch {
+          // Ignore and clear the session below.
+        }
+
         removeAdminToken()
         removeAdminRefreshToken()
         removeAdminData()
-      })
-      .finally(() => setIsLoading(false))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void initSession()
   }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { auth } = (e as CustomEvent<{ auth: "user" | "admin" }>).detail
+      if (auth !== "admin") return
+
+      removeAdminToken()
+      removeAdminRefreshToken()
+      removeAdminData()
+      setToken(null)
+      setAdmin(null)
+      router.push("/admin")
+    }
+
+    window.addEventListener("auth:session-expired", handler)
+    return () => window.removeEventListener("auth:session-expired", handler)
+  }, [router])
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await adminApi.adminLogin(username, password)
