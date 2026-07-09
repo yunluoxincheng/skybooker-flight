@@ -271,27 +271,25 @@ class FlightCatalogIntegrationTest {
         jdbcTemplate.update("UPDATE flight_seat SET status = 'SOLD' WHERE flight_id = 2 AND cabin_class = 'ECONOMY'");
 
         mockMvc.perform(get("/api/flights")
-                        .param("departureCity", "上海")
-                        .param("arrivalCity", "北京")
+                        .param("flightNo", "CZ3101")
                         .param("departureDate", tomorrowStr)
                         .param("passengerCount", "1")
-                        .param("cabinClass", "ECONOMY")
-                        .param("size", "10"))
+                        .param("cabinClass", "ECONOMY"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records[*].flightNo", not(hasItem("CZ3101"))));
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.records").isEmpty());
 
         mockMvc.perform(get("/api/flights")
-                        .param("departureCity", "上海")
-                        .param("arrivalCity", "北京")
+                        .param("flightNo", "CZ3101")
                         .param("departureDate", tomorrowStr)
                         .param("passengerCount", "1")
                         .param("cabinClass", "ECONOMY")
-                        .param("includeSoldOut", "true")
-                        .param("size", "10"))
+                        .param("includeSoldOut", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records[*].flightNo", hasItem("CZ3101")))
-                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].remainingSeats", contains(0)))
-                .andExpect(jsonPath("$.data.records[?(@.flightNo == 'CZ3101')].cabins[0].availableSeats", contains(0)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].flightNo").value("CZ3101"))
+                .andExpect(jsonPath("$.data.records[0].remainingSeats").value(0))
+                .andExpect(jsonPath("$.data.records[0].cabins[0].availableSeats").value(0));
     }
 
     @Test
