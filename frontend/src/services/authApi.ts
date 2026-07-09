@@ -1,6 +1,5 @@
-import { post, get } from "@/lib/request"
+import { del, post, get } from "@/lib/request"
 import type {
-  DeleteAccountBlockInfoVO,
   DeleteAccountRequest,
   EmailCodeScene,
   LoginResponse,
@@ -48,12 +47,7 @@ export function logout(refreshToken?: string) {
   return post<null>("/auth/logout", refreshToken ? { refreshToken } : undefined, { auth: "user" })
 }
 
-/** 预检查是否可注销账号 */
-export function checkDeleteAccount() {
-  return get<DeleteAccountBlockInfoVO>("/auth/delete-account/check", undefined, { auth: "user" })
-}
-
 /** 注销账号 */
 export function deleteAccount(data: DeleteAccountRequest) {
-  return post<null>("/auth/delete-account", data, { auth: "user" })
+  return del<null>("/auth/account", data, { auth: "user" })
 }

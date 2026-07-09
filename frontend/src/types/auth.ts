@@ -20,18 +20,7 @@ export type EmailCodeScene = "REGISTER" | "RESET_PASSWORD" | "DELETE_ACCOUNT"
 
 /** 注销账号请求 */
 export interface DeleteAccountRequest {
-  password?: string
-  code?: string
-}
-
-/** 注销账号前阻断信息 */
-export interface DeleteAccountBlockInfoVO {
-  activeOrderCount: number
-  waitlistCount: number
-  pendingRefundCount: number
-  pendingChangeCount: number
-  canDelete: boolean
-  blockReasons: string[]
+  currentPassword: string
 }
 
 /** 管理员信息 — 匹配后端 AdminVO */

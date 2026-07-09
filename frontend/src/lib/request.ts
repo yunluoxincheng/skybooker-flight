@@ -303,9 +303,20 @@ export function put<T>(
   return request<T>("PUT", url, body, options)
 }
 
+export function del<T>(url: string, options?: RequestOptions): Promise<T>
 export function del<T>(
   url: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<T>
+export function del<T>(
+  url: string,
+  bodyOrOptions?: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  return request<T>("DELETE", url, undefined, options)
+  if (options !== undefined) {
+    return request<T>("DELETE", url, bodyOrOptions, options)
+  }
+
+  return request<T>("DELETE", url, undefined, bodyOrOptions as RequestOptions | undefined)
 }
