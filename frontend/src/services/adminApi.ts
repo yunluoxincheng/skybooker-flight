@@ -181,7 +181,7 @@ export function voidAdminOrder(id: number, data: AdminVoidDTO) {
   return post<OrderVO>(`/admin/orders/${id}/void`, data, { auth: "admin" })
 }
 
-export function deleteAdminOrder(id: number, type: OrderDeleteType, reason?: string) {
+export function voidAdminOrderByDelete(id: number, type: OrderDeleteType, reason?: string) {
   const searchParams = new URLSearchParams({ type })
   if (reason?.trim()) {
     searchParams.set("reason", reason.trim())

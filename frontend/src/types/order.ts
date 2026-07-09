@@ -5,6 +5,7 @@ export type OrderStatus =
   | "CHANGED"
   | "REFUNDED"
   | "CANCELLED"
+  | "VOIDED"
   | "EXPIRED"
 
 /** 乘机人类型 */

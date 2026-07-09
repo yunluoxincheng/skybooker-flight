@@ -186,7 +186,7 @@ export default function AdminOrdersPage() {
         <div>
           <h1 className="text-2xl font-bold">订单管理</h1>
           <p className="text-sm text-muted-foreground">
-            支持新增、编辑、退票、改签、作废和高风险删除操作。
+            支持新增、编辑、退票、改签和作废操作。
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -222,6 +222,7 @@ export default function AdminOrdersPage() {
             <SelectItem value="CHANGED">已改签</SelectItem>
             <SelectItem value="REFUNDED">已退票</SelectItem>
             <SelectItem value="CANCELLED">已取消</SelectItem>
+            <SelectItem value="VOIDED">已作废</SelectItem>
             <SelectItem value="EXPIRED">已过期</SelectItem>
           </SelectContent>
         </Select>
@@ -323,7 +324,7 @@ export default function AdminOrdersPage() {
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
-                            作废订单
+                            普通作废
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
@@ -333,7 +334,7 @@ export default function AdminOrdersPage() {
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
-                            删除订单
+                            删除型作废
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

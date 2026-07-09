@@ -10,6 +10,7 @@ const STATUS_MAP: Record<
   CHANGED: { label: "已改签", variant: "outline" },
   REFUNDED: { label: "已退票", variant: "destructive" },
   CANCELLED: { label: "已取消", variant: "outline" },
+  VOIDED: { label: "已作废", variant: "secondary" },
   EXPIRED: { label: "已过期", variant: "outline" },
 }
 

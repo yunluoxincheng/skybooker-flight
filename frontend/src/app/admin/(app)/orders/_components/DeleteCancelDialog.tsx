@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { z } from "zod"
 import { Loader2 } from "lucide-react"
+import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,7 +24,7 @@ export type DeleteOrderAction = "cancel" | "delete"
 
 const deleteCancelSchema = z.object({
   type: z.enum(["cancel", "delete"]),
-  reason: z.string().trim().min(1, "请输入操作原因").max(100, "操作原因不能超过 100 字"),
+  reason: z.string().trim().min(1, "请输入作废原因").max(100, "作废原因不能超过 100 字"),
 })
 
 interface DeleteCancelDialogProps {
@@ -58,9 +59,12 @@ export function DeleteCancelDialog({
   const riskTips = useMemo(() => {
     if (!order) return []
     const tips: string[] = []
-    if (order.payTime) tips.push("订单已存在支付记录")
-    if (order.status === "ISSUED" || order.status === "CHANGED") tips.push("订单已进入出票流程")
-    if (order.status === "REFUNDED") tips.push("订单已产生退票记录")
+    if (order.status !== "CANCELLED" && order.status !== "REFUNDED") {
+      tips.push("当前订单不符合作废条件，操作将被拒绝")
+    }
+    if (order.payTime) {
+      tips.push("订单已有支付记录，作废后仍可通过管理后台查看")
+    }
     if (order.passengers.length > 1) tips.push("订单包含多位乘机人，请确认后续履约影响")
     return tips
   }, [order])
@@ -70,7 +74,7 @@ export function DeleteCancelDialog({
 
     const parsed = deleteCancelSchema.safeParse({ type, reason })
     if (!parsed.success) {
-      setReasonError(parsed.error.issues[0]?.message || "请输入操作原因")
+      setReasonError(parsed.error.issues[0]?.message || "请输入作废原因")
       return
     }
 
@@ -82,12 +86,12 @@ export function DeleteCancelDialog({
       if (parsed.data.type === "cancel") {
         await adminApi.voidAdminOrder(order.id, { reason: parsed.data.reason })
       } else {
-        await adminApi.deleteAdminOrder(order.id, "delete", parsed.data.reason)
+        await adminApi.voidAdminOrderByDelete(order.id, "delete", parsed.data.reason)
       }
       onOpenChange(false)
       await onSuccess?.()
     } catch (err) {
-      setError(getErrorMessage(err, parsed.data.type === "cancel" ? "作废订单失败" : "删除订单失败"))
+      setError(getErrorMessage(err, "作废订单失败"))
     } finally {
       setIsSubmitting(false)
     }
@@ -97,9 +101,9 @@ export function DeleteCancelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>删除 / 作废订单</DialogTitle>
+          <DialogTitle>作废订单</DialogTitle>
           <DialogDescription>
-            逻辑作废会保留数据痕迹，物理删除风险更高，请谨慎操作。
+            两种作废方式均为逻辑作废（将订单状态置为"已作废"），系统保留订单数据与操作痕迹，不会物理删除。仅允许作废"已取消"或"已退票"状态的订单。
           </DialogDescription>
         </DialogHeader>
 
@@ -107,9 +111,14 @@ export function DeleteCancelDialog({
           <div className="space-y-4">
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{order.orderNo}</p>
-              <p className="mt-1 text-muted-foreground">
-                {order.userNickname || order.userEmail} · {order.flightNo} · 当前状态 {order.status}
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+                <span>{order.userNickname || order.userEmail}</span>
+                <span>·</span>
+                <span>{order.flightNo}</span>
+                <span>·</span>
+                <span>当前状态</span>
+                <OrderStatusBadge status={order.status} className="h-5" />
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -122,18 +131,18 @@ export function DeleteCancelDialog({
                 <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
                   <RadioGroupItem value="cancel" />
                   <div>
-                    <p className="font-medium">作废订单</p>
+                    <p className="font-medium">普通作废</p>
                     <p className="text-muted-foreground">
-                      保留订单记录，仅做逻辑作废，适合待支付、已取消、已过期等场景。
+                      调用标准作废接口（POST void），将符合条件的订单（已取消 / 已退票）状态更新为"已作废"。订单数据与操作记录完整保留。
                     </p>
                   </div>
                 </label>
-                <label className="flex items-start gap-3 rounded-xl border border-destructive/30 p-3 text-sm">
+                <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
                   <RadioGroupItem value="delete" />
                   <div>
-                    <p className="font-medium text-destructive">物理删除订单</p>
+                    <p className="font-medium">删除型作废</p>
                     <p className="text-muted-foreground">
-                      会直接删除订单数据，不可恢复，仅在必须清理脏数据时使用。
+                      调用 DELETE 接口作废（DELETE void），效果与普通作废一致——将符合条件的订单（已取消 / 已退票）状态更新为"已作废"。订单数据与操作记录完整保留，不执行物理删除。
                     </p>
                   </div>
                 </label>
@@ -151,7 +160,7 @@ export function DeleteCancelDialog({
                   setReason(event.target.value)
                   setReasonError(null)
                 }}
-                placeholder={type === "cancel" ? "请输入作废原因" : "请输入删除原因"}
+                placeholder="请输入作废原因"
                 aria-invalid={reasonError ? "true" : "false"}
               />
               {reasonError ? <p className="text-xs text-destructive">{reasonError}</p> : null}
@@ -182,7 +191,7 @@ export function DeleteCancelDialog({
           </Button>
           <Button variant="destructive" onClick={handleSubmit} disabled={isSubmitting || !order}>
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {type === "cancel" ? "确认作废" : "确认删除"}
+            确认作废
           </Button>
         </DialogFooter>
       </DialogContent>
