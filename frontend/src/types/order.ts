@@ -79,11 +79,12 @@ export interface SeatMapping {
 export interface ChangeOrderDTO {
   newFlightId: number
   seatMappings: SeatMapping[]
+}
+
+export interface AdminChangeDTO extends ChangeOrderDTO {
   reason: string
   force?: boolean
 }
-
-export type AdminChangeDTO = ChangeOrderDTO
 
 /** 退票结果 VO — 匹配后端 RefundVO */
 export interface RefundVO {
