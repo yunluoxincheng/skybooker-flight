@@ -164,7 +164,7 @@ export function DeleteUserDialog({
                 ) : (
                   <>
                     <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                      此为物理删除，数据不可恢复。仅零业务引用的干净账号可删除。存在业务记录时请返回并选择"禁用"。
+                      此为物理删除，数据不可恢复。仅零业务引用的干净账号可删除。存在业务记录时请返回并选择&ldquo;禁用&rdquo;。
                     </div>
                   </>
                 )}
