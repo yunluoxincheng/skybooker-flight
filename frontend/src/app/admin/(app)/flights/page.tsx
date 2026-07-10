@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo } from "react"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -41,7 +42,14 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { getCabinAvailableSeats, getFallbackCabinPrice } from "@/lib/cabin-utils"
 import * as adminApi from "@/services/adminApi"
-import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER, type CabinClass, type FlightVO } from "@/types/flight"
+import {
+  CABIN_CLASS_LABEL,
+  CABIN_CLASS_ORDER,
+  type CabinClass,
+  type FlightStatus,
+  type FlightVO,
+  type PublishStatus,
+} from "@/types/flight"
 import type { AirlineVO, AirportVO, FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
 
@@ -75,6 +83,22 @@ const flightSchema = z.object({
 interface CabinFormItem extends FlightCabinSettingDTO {
   remainingSeats: number
 }
+
+const FLIGHT_STATUS_FILTERS: Array<{ value: "ALL" | FlightStatus; label: string }> = [
+  { value: "ALL", label: "全部状态" },
+  { value: "ON_TIME", label: "准点" },
+  { value: "DELAYED", label: "延误" },
+  { value: "CANCELLED", label: "已取消" },
+  { value: "BOARDING", label: "登机中" },
+  { value: "DEPARTED", label: "已起飞" },
+  { value: "ARRIVED", label: "已到达" },
+]
+
+const PUBLISH_STATUS_FILTERS: Array<{ value: "ALL" | PublishStatus; label: string }> = [
+  { value: "ALL", label: "全部发布状态" },
+  { value: "PUBLISHED", label: "已上架" },
+  { value: "UNPUBLISHED", label: "未上架" },
+]
 
 function buildCabinForm(flight: FlightVO): CabinFormItem[] {
   const configuredCabins = new Map((flight.cabins ?? []).map((cabin) => [cabin.cabinClass, cabin]))
@@ -122,6 +146,7 @@ export default function AdminFlightsPage() {
   const [isSavingCabins, setIsSavingCabins] = useState(false)
 
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -132,6 +157,17 @@ export default function AdminFlightsPage() {
     defaultValues: { directFlag: true, basePrice: 500, totalSeats: 180, baggageAllowance: "20kg" },
   })
 
+  const selectedAirlineId = useWatch({ control, name: "airlineId" })
+  const selectedDepartureAirportId = useWatch({ control, name: "departureAirportId" })
+  const selectedArrivalAirportId = useWatch({ control, name: "arrivalAirportId" })
+
+  const [filterFlightNo, setFilterFlightNo] = useState("")
+  const [filterDepartureCity, setFilterDepartureCity] = useState("")
+  const [filterArrivalCity, setFilterArrivalCity] = useState("")
+  const [filterAirlineId, setFilterAirlineId] = useState("")
+  const [filterStatus, setFilterStatus] = useState<"ALL" | FlightStatus>("ALL")
+  const [filterPublishStatus, setFilterPublishStatus] = useState<"ALL" | PublishStatus>("ALL")
+
   useEffect(() => {
     register("airlineId")
     register("departureAirportId")
@@ -139,8 +175,19 @@ export default function AdminFlightsPage() {
   }, [register])
 
   const fetchFlights = useCallback(async () => {
+    setIsLoading(true)
+
     try {
-      const data = await adminApi.getFlights({ page, size: 10 })
+      const data = await adminApi.getFlights({
+        page,
+        size: 10,
+        flightNo: filterFlightNo || undefined,
+        departureCity: filterDepartureCity || undefined,
+        arrivalCity: filterArrivalCity || undefined,
+        airlineId: filterAirlineId ? Number(filterAirlineId) : undefined,
+        status: filterStatus === "ALL" ? undefined : filterStatus,
+        publishStatus: filterPublishStatus === "ALL" ? undefined : filterPublishStatus,
+      })
       setFlights(data.records)
       setTotal(data.total)
       setError(null)
@@ -149,7 +196,7 @@ export default function AdminFlightsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [page])
+  }, [filterAirlineId, filterArrivalCity, filterDepartureCity, filterFlightNo, filterPublishStatus, filterStatus, page])
 
   const fetchRefs = useCallback(async () => {
     try {
@@ -307,7 +354,11 @@ export default function AdminFlightsPage() {
 
     const configuredCabins = cabinForm
       .filter((item) => item.totalSeats > 0)
-      .map(({ remainingSeats: _remainingSeats, ...item }) => item)
+      .map((item) => ({
+        cabinClass: item.cabinClass,
+        price: item.price,
+        totalSeats: item.totalSeats,
+      }))
 
     const totalConfiguredSeats = configuredCabins.reduce((sum, item) => sum + item.totalSeats, 0)
     if (totalConfiguredSeats !== cabinFlight.totalSeats) {
@@ -332,6 +383,16 @@ export default function AdminFlightsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / 10))
 
+  const clearFilters = () => {
+    setFilterFlightNo("")
+    setFilterDepartureCity("")
+    setFilterArrivalCity("")
+    setFilterAirlineId("")
+    setFilterStatus("ALL")
+    setFilterPublishStatus("ALL")
+    setPage(1)
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -345,6 +406,90 @@ export default function AdminFlightsPage() {
       {actionErr && (
         <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{actionErr}</div>
       )}
+
+      <div className="flex flex-wrap gap-3">
+        <Input
+          placeholder="航班号"
+          className="w-36"
+          value={filterFlightNo}
+          onChange={(event) => {
+            setFilterFlightNo(event.target.value)
+            setPage(1)
+          }}
+        />
+        <Input
+          placeholder="出发城市"
+          className="w-32"
+          value={filterDepartureCity}
+          onChange={(event) => {
+            setFilterDepartureCity(event.target.value)
+            setPage(1)
+          }}
+        />
+        <Input
+          placeholder="到达城市"
+          className="w-32"
+          value={filterArrivalCity}
+          onChange={(event) => {
+            setFilterArrivalCity(event.target.value)
+            setPage(1)
+          }}
+        />
+        <Combobox
+          options={airlines}
+          value={filterAirlineId || null}
+          onValueChange={(value) => {
+            setFilterAirlineId(value)
+            setPage(1)
+          }}
+          placeholder="全部航司"
+          searchPlaceholder="搜索航司..."
+          emptyMessage="暂无匹配航司"
+          getDisplayValue={(airline) => `${airline.name} (${airline.code})`}
+          getSearchFields={(airline) => [airline.code, airline.name]}
+          className="w-44"
+          disabled={airlines.length === 0}
+        />
+        <Select
+          value={filterStatus}
+          onValueChange={(value) => {
+            setFilterStatus((value as "ALL" | FlightStatus) ?? "ALL")
+            setPage(1)
+          }}
+        >
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="全部状态" />
+          </SelectTrigger>
+          <SelectContent>
+            {FLIGHT_STATUS_FILTERS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filterPublishStatus}
+          onValueChange={(value) => {
+            setFilterPublishStatus((value as "ALL" | PublishStatus) ?? "ALL")
+            setPage(1)
+          }}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="全部发布状态" />
+          </SelectTrigger>
+          <SelectContent>
+            {PUBLISH_STATUS_FILTERS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={clearFilters}>
+          清除
+        </Button>
+      </div>
 
       {/* Table */}
       {isLoading ? (
@@ -446,7 +591,7 @@ export default function AdminFlightsPage() {
 
       {/* 新增/编辑 Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{editingFlight ? "编辑航班" : "新增航班"}</DialogTitle>
           </DialogHeader>
@@ -459,7 +604,7 @@ export default function AdminFlightsPage() {
                 {refsErr}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>航班号</Label>
                 <Input {...register("flightNo")} placeholder="CA1234" />
@@ -468,30 +613,19 @@ export default function AdminFlightsPage() {
               <div className="space-y-1.5">
                 <Label>航空公司</Label>
                 {selectableAirlines.length > 0 ? (
-                  <Select
+                  <Combobox
                     key={`airline-${selectKey}`}
-                    defaultValue={editingFlight ? String(editingFlight.airlineId) : undefined}
+                    options={selectableAirlines}
+                    value={selectedAirlineId ?? null}
                     onValueChange={(value) => {
-                      if (!value) return
                       setValue("airlineId", Number(value), { shouldDirty: true, shouldValidate: true })
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(value) => {
-                          const airline = selectableAirlines.find((item) => String(item.id) === value)
-                          return airline ? `${airline.name} (${airline.code})` : "请选择航空公司"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableAirlines.map((airline) => (
-                        <SelectItem key={airline.id} value={String(airline.id)}>
-                          {airline.name} ({airline.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="请选择航空公司"
+                    searchPlaceholder="搜索航空公司..."
+                    emptyMessage="暂无匹配航司"
+                    getDisplayValue={(airline) => `${airline.name} (${airline.code})`}
+                    getSearchFields={(airline) => [airline.code, airline.name]}
+                  />
                 ) : (
                   <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
                     暂无可用航司，请先在航司管理中启用数据
@@ -500,32 +634,26 @@ export default function AdminFlightsPage() {
                 {errors.airlineId && <p className="text-xs text-destructive">{errors.airlineId.message}</p>}
               </div>
               <div className="space-y-1.5">
+                <Label>行李额</Label>
+                <Input {...register("baggageAllowance")} placeholder="20kg" />
+                {errors.baggageAllowance && <p className="text-xs text-destructive">{errors.baggageAllowance.message}</p>}
+              </div>
+              <div className="space-y-1.5">
                 <Label>出发机场</Label>
                 {selectableDepartureAirports.length > 0 ? (
-                  <Select
+                  <Combobox
                     key={`departure-airport-${selectKey}`}
-                    defaultValue={editingFlight ? String(editingFlight.departureAirportId) : undefined}
+                    options={selectableDepartureAirports}
+                    value={selectedDepartureAirportId ?? null}
                     onValueChange={(value) => {
-                      if (!value) return
                       setValue("departureAirportId", Number(value), { shouldDirty: true, shouldValidate: true })
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(value) => {
-                          const airport = selectableDepartureAirports.find((item) => String(item.id) === value)
-                          return airport ? `${airport.name} (${airport.code} - ${airport.city})` : "请选择出发机场"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableDepartureAirports.map((airport) => (
-                        <SelectItem key={airport.id} value={String(airport.id)}>
-                          {airport.name} ({airport.code} - {airport.city})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="请选择出发机场"
+                    searchPlaceholder="搜索出发机场..."
+                    emptyMessage="暂无匹配机场"
+                    getDisplayValue={(airport) => `${airport.name} (${airport.code}) - ${airport.city}`}
+                    getSearchFields={(airport) => [airport.code, airport.name, airport.city, airport.province ?? ""]}
+                  />
                 ) : (
                   <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
                     暂无可用机场，请先在机场管理中启用数据
@@ -536,30 +664,19 @@ export default function AdminFlightsPage() {
               <div className="space-y-1.5">
                 <Label>到达机场</Label>
                 {selectableArrivalAirports.length > 0 ? (
-                  <Select
+                  <Combobox
                     key={`arrival-airport-${selectKey}`}
-                    defaultValue={editingFlight ? String(editingFlight.arrivalAirportId) : undefined}
+                    options={selectableArrivalAirports}
+                    value={selectedArrivalAirportId ?? null}
                     onValueChange={(value) => {
-                      if (!value) return
                       setValue("arrivalAirportId", Number(value), { shouldDirty: true, shouldValidate: true })
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(value) => {
-                          const airport = selectableArrivalAirports.find((item) => String(item.id) === value)
-                          return airport ? `${airport.name} (${airport.code} - ${airport.city})` : "请选择到达机场"
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableArrivalAirports.map((airport) => (
-                        <SelectItem key={airport.id} value={String(airport.id)}>
-                          {airport.name} ({airport.code} - {airport.city})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="请选择到达机场"
+                    searchPlaceholder="搜索到达机场..."
+                    emptyMessage="暂无匹配机场"
+                    getDisplayValue={(airport) => `${airport.name} (${airport.code}) - ${airport.city}`}
+                    getSearchFields={(airport) => [airport.code, airport.name, airport.city, airport.province ?? ""]}
+                  />
                 ) : (
                   <div className="flex h-8 items-center rounded-lg border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
                     暂无可用机场，请先在机场管理中启用数据
@@ -571,11 +688,6 @@ export default function AdminFlightsPage() {
                 <Label>飞行时长（分钟）</Label>
                 <Input type="number" {...register("durationMinutes")} placeholder="180" />
                 {errors.durationMinutes && <p className="text-xs text-destructive">{errors.durationMinutes.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label>行李额</Label>
-                <Input {...register("baggageAllowance")} placeholder="20kg" />
-                {errors.baggageAllowance && <p className="text-xs text-destructive">{errors.baggageAllowance.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>出发时间</Label>
@@ -597,10 +709,11 @@ export default function AdminFlightsPage() {
                 <Input type="number" {...register("totalSeats")} />
                 {errors.totalSeats && <p className="text-xs text-destructive">{errors.totalSeats.message}</p>}
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="directFlag" {...register("directFlag")} />
-              <Label htmlFor="directFlag" className="cursor-pointer text-sm">直飞航班</Label>
+              <div className="flex items-center gap-2 pt-7">
+                <Checkbox id="directFlag" {...register("directFlag")} />
+                <Label htmlFor="directFlag" className="cursor-pointer text-sm">直飞航班</Label>
+              </div>
+              <div />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>取消</Button>

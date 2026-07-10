@@ -43,6 +43,7 @@ import * as flightApi from "@/services/flightApi"
 import * as passengerApi from "@/services/passengerApi"
 import * as waitlistApi from "@/services/waitlistApi"
 import type { PassengerVO } from "@/types/passenger"
+import { isCabinClass } from "@/types/flight"
 import type { FlightCabinVO, FlightVO, CabinClass } from "@/types/flight"
 import type { PassengerType } from "@/types/order"
 import { CABIN_CLASS_LABEL, CABIN_CLASS_ORDER } from "@/types/flight"
@@ -64,10 +65,6 @@ const passengerSchema = z.object({
 })
 
 type PassengerFormData = z.infer<typeof passengerSchema>
-
-function isCabinClass(value: string | null): value is CabinClass {
-  return value === "ECONOMY" || value === "BUSINESS" || value === "FIRST"
-}
 
 function WaitlistCreateContent() {
   const router = useRouter()

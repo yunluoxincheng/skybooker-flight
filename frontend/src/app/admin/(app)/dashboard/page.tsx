@@ -24,7 +24,7 @@ import {
 import * as adminApi from "@/services/adminApi"
 import type { DashboardSummaryVO, HotRouteVO, OrderStatusDistributionVO } from "@/types/admin"
 
-const PIE_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#6b7280"]
+const PIE_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#6b7280", "#9ca3af"]
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: "待支付",
@@ -32,7 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   CHANGED: "已改签",
   REFUNDED: "已退票",
   CANCELLED: "已取消",
-  EXPIRED: "已过期",
+  VOIDED: "已作废",
 }
 
 export default function AdminDashboardPage() {

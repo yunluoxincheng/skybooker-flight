@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, Pencil, Plus } from "lucide-react"
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -17,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -55,6 +58,9 @@ export default function AdminAirlinesPage() {
   const [actionErr, setActionErr] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAirline, setEditingAirline] = useState<AirlineVO | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AirlineVO | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteErr, setDeleteErr] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
 
@@ -155,6 +161,22 @@ export default function AdminAirlinesPage() {
     }
   }
 
+  const handleDeleteAirline = async () => {
+    if (!deleteTarget) return
+
+    setDeleteLoading(true)
+    setDeleteErr(null)
+    try {
+      await adminApi.deleteAirline(deleteTarget.id)
+      setDeleteTarget(null)
+      await fetchAirlines()
+    } catch (err) {
+      setDeleteErr((err as ApiError).message || "删除航司失败")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -250,6 +272,17 @@ export default function AdminAirlinesPage() {
                             ) : null}
                             {airline.status === "ENABLED" ? "禁用" : "启用"}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => {
+                              setDeleteTarget(airline)
+                              setDeleteErr(null)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            删除
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -304,6 +337,57 @@ export default function AdminAirlinesPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null)
+            setDeleteErr(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除航司</DialogTitle>
+            <DialogDescription>
+              删除后该航司将不可用于新增航班，已关联的航班数据不受影响。此操作不可撤销，请确认后继续。
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+                <p className="font-medium">{deleteTarget.name}</p>
+                <p className="text-muted-foreground">代码：{deleteTarget.code}</p>
+                {deleteTarget.logoUrl && (
+                  <p className="max-w-[260px] truncate text-muted-foreground">Logo：{deleteTarget.logoUrl}</p>
+                )}
+              </div>
+              {deleteErr && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {deleteErr}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null)
+                setDeleteErr(null)
+              }}
+              disabled={deleteLoading}
+            >
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAirline} disabled={deleteLoading}>
+              {deleteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              确认删除
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

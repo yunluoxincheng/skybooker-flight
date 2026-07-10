@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Plane, MapPin, Clock, ChevronRight, Loader2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -46,7 +46,7 @@ export default function OrderDetailPage() {
   // 取消
   const [cancelOpen, setCancelOpen] = useState(false)
 
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
@@ -57,7 +57,7 @@ export default function OrderDetailPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [id])
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -67,7 +67,7 @@ export default function OrderDetailPage() {
     if (isAuthenticated) {
       fetchOrder()
     }
-  }, [isAuthenticated, isAuthLoading, id])
+  }, [fetchOrder, id, isAuthLoading, isAuthenticated, router])
 
   const doAction = async (action: () => Promise<unknown>) => {
     setActionLoading(true)

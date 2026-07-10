@@ -1,4 +1,4 @@
-import { del, get, post, put } from "@/lib/request"
+import { del, get, patch, post, put } from "@/lib/request"
 import type { AdminLoginResponse, AdminUser } from "@/types/auth"
 import type {
   AirlineFormDTO,
@@ -22,18 +22,24 @@ import type {
   DeleteUserBlockInfoVO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
+import type { PassengerVO } from "@/types/passenger"
 import type {
+  AdminChangeDTO,
+  AdminNoteDTO,
   AdminOrderDetailVO,
+  AdminOrderQueryDTO,
   AdminRefundDTO,
+  AdminVoidDTO,
   ChangeOptionVO,
-  ChangeOrderDTO,
+  ChangeOrderResultVO,
+  ChangeRecordVO,
   CreateAdminOrderDTO,
   OrderDeleteType,
   OrderVO,
-  UpdateAdminOrderDTO,
+  RefundRecordVO,
+  RefundVO,
 } from "@/types/order"
 import type { PageData } from "@/types/api"
-import type { PassengerVO } from "@/types/passenger"
 
 // ---- Auth ----
 
@@ -115,6 +121,10 @@ export function disableAirline(id: number) {
   return post<null>(`/admin/airlines/${id}/disable`, undefined, { auth: "admin" })
 }
 
+export function deleteAirline(id: number) {
+  return del<null>(`/admin/airlines/${id}`, { auth: "admin" })
+}
+
 // ---- Airports ----
 
 export function getAirports(params?: Record<string, string | number | boolean | undefined>) {
@@ -137,9 +147,13 @@ export function disableAirport(id: number) {
   return post<null>(`/admin/airports/${id}/disable`, undefined, { auth: "admin" })
 }
 
+export function deleteAirport(id: number) {
+  return del<null>(`/admin/airports/${id}`, { auth: "admin" })
+}
+
 // ---- Orders ----
 
-export function getAdminOrders(params?: Record<string, string | number | boolean | undefined>) {
+export function getAdminOrders(params?: AdminOrderQueryDTO) {
   return get<PageData<OrderVO>>("/admin/orders", params, { auth: "admin" })
 }
 
@@ -151,36 +165,48 @@ export function createAdminOrder(data: CreateAdminOrderDTO) {
   return post<OrderVO>("/admin/orders", data, { auth: "admin" })
 }
 
-export function updateAdminOrder(id: number, data: UpdateAdminOrderDTO) {
-  return put<OrderVO>(`/admin/orders/${id}`, data, { auth: "admin" })
-}
-
 export function refundAdminOrder(id: number, data: AdminRefundDTO) {
-  return post<OrderVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
+  return post<RefundVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
 
 export function getAdminChangeOptions(id: number) {
   return get<ChangeOptionVO[]>(`/admin/orders/${id}/change-options`, undefined, { auth: "admin" })
 }
 
-export function changeAdminOrder(id: number, data: ChangeOrderDTO) {
-  return post<OrderVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
+export function changeAdminOrder(id: number, data: AdminChangeDTO) {
+  return post<ChangeOrderResultVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
 }
 
-export function deleteAdminOrder(id: number, type: OrderDeleteType) {
-  return del<null>(`/admin/orders/${id}?type=${type}`, { auth: "admin" })
+export function voidAdminOrder(id: number, data: AdminVoidDTO) {
+  return post<OrderVO>(`/admin/orders/${id}/void`, data, { auth: "admin" })
+}
+
+export function voidAdminOrderByDelete(id: number, type: OrderDeleteType, reason?: string) {
+  const searchParams = new URLSearchParams({ type })
+  if (reason?.trim()) {
+    searchParams.set("reason", reason.trim())
+  }
+  return del<OrderVO>(`/admin/orders/${id}?${searchParams.toString()}`, { auth: "admin" })
 }
 
 export function getAdminOrderDetailEnhanced(id: number) {
   return get<AdminOrderDetailVO>(`/admin/orders/${id}/detail`, undefined, { auth: "admin" })
 }
 
-export function getPublishedFlights(params?: Record<string, string | number | boolean | undefined>) {
-  return get<PageData<FlightVO>>("/admin/flights", { ...params, publishedOnly: true }, { auth: "admin" })
-}
-
 export function getPassengersByUser(userId: number) {
   return get<PassengerVO[]>("/admin/passengers", { userId }, { auth: "admin" })
+}
+
+export function getAdminOrderRefunds(id: number) {
+  return get<RefundRecordVO[]>(`/admin/orders/${id}/refunds`, undefined, { auth: "admin" })
+}
+
+export function getAdminOrderChanges(id: number) {
+  return get<ChangeRecordVO[]>(`/admin/orders/${id}/changes`, undefined, { auth: "admin" })
+}
+
+export function updateAdminNote(id: number, data: AdminNoteDTO) {
+  return patch<OrderVO>(`/admin/orders/${id}/admin-note`, data, { auth: "admin" })
 }
 
 export function getAdminFlightSeats(flightId: number) {
@@ -205,8 +231,8 @@ export function createAdminUser(data: CreateUserAdminDTO) {
   return post<UserAdminVO>("/admin/users", data, { auth: "admin" })
 }
 
-export function deleteAdminUser(id: number, type: "hard" | "soft") {
-  return del<null>(`/admin/users/${id}?type=${type}`, { auth: "admin" })
+export function deleteUser(id: number) {
+  return del<null>(`/admin/users/${id}`, { auth: "admin" })
 }
 
 export function checkUserDeletable(id: number) {

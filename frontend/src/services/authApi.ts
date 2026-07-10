@@ -1,5 +1,10 @@
-import { post, get } from "@/lib/request"
-import type { LoginResponse, User } from "@/types/auth"
+import { del, post, get } from "@/lib/request"
+import type {
+  DeleteAccountRequest,
+  EmailCodeScene,
+  LoginResponse,
+  User,
+} from "@/types/auth"
 
 /** 登录 */
 export function login(email: string, password: string) {
@@ -7,7 +12,7 @@ export function login(email: string, password: string) {
 }
 
 /** 发送邮箱验证码 */
-export function sendEmailCode(email: string, scene: "REGISTER" | "RESET_PASSWORD") {
+export function sendEmailCode(email: string, scene: EmailCodeScene) {
   return post<null>("/auth/email-code", { email, scene })
 }
 
@@ -40,4 +45,9 @@ export function getMe() {
 /** 登出 */
 export function logout(refreshToken?: string) {
   return post<null>("/auth/logout", refreshToken ? { refreshToken } : undefined, { auth: "user" })
+}
+
+/** 注销账号 */
+export function deleteAccount(data: DeleteAccountRequest) {
+  return del<null>("/auth/account", data, { auth: "user" })
 }

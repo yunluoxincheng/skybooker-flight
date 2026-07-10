@@ -15,6 +15,14 @@ export interface LoginResponse {
   user: User
 }
 
+/** 邮箱验证码场景 */
+export type EmailCodeScene = "REGISTER" | "RESET_PASSWORD" | "DELETE_ACCOUNT"
+
+/** 注销账号请求 */
+export interface DeleteAccountRequest {
+  currentPassword: string
+}
+
 /** 管理员信息 — 匹配后端 AdminVO */
 export interface AdminUser {
   id: number

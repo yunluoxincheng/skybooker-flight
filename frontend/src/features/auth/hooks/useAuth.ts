@@ -4,7 +4,8 @@ import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth as useAuthContext } from "@/contexts/AuthContext"
 import * as authApi from "@/services/authApi"
-import { ApiError } from "@/lib/request"
+import { getErrorMessage, getLoginErrorMessage } from "@/lib/error-codes"
+import type { EmailCodeScene } from "@/types/auth"
 
 export function useLogin() {
   const { login } = useAuthContext()
@@ -19,11 +20,7 @@ export function useLogin() {
       const redirect = searchParams.get("redirect")
       router.push(redirect || "/")
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("登录失败，请稍后重试")
-      }
+      setError(getLoginErrorMessage(err))
     }
   }
 
@@ -47,11 +44,7 @@ export function useRegister() {
       await register(data)
       router.push("/login")
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("注册失败，请稍后重试")
-      }
+      setError(getErrorMessage(err, "注册失败，请稍后重试"))
     }
   }
 
@@ -75,11 +68,7 @@ export function useForgotPassword() {
       setSuccess(true)
       setTimeout(() => router.push("/login"), 2000)
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("重置失败，请稍后重试")
-      }
+      setError(getErrorMessage(err, "重置失败，请稍后重试"))
     }
   }
 
@@ -90,17 +79,13 @@ export function useSendCode() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const sendCode = async (email: string, scene: "REGISTER" | "RESET_PASSWORD") => {
+  const sendCode = async (email: string, scene: EmailCodeScene) => {
     setError(null)
     setSending(true)
     try {
       await authApi.sendEmailCode(email, scene)
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("发送失败")
-      }
+      setError(getErrorMessage(err, "发送失败"))
       throw err
     } finally {
       setSending(false)

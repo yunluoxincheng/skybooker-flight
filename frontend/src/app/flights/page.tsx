@@ -14,6 +14,7 @@ import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightSearchCard } from "@/components/common/FlightSearchCard"
 import { FlightCard } from "@/components/common/FlightCard"
 import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch"
+import { isCabinClass } from "@/types/flight"
 
 function FlightsContent() {
   const router = useRouter()
@@ -43,6 +44,8 @@ function FlightsContent() {
   const currentSortBy = searchParams.get("sortBy") || ""
   const currentDirectOnly = searchParams.get("directOnly") === "true"
   const currentTimeRange = searchParams.get("departureTimeRange") || ""
+  const cabinClassParam = searchParams.get("cabinClass")
+  const currentCabinClass = isCabinClass(cabinClassParam) ? cabinClassParam : undefined
 
   const TIME_RANGES = [
     { value: "00:00-06:00", label: "凌晨 00:00-06:00" },
@@ -215,7 +218,7 @@ function FlightsContent() {
             {!isLoading && !error && (
               <div className="space-y-4">
                 {flights.map((flight) => (
-                  <FlightCard key={flight.id} flight={flight} />
+                  <FlightCard key={flight.id} flight={flight} cabinClass={currentCabinClass} />
                 ))}
               </div>
             )}

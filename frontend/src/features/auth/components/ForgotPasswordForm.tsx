@@ -1,6 +1,6 @@
 "use client"
 
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import Link from "next/link"
@@ -33,15 +33,15 @@ type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
 export function ForgotPasswordForm() {
   const { resetPassword, error, success } = useForgotPassword()
   const {
+    control,
     register,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
   })
 
-  const email = watch("email")
+  const email = useWatch({ control, name: "email" }) || ""
 
   if (success) {
     return (

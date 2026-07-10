@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import type { ApiError } from "@/lib/request"
+import { getDisplayName } from "@/lib/user-utils"
 import * as adminApi from "@/services/adminApi"
 import type { UserAdminVO } from "@/types/admin"
 import { CreateUserDialog } from "./_components/CreateUserDialog"
@@ -57,6 +58,7 @@ export default function AdminUsersPage() {
         size: 10,
         role: "USER",
       }
+      // TODO(#132): 后端暂不支持 email 搜索，待 AdminController.listUsers 实现后即可生效
       if (emailFilter) params.email = emailFilter
 
       const data = await adminApi.getUsers(params)
@@ -105,9 +107,7 @@ export default function AdminUsersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">用户管理</h1>
-          <p className="text-sm text-muted-foreground">
-            支持创建普通用户、启用/禁用和删除前阻断检查。
-          </p>
+          <p className="text-sm text-muted-foreground">支持创建普通用户、启用/禁用和删除。</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -179,45 +179,51 @@ export default function AdminUsersPage() {
                 users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>{user.id}</TableCell>
-                    <TableCell className="font-medium">{user.realName}</TableCell>
+                    <TableCell className="font-medium">{getDisplayName(user)}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       {user.status === "NORMAL" ? (
                         <Badge variant="default" className="text-xs">正常</Badge>
-                      ) : (
+                      ) : user.status === "DISABLED" ? (
                         <Badge variant="destructive" className="text-xs">已禁用</Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-xs">已删除</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">{formatDateTime(user.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {user.status === "NORMAL" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setConfirmAction({ user, action: "disable" })
-                              setConfirmOpen(true)
-                            }}
-                          >
-                            禁用
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setConfirmAction({ user, action: "enable" })
-                              setConfirmOpen(true)
-                            }}
-                          >
-                            启用
-                          </Button>
+                        {user.status !== "DELETED" && (
+                          <>
+                            {user.status === "NORMAL" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setConfirmAction({ user, action: "disable" })
+                                  setConfirmOpen(true)
+                                }}
+                              >
+                                禁用
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setConfirmAction({ user, action: "enable" })
+                                  setConfirmOpen(true)
+                                }}
+                              >
+                                启用
+                              </Button>
+                            )}
+                            <Button variant="destructive" size="sm" onClick={() => setDeleteUser(user)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                              删除
+                            </Button>
+                          </>
                         )}
-                        <Button variant="destructive" size="sm" onClick={() => setDeleteUser(user)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                          删除
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -264,8 +270,8 @@ export default function AdminUsersPage() {
             <DialogTitle>确认操作</DialogTitle>
             <DialogDescription>
               {confirmAction?.action === "disable"
-                ? `确定要禁用用户「${confirmAction?.user.realName}」吗？`
-                : `确定要启用用户「${confirmAction?.user.realName}」吗？`}
+                ? `确定要禁用用户「${confirmAction ? getDisplayName(confirmAction.user) : ""}」吗？`
+                : `确定要启用用户「${confirmAction ? getDisplayName(confirmAction.user) : ""}」吗？`}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 flex justify-end gap-2">

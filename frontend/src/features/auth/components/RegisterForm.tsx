@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type Dispatch, type KeyboardEvent, type MouseEvent, type SetStateAction } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import Link from "next/link"
@@ -38,15 +38,15 @@ export function RegisterForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isCapsLock, setIsCapsLock] = useState(false)
   const {
+    control,
     register,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   })
 
-  const email = watch("email")
+  const email = useWatch({ control, name: "email" }) || ""
 
   const updateCapsLockState = (e: KeyboardEvent<HTMLInputElement>) => {
     setIsCapsLock(e.getModifierState("CapsLock"))

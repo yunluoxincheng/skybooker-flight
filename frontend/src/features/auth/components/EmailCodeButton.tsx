@@ -3,10 +3,11 @@
 import { Button } from "@/components/ui/button"
 import { useCountdown } from "@/hooks/useCountdown"
 import { useSendCode } from "../hooks/useAuth"
+import type { EmailCodeScene } from "@/types/auth"
 
 interface EmailCodeButtonProps {
   email: string
-  scene: "REGISTER" | "RESET_PASSWORD"
+  scene: EmailCodeScene
   disabled?: boolean
 }
 

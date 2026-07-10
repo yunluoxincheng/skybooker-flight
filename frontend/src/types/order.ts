@@ -5,7 +5,7 @@ export type OrderStatus =
   | "CHANGED"
   | "REFUNDED"
   | "CANCELLED"
-  | "EXPIRED"
+  | "VOIDED"
 
 /** 乘机人类型 */
 export type PassengerType = "ADULT" | "CHILD" | "INFANT"
@@ -46,6 +46,19 @@ export interface OrderVO {
   airlineName?: string
 }
 
+export interface AdminOrderQueryDTO {
+  status?: string
+  orderNo?: string
+  userId?: number
+  userKeyword?: string
+  flightNo?: string
+  flightKeyword?: string
+  departureDateStart?: string
+  departureDateEnd?: string
+  page?: number
+  size?: number
+}
+
 /** 创建订单项 */
 export interface OrderItemDTO {
   passengerId: number
@@ -81,6 +94,11 @@ export interface ChangeOrderDTO {
   seatMappings: SeatMapping[]
 }
 
+export interface AdminChangeDTO extends ChangeOrderDTO {
+  reason: string
+  force?: boolean
+}
+
 /** 退票结果 VO — 匹配后端 RefundVO */
 export interface RefundVO {
   id: number
@@ -101,74 +119,61 @@ export interface ChangeOrderResultVO {
   passengers: OrderPassengerVO[]
 }
 
-/** 管理端创建订单 DTO */
 export interface CreateAdminOrderDTO {
   userId: number
   flightId: number
   items: OrderItemDTO[]
 }
 
-/** 管理端更新订单 DTO */
-export interface UpdateAdminOrderDTO {
-  items?: OrderItemDTO[]
-}
-
-/** 管理端退票 DTO */
 export interface AdminRefundDTO {
   reason: string
-  refundFee?: number
+  force?: boolean
 }
 
-/** 退款记录 VO */
+export interface AdminVoidDTO {
+  reason: string
+}
+
+export interface AdminNoteDTO {
+  adminNote?: string
+}
+
 export interface RefundRecordVO {
   id: number
   orderId: number
+  userId: number
   refundAmount: number
   feeAmount: number
   reason: string
   status: string
   createdAt: string
-  completedAt?: string
 }
 
-/** 改签记录 VO */
 export interface ChangeRecordVO {
   id: number
-  orderNo: string
-  oldFlightNo: string
-  newFlightNo: string
-  oldDepartureTime: string
-  newDepartureTime: string
-  feeAmount: number
+  orderId: number
+  oldFlightId: number
+  newFlightId: number
+  oldSeatId: number
+  newSeatId: number
   priceDiff: number
+  changeFee: number
   status: string
   createdAt: string
 }
 
-/** 支付信息 VO */
-export interface PaymentInfoVO {
-  payTime?: string
-  payAmount?: number
-  payMethod?: string
-  tradeNo?: string
-}
-
-/** 状态流转项 */
-export interface OrderStatusTimelineItemVO {
-  status: OrderStatus
-  title?: string
+export interface AdminOrderTimelineItemVO {
+  eventType: string
+  status?: string
   description?: string
-  operatorName?: string
   occurredAt?: string
 }
 
-/** 管理端增强订单详情 */
 export interface AdminOrderDetailVO extends OrderVO {
-  refundRecords: RefundRecordVO[]
-  changeRecords: ChangeRecordVO[]
-  paymentInfo?: PaymentInfoVO
-  statusTimeline: OrderStatusTimelineItemVO[]
+  refunds: RefundRecordVO[]
+  changes: ChangeRecordVO[]
+  timeline: AdminOrderTimelineItemVO[]
+  adminNote?: string
 }
 
-/** 订单删除类型 */
 export type OrderDeleteType = "cancel" | "delete"
