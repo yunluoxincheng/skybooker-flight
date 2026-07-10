@@ -11,6 +11,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -44,6 +46,13 @@ class FlightCatalogIntegrationTest {
                     lock_expire_time = NULL
                 WHERE flight_id BETWEEN 2 AND 5
                 """);
+    }
+
+    @Test
+    void databaseSessionUsesShanghaiTimezone() {
+        String sessionTimezone = jdbcTemplate.queryForObject("SELECT @@session.time_zone", String.class);
+
+        assertThat(sessionTimezone).isEqualTo("+08:00");
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.order.dto.CreateOrderDTO;
 import com.skybooker.waitlist.dto.CreateWaitlistDTO;
+import com.skybooker.waitlist.service.WaitlistService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +41,12 @@ class FulfillmentIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private WaitlistService waitlistService;
+
+    @Autowired
+    private Clock businessClock;
 
     private String userToken;
     private String adminToken;
@@ -190,6 +198,30 @@ class FulfillmentIntegrationTest {
         BigDecimal fuelFee = jdbcTemplate.queryForObject(
                 "SELECT fuel_fee FROM ticket_order WHERE id = ?", BigDecimal.class, ticketOrderId);
         assertThat(fuelFee.doubleValue()).isEqualTo(30.00);
+    }
+
+    @Test
+    void forceRefundAfterDeparture_doesNotFulfillWaitingWaitlist() throws Exception {
+        Long flightId = createFlightWithSeats(1);
+        Long orderId = bookAllSeats(flightId, 1).get(0);
+        Long waitlistId = createAndWaitlist(flightId, "ECONOMY", List.of(createPassenger("已起飞候补乘机人")));
+        jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
+                LocalDateTime.now(businessClock).minusMinutes(1), flightId);
+
+        mockMvc.perform(post("/api/admin/orders/" + orderId + "/refund")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"航班已起飞，人工退款\",\"force\":true}"))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM waitlist_order WHERE id = ?", String.class, waitlistId)).isEqualTo("WAITING");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT ticket_order_id FROM waitlist_order WHERE id = ?", Long.class, waitlistId)).isNull();
+
+        waitlistService.cleanupUnfulfillableWaiting();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM waitlist_order WHERE id = ?", String.class, waitlistId)).isEqualTo("REFUNDED");
     }
 
     // ---- Helpers ----

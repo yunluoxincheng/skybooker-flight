@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -25,10 +26,23 @@ public class WaitlistFulfillmentService {
     private final WaitlistMapper waitlistMapper;
     private final FlightMapper flightMapper;
     private final OrderMapper orderMapper;
+    private final Clock businessClock;
 
     @Transactional
     public int tryFulfillWaitlists(Long flightId, String cabinClass, int releasedCount) {
         if (releasedCount <= 0) {
+            return 0;
+        }
+
+        // 退款提交后才会触发候补兑现，需再次确认航班尚可售，避免管理员强制退款
+        // 已起飞航班时仍为候补创建 ISSUED 订单。
+        var flight = flightMapper.findById(flightId);
+        if (flight == null
+                || !"PUBLISHED".equals(flight.getPublishStatus())
+                || !("ON_TIME".equals(flight.getStatus()) || "DELAYED".equals(flight.getStatus()))
+                || flight.getDepartureTime() == null
+                || !flight.getDepartureTime().isAfter(LocalDateTime.now(businessClock))) {
+            log.info("Skip waitlist fulfillment for unsellable flight {}", flightId);
             return 0;
         }
 
@@ -130,7 +144,7 @@ public class WaitlistFulfillmentService {
     }
 
     private String generateOrderNo() {
-        return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+        return "ORD" + LocalDateTime.now(businessClock).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + String.format("%04d", new Random().nextInt(10000));
     }
 }
