@@ -12,14 +12,14 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from 
 import { Skeleton } from "@/components/ui/skeleton"
 import { UserLayout } from "@/components/layout/UserLayout"
 import { FlightSearchCard } from "@/components/common/FlightSearchCard"
-import { FlightCard } from "@/components/common/FlightCard"
+import { ItineraryCard } from "@/components/common/ItineraryCard"
 import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch"
 import { isCabinClass } from "@/types/flight"
 
 function FlightsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { flights, total, page, size, isLoading, error } = useFlightSearch()
+  const { itineraries, total, page, size, isLoading, error } = useFlightSearch()
   const [filterOpen, setFilterOpen] = useState(false)
 
   const updateParam = (key: string, value: string) => {
@@ -217,14 +217,14 @@ function FlightsContent() {
             {/* 航班卡片列表 */}
             {!isLoading && !error && (
               <div className="space-y-4">
-                {flights.map((flight) => (
-                  <FlightCard key={flight.id} flight={flight} cabinClass={currentCabinClass} />
+                {itineraries.map((itinerary) => (
+                  <ItineraryCard key={itinerary.segments.map((s) => s.id).join("-")} itinerary={itinerary} cabinClass={currentCabinClass} />
                 ))}
               </div>
             )}
 
             {/* 空状态 */}
-            {!isLoading && !error && flights.length === 0 && (
+            {!isLoading && !error && itineraries.length === 0 && (
               <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
                 <p className="text-muted-foreground mb-4">未找到符合条件的航班</p>
                 <Button

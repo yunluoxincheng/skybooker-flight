@@ -170,7 +170,9 @@ function OrdersContent() {
                         <p className="font-medium text-sm truncate">
                           {order.airlineName || order.flightNo}{" "}
                           <span className="text-muted-foreground font-normal">{order.flightNo}</span>
+                          <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-xs font-normal text-sky-700">{order.journeyType === "CONNECTING" ? "中转联程" : "直飞"}</span>
                         </p>
+                        {order.journeyType === "CONNECTING" && order.segments && <p className="text-xs text-muted-foreground">{order.segments.map(s => s.flightNo).join(" + ")}</p>}
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
                           {(order.departureCity && order.arrivalCity)

@@ -14,6 +14,7 @@ import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.change.entity.ChangeRecord;
 import com.skybooker.change.mapper.ChangeMapper;
+import com.skybooker.change.mapper.ConnectingChangeMapper;
 import com.skybooker.change.service.ChangeService;
 import com.skybooker.change.vo.ChangeOptionVO;
 import com.skybooker.change.vo.ChangeOrderResultVO;
@@ -55,6 +56,7 @@ public class AdminOrderService {
     private final OrderMapper orderMapper;
     private final RefundMapper refundMapper;
     private final ChangeMapper changeMapper;
+    private final ConnectingChangeMapper connectingChangeMapper;
     private final FlightMapper flightMapper;
     private final PassengerMapper passengerMapper;
 
@@ -171,14 +173,11 @@ public class AdminOrderService {
     }
 
     public AdminOrderDetailVO getEnhancedOrderDetail(Long orderId) {
-        OrderVO order = orderMapper.findDetailById(orderId);
-        if (order == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
         TicketOrder entity = findOrder(orderId);
+        OrderVO order = orderService.getOrderDetailForUser(orderId, entity.getUserId());
         List<RefundRecord> refunds = refundMapper.findRecordsByOrderId(orderId);
         List<ChangeRecord> changes = changeMapper.findByOrderId(orderId);
-        return AdminOrderDetailVO.from(order, refunds, changes, buildTimeline(order, entity, refunds, changes));
+        return AdminOrderDetailVO.from(order, refunds, changes, connectingChangeMapper.findByOrderId(orderId), buildTimeline(order, entity, refunds, changes));
     }
 
     public List<ChangeOptionVO> listChangeOptions(Long orderId) {

@@ -120,7 +120,7 @@ export default function OrderDetailPage() {
   const canPay = order.status === "PENDING_PAYMENT"
   const canCancel = order.status === "PENDING_PAYMENT"
   const canRefund = order.status === "ISSUED" || order.status === "CHANGED"
-  const canChange = order.status === "ISSUED"
+  const canChange = order.status === "ISSUED" || order.status === "CHANGED"
   const hoursUntilDeparture = order.departureTime ? getHoursUntil(order.departureTime) : Number.NaN
   const canChangeByTime = !Number.isNaN(hoursUntilDeparture) && hoursUntilDeparture >= 2
   const canChangeEnabled = canChange && canChangeByTime
@@ -193,15 +193,15 @@ export default function OrderDetailPage() {
                     size="sm"
                     variant="outline"
                     disabled={!canChangeEnabled}
-                    onClick={() => router.push(`/orders/${id}/change`)}
+                    onClick={() => router.push(order.journeyType === "CONNECTING" ? `/orders/${id}/connecting-change` : `/orders/${id}/change`)}
                   >
-                    改签
+                    {order.journeyType === "CONNECTING" ? "整段联程改签" : "改签"}
                   </Button>
                 </span>
               )}
               {canRefund && (
                 <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
-                  <DialogTrigger render={<Button size="sm" variant="outline" disabled={actionLoading}>退票</Button>} />
+                  <DialogTrigger render={<Button size="sm" variant="outline" disabled={actionLoading}>{order.journeyType === "CONNECTING" ? "整单退票" : "退票"}</Button>} />
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>退票申请</DialogTitle>
@@ -238,7 +238,17 @@ export default function OrderDetailPage() {
             {/* 航班信息 */}
             <Card>
               <CardContent className="p-5">
-                <h2 className="font-semibold mb-3">航班信息</h2>
+                <h2 className="font-semibold mb-3">航班信息 <Badge variant="outline" className="ml-2">{order.journeyType === "CONNECTING" ? "中转联程" : "直飞"}</Badge></h2>
+                {order.journeyType === "CONNECTING" && order.segments ? (
+                  <div className="space-y-3">
+                    {order.segments.map(segment => <div key={segment.id} className="rounded-lg border p-3">
+                      <p className="font-medium text-sm">第 {segment.segmentNo} 段 · {segment.airlineName} <Badge variant="outline">{segment.flightNo}</Badge></p>
+                      <p className="mt-1 text-sm text-muted-foreground">{segment.departureAirportCode} {formatFull(segment.departureTime)} → {segment.arrivalAirportCode} {formatFull(segment.arrivalTime)}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">{segment.passengers.map(p => <span key={p.passengerId} className="rounded bg-slate-100 px-2 py-1 text-xs">{p.passengerName} · {p.seatNo}</span>)}</div>
+                    </div>)}
+                    <p className="text-xs text-amber-700">联程订单仅支持整单取消、退票或整段改签，不支持单独操作某一航段。</p>
+                  </div>
+                ) : (<>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-primary/10">
                     <Plane className="h-4 w-4 text-primary" />
@@ -260,6 +270,7 @@ export default function OrderDetailPage() {
                     {order.arrivalTime ? formatTime(order.arrivalTime) : "—"}
                   </p>
                 )}
+                </>)}
               </CardContent>
             </Card>
 

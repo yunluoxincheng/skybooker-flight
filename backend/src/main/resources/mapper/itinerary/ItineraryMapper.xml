@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.itinerary.mapper.ItineraryMapper">
+    <select id="findConnectingPairs" resultType="com.skybooker.itinerary.vo.ConnectingPairVO">
+        SELECT f1.id AS first_flight_id, f2.id AS second_flight_id
+        FROM flight f1
+        JOIN airport origin ON origin.id = f1.departure_airport_id
+        JOIN airport connection ON connection.id = f1.arrival_airport_id
+        JOIN flight f2 ON f2.departure_airport_id = f1.arrival_airport_id
+        JOIN airport destination ON destination.id = f2.arrival_airport_id
+        WHERE origin.city = #{departureCity}
+          AND destination.city = #{arrivalCity}
+          AND DATE(f1.departure_time) = #{departureDate}
+          AND f1.departure_time &gt; NOW()
+          AND f2.departure_time &gt;= f1.arrival_time + INTERVAL 90 MINUTE
+          AND f2.departure_time &lt;= f1.arrival_time + INTERVAL 6 HOUR
+          AND f1.publish_status = 'PUBLISHED' AND f2.publish_status = 'PUBLISHED'
+          AND f1.status IN ('ON_TIME', 'DELAYED') AND f2.status IN ('ON_TIME', 'DELAYED')
+          AND f1.remaining_seats &gt;= #{passengerCount} AND f2.remaining_seats &gt;= #{passengerCount}
+          <if test="cabinClass != null and cabinClass != ''">
+              AND (SELECT COUNT(*) FROM flight_seat s1 WHERE s1.flight_id=f1.id AND s1.cabin_class=#{cabinClass} AND s1.status='AVAILABLE') &gt;= #{passengerCount}
+              AND (SELECT COUNT(*) FROM flight_seat s2 WHERE s2.flight_id=f2.id AND s2.cabin_class=#{cabinClass} AND s2.status='AVAILABLE') &gt;= #{passengerCount}
+          </if>
+        ORDER BY f1.departure_time, f2.arrival_time
+    </select>
+</mapper>

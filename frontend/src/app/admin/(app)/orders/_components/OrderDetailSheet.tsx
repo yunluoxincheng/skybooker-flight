@@ -72,7 +72,7 @@ export function OrderDetailSheet({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">航班</p>
-                  <p>{order.airlineName || "—"} {order.flightNo}</p>
+                  <p>{order.airlineName || "—"} {order.flightNo} <Badge variant="outline">{order.journeyType === "CONNECTING" ? "中转联程" : "直飞"}</Badge></p>
                   <p className="text-muted-foreground">
                     {order.departureCity || "—"} → {order.arrivalCity || "—"}
                   </p>
@@ -86,6 +86,15 @@ export function OrderDetailSheet({
                   <p>{formatDateTime(order.createdAt)}</p>
                 </div>
               </div>
+              {order.journeyType === "CONNECTING" && order.segments && (
+                <div className="space-y-2">
+                  {order.segments.map(segment => <div key={segment.id} className="rounded-lg border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">第 {segment.segmentNo} 段 · {segment.airlineName} {segment.flightNo}</p>
+                    <p className="text-muted-foreground">{segment.departureAirportCode} {formatDateTime(segment.departureTime)} → {segment.arrivalAirportCode} {formatDateTime(segment.arrivalTime)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{segment.passengers.map(p => `${p.passengerName}·${p.seatNo}`).join(" / ")}</p>
+                  </div>)}
+                </div>
+              )}
             </section>
 
             <section className="space-y-3 rounded-xl border p-4">
@@ -109,6 +118,10 @@ export function OrderDetailSheet({
                   </div>
                 ))}
               </div>
+              {order.connectingChanges?.map(record => <div key={`connecting-${record.id}`} className="rounded-lg bg-sky-50 p-3 text-sm">
+                <p className="font-medium">整段联程改签 · {record.status}</p>
+                <p className="text-muted-foreground">订单金额 {formatMoney(record.oldTotalAmount)} → {formatMoney(record.newTotalAmount)} · 差价 {formatMoney(record.priceDifference)} · 改签费 {formatMoney(record.changeFee)}</p>
+              </div>)}
               <Separator />
               <div className="space-y-1 text-sm">
                 <div className="flex items-center justify-between">

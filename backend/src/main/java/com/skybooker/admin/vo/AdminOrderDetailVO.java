@@ -1,6 +1,7 @@
 package com.skybooker.admin.vo;
 
 import com.skybooker.change.entity.ChangeRecord;
+import com.skybooker.change.entity.ConnectingChangeRecord;
 import com.skybooker.order.vo.OrderVO;
 import com.skybooker.refund.entity.RefundRecord;
 import lombok.AllArgsConstructor;
@@ -18,6 +19,7 @@ public class AdminOrderDetailVO {
     private Long id;
     private String orderNo;
     private Long flightId;
+    private String journeyType;
     private String flightNo;
     private String airlineName;
     private String departureCity;
@@ -38,18 +40,22 @@ public class AdminOrderDetailVO {
     private String adminNote;
     private LocalDateTime createdAt;
     private List<OrderVO.OrderPassengerVO> passengers;
+    private List<OrderVO.OrderSegmentVO> segments;
     private List<RefundRecord> refunds;
     private List<ChangeRecord> changes;
+    private List<ConnectingChangeRecord> connectingChanges;
     private List<AdminOrderTimelineItemVO> timeline;
 
     public static AdminOrderDetailVO from(OrderVO order,
                                           List<RefundRecord> refunds,
                                           List<ChangeRecord> changes,
+                                          List<ConnectingChangeRecord> connectingChanges,
                                           List<AdminOrderTimelineItemVO> timeline) {
         return new AdminOrderDetailVO(
                 order.getId(),
                 order.getOrderNo(),
                 order.getFlightId(),
+                order.getJourneyType(),
                 order.getFlightNo(),
                 order.getAirlineName(),
                 order.getDepartureCity(),
@@ -70,8 +76,10 @@ public class AdminOrderDetailVO {
                 order.getAdminNote(),
                 order.getCreatedAt(),
                 order.getPassengers(),
+                order.getSegments(),
                 refunds,
                 changes,
+                connectingChanges,
                 timeline
         );
     }

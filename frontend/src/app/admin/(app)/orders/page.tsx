@@ -234,7 +234,7 @@ export default function AdminOrdersPage() {
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-xs">{order.orderNo}</TableCell>
                     <TableCell>{order.userNickname || order.userEmail}</TableCell>
-                    <TableCell>{order.flightNo}</TableCell>
+                    <TableCell>{order.flightNo}<span className="ml-2 text-xs text-muted-foreground">{order.journeyType === "CONNECTING" ? "中转联程" : "直飞"}</span></TableCell>
                     <TableCell>
                       <FlightPriceTag price={order.totalAmount} className="text-sm" />
                     </TableCell>

@@ -54,6 +54,7 @@ public class ChangeService {
         if (order == null || (userId != null && !order.getUserId().equals(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        if ("CONNECTING".equals(order.getJourneyType())) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
@@ -93,6 +94,7 @@ public class ChangeService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        if ("CONNECTING".equals(order.getJourneyType())) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }

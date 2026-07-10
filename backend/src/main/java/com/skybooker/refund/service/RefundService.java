@@ -87,6 +87,16 @@ public class RefundService {
         // 改签后 order_passenger.seat_id 已更新为新座,此处只释放当前关联座位,
         // 避免 orderId 名下残留脏 SOLD(异常/并发历史数据)被误释放,导致
         // incrementRemainingSeats(当前航班) 与实际释放座位所属航班错配。
+        if ("CONNECTING".equals(order.getJourneyType())) {
+            var segments = orderMapper.findSegmentsByOrderId(orderId);
+            var seatIds = segments.stream().flatMap(s -> orderMapper.findSegmentPassengers(s.getId()).stream())
+                    .map(com.skybooker.order.entity.OrderSegmentPassenger::getSeatId).toList();
+            int released = flightMapper.releaseSoldSeatsBySeatIds(seatIds);
+            if (released != seatIds.size()) throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+            segments.forEach(s -> flightMapper.incrementRemainingSeats(s.getFlightId(), orderMapper.findSegmentPassengers(s.getId()).size()));
+            return refundMapper.findByOrderId(orderId);
+        }
+
         List<OrderPassenger> passengers = orderMapper.findPassengersByOrderId(orderId);
         List<Long> refundSeatIds = passengers.stream().map(OrderPassenger::getSeatId).toList();
         // H3: cabinClasses 同样基于 refundSeatIds 快照,与"释放哪些座位""回补多少余票"范围一致,

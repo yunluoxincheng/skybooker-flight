@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import * as flightApi from "@/services/flightApi"
-import type { FlightVO } from "@/types/flight"
+import type { ItineraryVO } from "@/types/flight"
 import type { ApiError } from "@/lib/request"
 
 interface UseFlightSearchReturn {
-  flights: FlightVO[]
+  itineraries: ItineraryVO[]
   total: number
   page: number
   size: number
@@ -25,7 +25,7 @@ const SORT_BY_TO_ENUM: Record<string, string> = {
 
 export function useFlightSearch(): UseFlightSearchReturn {
   const searchParams = useSearchParams()
-  const [flights, setFlights] = useState<FlightVO[]>([])
+  const [itineraries, setItineraries] = useState<ItineraryVO[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,14 +70,14 @@ export function useFlightSearch(): UseFlightSearchReturn {
       params.page = page
       params.size = size
 
-      const data = await flightApi.searchFlights(params)
-      setFlights(data.records)
+      const data = await flightApi.searchItineraries(params)
+      setItineraries(data.records)
       setTotal(data.total)
       setError(null)
     } catch (err) {
       const apiErr = err as ApiError
       setError(apiErr.message || "搜索航班失败")
-      setFlights([])
+      setItineraries([])
       setTotal(0)
     } finally {
       setIsLoading(false)
@@ -88,5 +88,5 @@ export function useFlightSearch(): UseFlightSearchReturn {
     fetchFlights()
   }, [fetchFlights])
 
-  return { flights, total, page, size, isLoading, error, refresh: fetchFlights }
+  return { itineraries, total, page, size, isLoading, error, refresh: fetchFlights }
 }

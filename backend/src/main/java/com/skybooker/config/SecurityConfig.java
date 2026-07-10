@@ -22,6 +22,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpMethod;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -62,6 +63,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/admin/auth/refresh").permitAll()
                             .requestMatchers("/api/admin/logout").permitAll()
                             .requestMatchers("/api/flights/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/itineraries/search").permitAll()
+                            .requestMatchers("/api/itineraries/quote").access((authSupplier, ctx) -> requireUserPortal(authSupplier))
                             .requestMatchers("/api/ai/**").access(
                                     (authSupplier, ctx) -> checkAiAccess(authSupplier))
                             .requestMatchers("/api/orders/**", "/api/passengers/**", "/api/waitlist/**")

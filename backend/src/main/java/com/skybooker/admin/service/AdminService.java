@@ -13,6 +13,7 @@ import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.order.mapper.OrderMapper;
+import com.skybooker.order.service.OrderService;
 import com.skybooker.order.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +36,7 @@ public class AdminService {
 
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
+    private final OrderService orderService;
     private final AdminOperationLogService operationLogService;
     private final PasswordEncoder passwordEncoder;
 
@@ -145,6 +147,7 @@ public class AdminService {
         validateOrderQuery(query);
         int offset = AdminListQuerySupport.offset(query);
         List<OrderVO> orders = orderMapper.searchOrdersAdmin(query, offset, query.getSize());
+        orders.forEach(orderService::enrichOrder);
         long total = orderMapper.countOrdersAdmin(query);
         return new PageResponse<>(orders, total, query.getPage(), query.getSize());
     }
@@ -154,7 +157,7 @@ public class AdminService {
         if (order == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        return order;
+        return orderService.enrichOrder(order);
     }
 
     private User requireOrdinaryUser(Long userId) {

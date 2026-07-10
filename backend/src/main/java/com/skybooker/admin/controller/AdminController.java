@@ -26,6 +26,7 @@ import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.change.entity.ChangeRecord;
 import com.skybooker.change.vo.ChangeOrderResultVO;
+import com.skybooker.change.service.ConnectingChangeService;
 import com.skybooker.change.vo.ChangeOptionVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
@@ -51,6 +52,7 @@ public class AdminController {
     private final AdminService adminService;
     private final AdminDashboardService adminDashboardService;
     private final AdminOrderService adminOrderService;
+    private final ConnectingChangeService connectingChangeService;
 
     @GetMapping("/flights")
     public ApiResponse<PageResponse<FlightVO>> listFlights(AdminFlightQueryDTO query) {
@@ -136,6 +138,16 @@ public class AdminController {
     @PostMapping("/orders/{id}/change")
     public ApiResponse<ChangeOrderResultVO> changeOrder(@PathVariable Long id, @Valid @RequestBody AdminChangeDTO dto) {
         return ApiResponse.success(adminOrderService.change(id, dto));
+    }
+
+    @GetMapping("/orders/{id}/connecting-change-options")
+    public ApiResponse<List<com.skybooker.itinerary.vo.ItineraryVO>> connectingChangeOptions(@PathVariable Long id) {
+        return ApiResponse.success(connectingChangeService.optionsForAdmin(id));
+    }
+
+    @PostMapping("/orders/{id}/connecting-change")
+    public ApiResponse<OrderVO> connectingChange(@PathVariable Long id, @Valid @RequestBody com.skybooker.change.dto.ConnectingChangeDTO dto) {
+        return ApiResponse.success(connectingChangeService.changeForAdmin(id, dto));
     }
 
     @PostMapping("/orders/{id}/void")

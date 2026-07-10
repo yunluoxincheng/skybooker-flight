@@ -224,6 +224,39 @@ POST /api/admin/logout
 
 ## 3. 航班接口
 
+### 联程行程搜索与报价
+
+```http
+GET /api/itineraries/search?departureCity=上海&arrivalCity=广州&departureDate=2026-07-20&passengerCount=1&page=1&size=10
+POST /api/itineraries/quote
+Authorization: Bearer <user-access-token>
+```
+
+搜索响应使用 `ItineraryVO`：`journeyType` 为 `DIRECT|CONNECTING`，`segments` 按飞行顺序排列；联程结果另含
+`connectionAirportCode`、`connectionDurationMinutes`、`totalDurationMinutes`、`estimatedAmount` 与
+`availableSeats`。`directOnly=true` 只返回直飞。报价请求仅提交 `segmentFlightIds`、`passengerIds` 和可选舱位偏好，
+服务端重新校验航段连续性、90 分钟至 6 小时中转窗口、乘机人归属、可售状态和座位图；报价不锁库存。
+
+```json
+{"segmentFlightIds":[101,205],"passengerIds":[1,2],"cabinPreferences":["ECONOMY","BUSINESS"]}
+```
+
+### 联程下单与整段改签
+
+```http
+POST /api/orders/connecting
+GET  /api/orders/{id}/connecting-change-options
+POST /api/orders/{id}/connecting-change
+```
+
+联程下单要求 UUID `clientRequestId` 和恰好两个 `segments`。每段必须包含完全相同的乘机人集合，且每人每段一个座位。
+一个事务内创建父订单/航段快照、锁定全部座位并扣减两段库存；任何座位 CAS 或库存扣减失败均整体回滚。
+重复的同用户 `clientRequestId` 返回既有订单。支付、未支付取消、过期释放和退票均以父订单为单位处理全部航段。
+联程改签请求可提交一段直飞或两段联程替代方案，必须保持原始起终点，并先锁定全部新座位再释放旧座位。
+
+新增业务错误：`ITINERARY_INVALID(30004)`、`INVALID_CONNECTION(30005)`、
+`INCOMPLETE_SEGMENT_SEATS(30006)`、`IDEMPOTENCY_CONFLICT(30007)`。
+
 ### 航班查询
 
 ```http
