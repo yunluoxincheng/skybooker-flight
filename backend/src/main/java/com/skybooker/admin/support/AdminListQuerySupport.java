@@ -47,6 +47,7 @@ public final class AdminListQuerySupport {
     public static void normalize(AdminUserQueryDTO query) {
         validatePage(query);
         query.setKeyword(trimToNull(query.getKeyword()));
+        query.setEmail(trimToNull(query.getEmail()));
     }
 
     public static void validatePage(PageQueryDTO query) {

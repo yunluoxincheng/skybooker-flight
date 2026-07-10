@@ -7,4 +7,5 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class AdminUserQueryDTO extends PageQueryDTO {
     private String keyword;
+    private String email;
 }

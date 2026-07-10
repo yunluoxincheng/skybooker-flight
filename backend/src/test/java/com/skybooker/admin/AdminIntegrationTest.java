@@ -1134,7 +1134,7 @@ class AdminIntegrationTest {
                 VALUES(?, 'hash', ?, 'USER', 'NORMAL', 0, 0)
                 """, emailKeyword + "@example.com", nicknameKeyword);
 
-        mockMvc.perform(get("/api/admin/users").param("keyword", emailKeyword)
+        mockMvc.perform(get("/api/admin/users").param("email", emailKeyword)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))

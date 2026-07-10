@@ -720,7 +720,7 @@ GET    /api/admin/flights/{flightId}/seats       # 查询指定航班座位图
 ### 普通用户管理
 
 ```http
-GET  /api/admin/users
+GET  /api/admin/users                             # 列表/搜索：?email&keyword&page&size（email 匹配邮箱；keyword 匹配邮箱或昵称）
 POST /api/admin/users
 DELETE /api/admin/users/{id}
 POST /api/admin/users/{id}/disable

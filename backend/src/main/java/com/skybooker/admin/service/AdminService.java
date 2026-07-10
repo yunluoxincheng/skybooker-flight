@@ -40,8 +40,9 @@ public class AdminService {
     public PageResponse<UserAdminVO> listUsers(AdminUserQueryDTO query) {
         AdminListQuerySupport.normalize(query);
         int offset = AdminListQuerySupport.offset(query);
-        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), offset, query.getSize());
-        long total = authMapper.countUsersByRole("USER", query.getKeyword());
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), query.getEmail(), offset,
+                query.getSize());
+        long total = authMapper.countUsersByRole("USER", query.getKeyword(), query.getEmail());
         return new PageResponse<>(users, total, query.getPage(), query.getSize());
     }
 

@@ -28,9 +28,9 @@ public interface AuthMapper {
                                    @Param("ipAddress") String ipAddress);
 
     List<UserAdminVO> findUsersByRole(@Param("role") String role, @Param("keyword") String keyword,
-                                      @Param("offset") int offset, @Param("size") int size);
+                                      @Param("email") String email, @Param("offset") int offset, @Param("size") int size);
 
-    long countUsersByRole(@Param("role") String role, @Param("keyword") String keyword);
+    long countUsersByRole(@Param("role") String role, @Param("keyword") String keyword, @Param("email") String email);
 
     void updateUserStatus(@Param("id") Long id, @Param("status") String status);
 
