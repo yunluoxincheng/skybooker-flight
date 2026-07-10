@@ -5,6 +5,7 @@ import { z } from "zod"
 import { Loader2 } from "lucide-react"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -15,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { useDebounce } from "@/hooks/useDebounce"
 import {
   Select,
   SelectContent,
@@ -51,8 +53,6 @@ interface OrderFormDialogProps {
   onOpenChange: (open: boolean) => void
   mode: Mode
   order?: OrderVO | null
-  users?: UserAdminVO[]
-  flights?: FlightVO[]
   onSuccess?: () => Promise<void> | void
 }
 
@@ -72,18 +72,67 @@ function formatFlightLabel(flight: FlightVO) {
   return `${flight.flightNo} · ${flight.departureCity} → ${flight.arrivalCity} · ${formatDateTime(flight.departureTime)}`
 }
 
+function buildSelectedUserFromOrder(order: OrderVO): UserAdminVO {
+  const fallbackName = order.userNickname || order.userEmail || `用户 ${order.userId}`
+
+  return {
+    id: order.userId,
+    email: order.userEmail,
+    realName: fallbackName,
+    nickname: order.userNickname || undefined,
+    role: "USER",
+    status: "NORMAL",
+    emailVerified: true,
+    phoneVerified: false,
+    createdAt: order.createdAt,
+  }
+}
+
+function buildSelectedFlightFromOrder(order: OrderVO): FlightVO {
+  return {
+    id: order.flightId,
+    flightNo: order.flightNo,
+    airlineId: 0,
+    airlineCode: "",
+    airlineName: order.airlineName || "",
+    departureAirportId: 0,
+    departureAirportCode: "",
+    departureAirportName: "",
+    departureCity: order.departureCity || "—",
+    arrivalAirportId: 0,
+    arrivalAirportCode: "",
+    arrivalAirportName: "",
+    arrivalCity: order.arrivalCity || "—",
+    departureTime: order.departureTime || order.createdAt,
+    arrivalTime: order.arrivalTime || order.departureTime || order.createdAt,
+    durationMinutes: 0,
+    basePrice: order.ticketAmount,
+    remainingSeats: 0,
+    totalSeats: 0,
+    status: "ON_TIME",
+    publishStatus: "PUBLISHED",
+    directFlag: 1,
+    baggageAllowance: "",
+    punctualityRate: 0,
+  }
+}
+
 export function OrderFormDialog({
   open,
   onOpenChange,
   mode,
   order,
-  users = [],
-  flights = [],
   onSuccess,
 }: OrderFormDialogProps) {
   const editDisabledMessage = "编辑接口 (PUT) 后端尚未实现"
   const [userId, setUserId] = useState("")
   const [flightId, setFlightId] = useState("")
+  const [selectedUser, setSelectedUser] = useState<UserAdminVO | null>(null)
+  const [selectedFlight, setSelectedFlight] = useState<FlightVO | null>(null)
+  const [userOptions, setUserOptions] = useState<UserAdminVO[]>([])
+  const [flightOptions, setFlightOptions] = useState<FlightVO[]>([])
+  const [userSearch, setUserSearch] = useState("")
+  const [flightSearch, setFlightSearch] = useState("")
   const [selectedPassengerIds, setSelectedPassengerIds] = useState<number[]>([])
   const [seatAssignments, setSeatAssignments] = useState<Record<number, string>>({})
   const [errors, setErrors] = useState<FormErrors>({ seats: {} })
@@ -91,14 +140,13 @@ export function OrderFormDialog({
   const [seats, setSeats] = useState<FlightSeatVO[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isUsersLoading, setIsUsersLoading] = useState(false)
+  const [isFlightsLoading, setIsFlightsLoading] = useState(false)
   const [isPassengersLoading, setIsPassengersLoading] = useState(false)
   const [isSeatsLoading, setIsSeatsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const selectedFlight = useMemo(
-    () => flights.find((flight) => flight.id === Number(flightId)) ?? null,
-    [flightId, flights]
-  )
+  const debouncedUserSearch = useDebounce(userSearch.trim(), 300)
+  const debouncedFlightSearch = useDebounce(flightSearch.trim(), 300)
 
   const editingSummary = useMemo(
     () => ({
@@ -120,6 +168,12 @@ export function OrderFormDialog({
 
     setUserId(nextUserId)
     setFlightId(nextFlightId)
+    setSelectedUser(mode === "edit" && order ? buildSelectedUserFromOrder(order) : null)
+    setSelectedFlight(mode === "edit" && order ? buildSelectedFlightFromOrder(order) : null)
+    setUserOptions([])
+    setFlightOptions([])
+    setUserSearch("")
+    setFlightSearch("")
     setSelectedPassengerIds(nextPassengerIds)
     setSeatAssignments(nextSeatAssignments)
     setErrors({ seats: {} })
@@ -127,10 +181,98 @@ export function OrderFormDialog({
     setSeats([])
     setLoadError(null)
     setSubmitError(null)
+    setIsUsersLoading(false)
+    setIsFlightsLoading(false)
     setIsPassengersLoading(false)
     setIsSeatsLoading(false)
     setIsSubmitting(false)
   }, [mode, open, order])
+
+  useEffect(() => {
+    if (!open || mode !== "create") return
+
+    if (!debouncedUserSearch) {
+      setUserOptions([])
+      setIsUsersLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const loadUsers = async () => {
+      setIsUsersLoading(true)
+      setLoadError(null)
+      try {
+        const data = await adminApi.getUsers({
+          keyword: debouncedUserSearch,
+          page: 1,
+          size: 50,
+          role: "USER",
+        })
+        if (!cancelled) {
+          setUserOptions(data.records)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setUserOptions([])
+          setLoadError(getErrorMessage(err, "搜索用户失败"))
+        }
+      } finally {
+        if (!cancelled) {
+          setIsUsersLoading(false)
+        }
+      }
+    }
+
+    void loadUsers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedUserSearch, mode, open])
+
+  useEffect(() => {
+    if (!open || mode !== "create") return
+
+    if (!debouncedFlightSearch) {
+      setFlightOptions([])
+      setIsFlightsLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    const loadFlights = async () => {
+      setIsFlightsLoading(true)
+      setLoadError(null)
+      try {
+        const data = await adminApi.getFlights({
+          keyword: debouncedFlightSearch,
+          page: 1,
+          size: 50,
+          publishStatus: "PUBLISHED",
+        })
+        if (!cancelled) {
+          setFlightOptions(data.records)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setFlightOptions([])
+          setLoadError(getErrorMessage(err, "搜索航班失败"))
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFlightsLoading(false)
+        }
+      }
+    }
+
+    void loadFlights()
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedFlightSearch, mode, open])
 
   useEffect(() => {
     if (!open || mode !== "create") return
@@ -213,8 +355,9 @@ export function OrderFormDialog({
       }
       const next = current.filter((id) => id !== passengerId)
       setSeatAssignments((assignments) => {
-        const { [passengerId]: _removed, ...rest } = assignments
-        return rest
+        const nextAssignments = { ...assignments }
+        delete nextAssignments[passengerId]
+        return nextAssignments
       })
       return next
     })
@@ -313,10 +456,14 @@ export function OrderFormDialog({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>用户</Label>
-                <Select
+                <Combobox
+                  options={userOptions}
                   value={userId}
+                  selectedOption={selectedUser}
                   onValueChange={(value) => {
+                    const nextUser = userOptions.find((user) => String(user.id) === value) ?? null
                     setUserId(value ?? "")
+                    setSelectedUser(nextUser)
                     setPassengers([])
                     setSelectedPassengerIds([])
                     setSeatAssignments({})
@@ -324,45 +471,41 @@ export function OrderFormDialog({
                     setSubmitError(null)
                     setErrors({ seats: {} })
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="请选择用户" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={String(user.id)}>
-                        {getDisplayName(user)} · {user.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onSearch={setUserSearch}
+                  placeholder="请选择用户"
+                  searchPlaceholder="搜索昵称/邮箱..."
+                  emptyMessage={userSearch.trim() ? "暂无匹配用户" : "请输入关键词搜索用户"}
+                  getDisplayValue={(user) => `${getDisplayName(user)} · ${user.email}`}
+                  getSearchFields={(user) => [user.email, user.nickname ?? "", user.realName]}
+                  loading={isUsersLoading}
+                />
                 {errors.userId && <p className="text-xs text-destructive">{errors.userId}</p>}
               </div>
 
               <div className="space-y-1.5">
                 <Label>航班</Label>
-                <Select
+                <Combobox
+                  options={flightOptions}
                   value={flightId}
+                  selectedOption={selectedFlight}
                   onValueChange={(value) => {
+                    const nextFlight = flightOptions.find((flight) => String(flight.id) === value) ?? null
                     setFlightId(value ?? "")
+                    setSelectedFlight(nextFlight)
                     setSeats([])
                     setSeatAssignments({})
                     setLoadError(null)
                     setSubmitError(null)
                     setErrors((current) => ({ ...current, flightId: undefined, seats: {} }))
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="请选择航班" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {flights.map((flight) => (
-                      <SelectItem key={flight.id} value={String(flight.id)}>
-                        {formatFlightLabel(flight)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onSearch={setFlightSearch}
+                  placeholder="请选择航班"
+                  searchPlaceholder="搜索航班号/城市..."
+                  emptyMessage={flightSearch.trim() ? "暂无匹配航班" : "请输入关键词搜索航班"}
+                  getDisplayValue={formatFlightLabel}
+                  getSearchFields={(flight) => [flight.flightNo, flight.departureCity, flight.arrivalCity]}
+                  loading={isFlightsLoading}
+                />
                 {errors.flightId && <p className="text-xs text-destructive">{errors.flightId}</p>}
               </div>
             </div>
@@ -380,7 +523,7 @@ export function OrderFormDialog({
             </div>
           )}
 
-          {selectedFlight && (
+          {mode === "create" && selectedFlight && (
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>

@@ -43,8 +43,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
-import type { UserAdminVO } from "@/types/admin"
-import type { FlightVO } from "@/types/flight"
 import type { AdminOrderDetailVO, AdminOrderQueryDTO, OrderVO } from "@/types/order"
 import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
 import { DeleteCancelDialog, type DeleteOrderAction } from "./_components/DeleteCancelDialog"
@@ -62,8 +60,6 @@ function formatDateTime(iso?: string | null) {
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderVO[]>([])
-  const [users, setUsers] = useState<UserAdminVO[]>([])
-  const [flightsList, setFlightsList] = useState<FlightVO[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("ALL")
@@ -112,35 +108,6 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const fetchRefs = async () => {
-      try {
-        const [usersData, flightsData] = await Promise.all([
-          adminApi.getUsers({ page: 1, size: 200, role: "USER" }),
-          adminApi.getFlights({ page: 1, size: 200, publishStatus: "PUBLISHED" }),
-        ])
-
-        if (!cancelled) {
-          setUsers(usersData.records)
-          setFlightsList(flightsData.records)
-        }
-      } catch {
-        if (!cancelled) {
-          setUsers([])
-          setFlightsList([])
-        }
-      }
-    }
-
-    void fetchRefs()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const refreshOrders = useCallback(async () => {
     await fetchOrders()
@@ -374,8 +341,6 @@ export default function AdminOrdersPage() {
         onOpenChange={setFormOpen}
         mode={formMode}
         order={editingOrder}
-        users={users}
-        flights={flightsList}
         onSuccess={refreshOrders}
       />
 

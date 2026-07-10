@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useId, useMemo, useState } from "react"
 import { ChevronsUpDown, Loader2 } from "lucide-react"
 
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -12,7 +12,9 @@ export type ComboboxOption = object
 export interface ComboboxProps<T extends ComboboxOption> {
   options: T[]
   value?: string | number | null
+  selectedOption?: T | null
   onValueChange?: (value: string) => void
+  onSearch?: (search: string) => void
   placeholder?: string
   searchPlaceholder?: string
   emptyMessage?: string
@@ -27,7 +29,9 @@ export interface ComboboxProps<T extends ComboboxOption> {
 function Combobox<T extends ComboboxOption>({
   options,
   value,
+  selectedOption: selectedOptionProp,
   onValueChange,
+  onSearch,
   placeholder = "请选择",
   searchPlaceholder = "搜索选项...",
   emptyMessage = "暂无匹配结果",
@@ -39,13 +43,18 @@ function Combobox<T extends ComboboxOption>({
   className,
 }: ComboboxProps<T>) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const contentId = useId()
 
   const normalizedValue = value == null ? null : String(value)
-  const getOptionKey = (option: T) => String((option as Record<string, unknown>)[keyField])
+  const getOptionKey = useCallback(
+    (option: T) => String((option as Record<string, unknown>)[keyField]),
+    [keyField]
+  )
 
   const selectedOption = useMemo(
-    () => options.find((option) => getOptionKey(option) === normalizedValue),
-    [keyField, normalizedValue, options]
+    () => selectedOptionProp ?? options.find((option) => getOptionKey(option) === normalizedValue) ?? null,
+    [getOptionKey, normalizedValue, options, selectedOptionProp]
   )
 
   const searchIndex = useMemo(
@@ -58,16 +67,26 @@ function Combobox<T extends ComboboxOption>({
             .toLowerCase(),
         ])
       ),
-    [getSearchFields, keyField, options]
+    [getOptionKey, getSearchFields, options]
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) {
+          setSearch("")
+          onSearch?.("")
+        }
+      }}
+    >
       <PopoverTrigger
         render={
           <button
             type="button"
             role="combobox"
+            aria-controls={contentId}
             aria-expanded={open}
             disabled={disabled}
             className={cn(
@@ -86,7 +105,7 @@ function Combobox<T extends ComboboxOption>({
           </button>
         }
       />
-      <PopoverContent align="start" className="w-[--anchor-width] p-0">
+      <PopoverContent id={contentId} align="start" className="w-[--anchor-width] p-0">
         <Command
           filter={(optionValue, search) => {
             const normalizedSearch = search.trim().toLowerCase()
@@ -95,7 +114,14 @@ function Combobox<T extends ComboboxOption>({
             return searchIndex[optionValue]?.includes(normalizedSearch) ? 1 : 0
           }}
         >
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            value={search}
+            onValueChange={(nextSearch) => {
+              setSearch(nextSearch)
+              onSearch?.(nextSearch)
+            }}
+          />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
@@ -115,6 +141,8 @@ function Combobox<T extends ComboboxOption>({
                       data-checked={optionValue === normalizedValue}
                       onSelect={(selectedValue) => {
                         onValueChange?.(selectedValue)
+                        setSearch("")
+                        onSearch?.("")
                         setOpen(false)
                       }}
                     >
