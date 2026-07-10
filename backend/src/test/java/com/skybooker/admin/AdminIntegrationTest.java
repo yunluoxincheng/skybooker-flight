@@ -1459,7 +1459,7 @@ class AdminIntegrationTest {
     }
 
     @Test
-    void disableUserAllowsActiveBusinessAndRevokesAuthentication() throws Exception {
+    void disableUserAllowsActiveBusinessAndRejectsAuthenticationWhileDisabled() throws Exception {
         String email = uniqueEmail("disable-active-business");
         Long userId = createCleanUser(email);
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
@@ -1480,6 +1480,7 @@ class AdminIntegrationTest {
                 WHERE user_id = ? AND status = 'ISSUED'
                 ORDER BY id DESC LIMIT 1
                 """, Long.class, userId);
+        jdbcTemplate.update("UPDATE ticket_order SET pay_time = NOW() WHERE id = ?", issuedOrderId);
         jdbcTemplate.update("""
                 INSERT INTO waitlist_order(waitlist_no, user_id, flight_id, passenger_count, cabin_class, pay_amount, status, paid_at)
                 VALUES(?, ?, 1, 1, 'ECONOMY', 580.00, 'WAITING', NOW())
@@ -1493,8 +1494,10 @@ class AdminIntegrationTest {
                 VALUES(?, 1, 2, 0.00, 0.00, 'PROCESSING')
                 """, issuedOrderId);
 
-        String orderStatusesBefore = jdbcTemplate.queryForObject(
-                "SELECT GROUP_CONCAT(status ORDER BY id) FROM ticket_order WHERE user_id = ?", String.class, userId);
+        String orderStateAndPaymentBefore = jdbcTemplate.queryForObject("""
+                SELECT GROUP_CONCAT(CONCAT(status, ':', total_amount, ':', COALESCE(DATE_FORMAT(pay_time, '%Y-%m-%d %H:%i:%s'), 'NULL')) ORDER BY id)
+                FROM ticket_order WHERE user_id = ?
+                """, String.class, userId);
         String waitlistStatusesBefore = jdbcTemplate.queryForObject(
                 "SELECT GROUP_CONCAT(status ORDER BY id) FROM waitlist_order WHERE user_id = ?", String.class, userId);
         String refundStatusesBefore = jdbcTemplate.queryForObject(
@@ -1513,7 +1516,10 @@ class AdminIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
                 "SELECT status FROM users WHERE id = ?", String.class, userId)).isEqualTo("DISABLED");
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
-                "SELECT GROUP_CONCAT(status ORDER BY id) FROM ticket_order WHERE user_id = ?", String.class, userId)).isEqualTo(orderStatusesBefore);
+                """
+                SELECT GROUP_CONCAT(CONCAT(status, ':', total_amount, ':', COALESCE(DATE_FORMAT(pay_time, '%Y-%m-%d %H:%i:%s'), 'NULL')) ORDER BY id)
+                FROM ticket_order WHERE user_id = ?
+                """, String.class, userId)).isEqualTo(orderStateAndPaymentBefore);
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
                 "SELECT GROUP_CONCAT(status ORDER BY id) FROM waitlist_order WHERE user_id = ?", String.class, userId)).isEqualTo(waitlistStatusesBefore);
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
@@ -1524,6 +1530,7 @@ class AdminIntegrationTest {
                 "SELECT GROUP_CONCAT(status ORDER BY id) FROM flight_seat WHERE flight_id = 1", String.class)).isEqualTo(seatStatusesBefore);
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
                 "SELECT total_seats FROM flight WHERE id = 1", Integer.class)).isEqualTo(totalSeatsBefore);
+        org.assertj.core.api.Assertions.assertThat(countAudit(userId, "USER_DISABLE")).isEqualTo(1);
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1541,6 +1548,18 @@ class AdminIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(10008));
+        org.assertj.core.api.Assertions.assertThat(countAudit(userId, "USER_DISABLE")).isEqualTo(1);
+
+        mockMvc.perform(post("/api/admin/users/{id}/enable", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+                .andExpect(status().isOk());
     }
 
     @Test
