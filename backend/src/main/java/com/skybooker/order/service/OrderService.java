@@ -157,16 +157,16 @@ public class OrderService {
     public OrderVO cancelOrder(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
         cleanupService.cleanupExpiredOrder(orderId);
-        return cancelOrderCore(orderId, userId);
+        return cancelOrderCore(orderId, userId).order();
     }
 
-    public OrderVO cancelOrderCore(Long orderId, Long userId) {
+    public CancelOrderResult cancelOrderCore(Long orderId, Long userId) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if (TicketOrder.STATUS_CANCELLED.equals(order.getStatus())) {
-            return getOrderDetailForUser(orderId, userId);
+            return new CancelOrderResult(getOrderDetailForUser(orderId, userId), false);
         }
         if (!TicketOrder.STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -174,7 +174,11 @@ public class OrderService {
 
         int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_PENDING_PAYMENT, TicketOrder.STATUS_CANCELLED);
         if (cas == 0) {
-            return getOrderDetailForUser(orderId, userId);
+            TicketOrder current = orderMapper.findById(orderId);
+            if (current != null && TicketOrder.STATUS_CANCELLED.equals(current.getStatus())) {
+                return new CancelOrderResult(getOrderDetailForUser(orderId, userId), false);
+            }
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
         int passengerCount = countOrderPassengers(orderId);
         int released = flightMapper.releaseSeatsByOrderId(orderId);
@@ -182,7 +186,10 @@ public class OrderService {
             flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
         }
 
-        return getOrderDetailForUser(orderId, userId);
+        return new CancelOrderResult(getOrderDetailForUser(orderId, userId), true);
+    }
+
+    public record CancelOrderResult(OrderVO order, boolean transitioned) {
     }
 
     private void validateItems(List<CreateOrderDTO.OrderItemDTO> items) {

@@ -92,10 +92,13 @@ public class AdminOrderService {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
-        OrderVO cancelledOrder = orderService.cancelOrderCore(orderId, order.getUserId());
+        OrderService.CancelOrderResult result = orderService.cancelOrderCore(orderId, order.getUserId());
+        if (!result.transitioned()) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
         operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, orderId,
                 AdminOperationLogService.ACTION_ORDER_CANCEL, dto.getReason());
-        return cancelledOrder;
+        return result.order();
     }
 
     @Transactional

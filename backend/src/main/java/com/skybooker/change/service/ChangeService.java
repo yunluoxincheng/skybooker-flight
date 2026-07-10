@@ -54,7 +54,7 @@ public class ChangeService {
         if (order == null || (userId != null && !order.getUserId().equals(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
+        if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
@@ -93,13 +93,7 @@ public class ChangeService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        if (TicketOrder.STATUS_CHANGED.equals(order.getStatus())) {
-            OrderVO detail = orderMapper.findDetailById(orderId);
-            return new ChangeOrderResultVO(
-                    detail.getId(), detail.getOrderNo(), detail.getStatus(),
-                    detail.getFlightId(), detail.getTotalAmount(), detail.getPassengers());
-        }
-        if (!TicketOrder.STATUS_ISSUED.equals(order.getStatus())) {
+        if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
@@ -137,12 +131,9 @@ public class ChangeService {
         BigDecimal changeFee = order.getTotalAmount().multiply(changeFeeRate)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_ISSUED, TicketOrder.STATUS_CHANGED);
+        int cas = orderMapper.updateOrderStatusCAS(orderId, order.getStatus(), TicketOrder.STATUS_CHANGE_PENDING);
         if (cas == 0) {
-            OrderVO detail = orderMapper.findDetailById(orderId);
-            return new ChangeOrderResultVO(
-                    detail.getId(), detail.getOrderNo(), detail.getStatus(),
-                    detail.getFlightId(), detail.getTotalAmount(), detail.getPassengers());
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
         List<Long> oldSeatIds = currentPassengers.stream()
@@ -199,10 +190,20 @@ public class ChangeService {
             changeMapper.insert(record);
         }
 
+        int completed = orderMapper.updateOrderStatusCAS(
+                orderId, TicketOrder.STATUS_CHANGE_PENDING, TicketOrder.STATUS_CHANGED);
+        if (completed == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+        }
+
         OrderVO detail = orderMapper.findDetailById(orderId);
         return new ChangeOrderResultVO(
                 detail.getId(), detail.getOrderNo(), detail.getStatus(),
                 detail.getFlightId(), detail.getTotalAmount(), detail.getPassengers());
+    }
+
+    private boolean isChangeableStatus(String status) {
+        return TicketOrder.STATUS_ISSUED.equals(status) || TicketOrder.STATUS_CHANGED.equals(status);
     }
 
     private void validateChangeCutoff(Flight flight) {
