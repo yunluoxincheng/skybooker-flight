@@ -20,6 +20,7 @@ public class AdminOperationLogService {
     public static final String TARGET_AIRPORT = "AIRPORT";
 
     public static final String ACTION_ORDER_CREATE = "ORDER_CREATE";
+    public static final String ACTION_ORDER_CANCEL = "ORDER_CANCEL";
     public static final String ACTION_REFUND = "REFUND";
     public static final String ACTION_REFUND_FORCE = "REFUND_FORCE";
     public static final String ACTION_CHANGE = "CHANGE";

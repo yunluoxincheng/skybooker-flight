@@ -18,7 +18,12 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -763,6 +768,123 @@ class AdminIntegrationTest {
                 Integer.class, flightId);
         org.assertj.core.api.Assertions.assertThat(seatStatus).isEqualTo("AVAILABLE");
         org.assertj.core.api.Assertions.assertThat(remainingSeats).isEqualTo(12);
+    }
+
+    @Test
+    void adminCancelPendingOrder_releasesInventoryWithoutRefundAndAuditsReason() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        Long orderId = createAdminOrder(flightId, seatId);
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"customer requested cancellation\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, seatId)).isEqualTo("AVAILABLE");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId)).isEqualTo(12);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refund_record WHERE order_id = ?", Integer.class, orderId)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reason FROM admin_operation_log WHERE target_id = ? AND action = 'ORDER_CANCEL'",
+                String.class, orderId)).isEqualTo("customer requested cancellation");
+    }
+
+    @Test
+    void adminCancelRejectsIssuedOrderAndInvalidReasonWithoutSideEffects() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        Long orderId = createAdminOrder(flightId, seatId);
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        mockMvc.perform(post("/api/orders/{id}/pay", orderId)
+                        .header("Authorization", "Bearer " + loginAsUser()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"not allowed after issue\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM ticket_order WHERE id = ?", String.class, orderId)).isEqualTo("ISSUED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, seatId)).isEqualTo("SOLD");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId)).isEqualTo(11);
+        assertThat(countAudit(orderId, "ORDER_CANCEL")).isZero();
+    }
+
+    @Test
+    void concurrentPaymentAndAdminCancellation_onlyWinnerSucceedsAndCancellationAuditIsAccurate() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        Long orderId = createAdminOrder(flightId, seatId);
+        String userToken = loginAsUser();
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicReference<Exception> firstError = new AtomicReference<>();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                MvcResult result = mockMvc.perform(post("/api/orders/{id}/pay", orderId)
+                                .header("Authorization", "Bearer " + userToken))
+                        .andReturn();
+                if (result.getResponse().getStatus() == 200) successCount.incrementAndGet();
+            } catch (Exception exception) {
+                firstError.compareAndSet(null, exception);
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                MvcResult result = mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                                .header("Authorization", "Bearer " + adminToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"reason\":\"concurrent cancellation\"}"))
+                        .andReturn();
+                if (result.getResponse().getStatus() == 200) successCount.incrementAndGet();
+            } catch (Exception exception) {
+                firstError.compareAndSet(null, exception);
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        startLatch.countDown();
+        assertThat(doneLatch.await(15, TimeUnit.SECONDS)).isTrue();
+        executor.shutdownNow();
+        assertThat(firstError.get()).isNull();
+        assertThat(successCount.get()).isEqualTo(1);
+
+        String finalStatus = jdbcTemplate.queryForObject(
+                "SELECT status FROM ticket_order WHERE id = ?", String.class, orderId);
+        assertThat(finalStatus).isIn("ISSUED", "CANCELLED");
+        assertThat(countAudit(orderId, "ORDER_CANCEL"))
+                .isEqualTo("CANCELLED".equals(finalStatus) ? 1 : 0);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, seatId))
+                .isEqualTo("CANCELLED".equals(finalStatus) ? "AVAILABLE" : "SOLD");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId))
+                .isEqualTo("CANCELLED".equals(finalStatus) ? 12 : 11);
     }
 
     @Test

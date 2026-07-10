@@ -8,6 +8,7 @@ const STATUS_MAP: Record<
   PENDING_PAYMENT: { label: "待支付", variant: "secondary" },
   ISSUED: { label: "已出票", variant: "default" },
   CHANGED: { label: "已改签", variant: "outline" },
+  CHANGE_PENDING: { label: "改签处理中", variant: "secondary" },
   REFUNDED: { label: "已退票", variant: "destructive" },
   CANCELLED: { label: "已取消", variant: "outline" },
   VOIDED: { label: "已作废", variant: "secondary" },

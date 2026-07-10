@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { z } from "zod"
 import { Loader2 } from "lucide-react"
+import { z } from "zod"
 import { OrderStatusBadge } from "@/components/common/OrderStatusBadge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,54 +19,47 @@ import { getErrorMessage } from "@/lib/error-codes"
 import * as adminApi from "@/services/adminApi"
 import type { OrderVO } from "@/types/order"
 
-const deleteCancelSchema = z.object({
-  reason: z.string().trim().min(1, "请输入作废原因").max(100, "作废原因不能超过 100 字"),
+const cancelSchema = z.object({
+  reason: z.string().trim().min(1, "请输入取消原因").max(100, "取消原因不能超过 100 字"),
 })
 
-interface DeleteCancelDialogProps {
+interface CancelOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order: OrderVO | null
   onSuccess?: () => Promise<void> | void
 }
 
-export function DeleteCancelDialog({
-  open,
-  onOpenChange,
-  order,
-  onSuccess,
-}: DeleteCancelDialogProps) {
+export function CancelOrderDialog({ open, onOpenChange, order, onSuccess }: CancelOrderDialogProps) {
   const [reason, setReason] = useState("")
-  const [error, setError] = useState<string | null>(null)
   const [reasonError, setReasonError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setReason("")
-    setError(null)
     setReasonError(null)
+    setError(null)
   }, [open, order?.id])
 
   const handleSubmit = async () => {
     if (!order || isSubmitting) return
-
-    const parsed = deleteCancelSchema.safeParse({ reason })
+    const parsed = cancelSchema.safeParse({ reason })
     if (!parsed.success) {
-      setReasonError(parsed.error.issues[0]?.message || "请输入作废原因")
+      setReasonError(parsed.error.issues[0]?.message || "请输入取消原因")
       return
     }
 
     setIsSubmitting(true)
     setError(null)
     setReasonError(null)
-
     try {
-      await adminApi.voidAdminOrder(order.id, { reason: parsed.data.reason })
+      await adminApi.cancelAdminOrder(order.id, parsed.data)
       onOpenChange(false)
       await onSuccess?.()
     } catch (err) {
-      setError(getErrorMessage(err, "作废订单失败"))
+      setError(getErrorMessage(err, "取消订单失败，请稍后重试"))
     } finally {
       setIsSubmitting(false)
     }
@@ -76,58 +69,40 @@ export function DeleteCancelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>作废订单</DialogTitle>
+          <DialogTitle>取消待支付订单</DialogTitle>
           <DialogDescription>
-            作废会将订单状态更新为&ldquo;已作废&rdquo;，系统保留订单数据与操作痕迹，不会物理删除。
+            取消不退款。系统将释放已锁定座位并回补航班余票，不会创建退款记录。
           </DialogDescription>
         </DialogHeader>
-
-        {!order ? null : (
+        {order ? (
           <div className="space-y-4">
             <div className="rounded-xl border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{order.orderNo}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
-                <span>{order.userNickname || order.userEmail}</span>
-                <span>·</span>
-                <span>{order.flightNo}</span>
-                <span>·</span>
-                <span>当前状态</span>
-                <OrderStatusBadge status={order.status} className="h-5" />
+              <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+                <span>{order.flightNo}</span><span>·</span><OrderStatusBadge status={order.status} className="h-5" />
               </div>
             </div>
-
             <div className="space-y-1.5">
-              <Label htmlFor="delete-cancel-reason">操作原因</Label>
+              <Label htmlFor="cancel-order-reason">取消原因</Label>
               <Textarea
-                id="delete-cancel-reason"
+                id="cancel-order-reason"
                 rows={4}
                 value={reason}
                 disabled={isSubmitting}
-                onChange={(event) => {
-                  setReason(event.target.value)
-                  setReasonError(null)
-                }}
-                placeholder="请输入作废原因"
+                onChange={(event) => { setReason(event.target.value); setReasonError(null) }}
+                placeholder="请输入取消原因"
                 aria-invalid={reasonError ? "true" : "false"}
               />
               {reasonError ? <p className="text-xs text-destructive">{reasonError}</p> : null}
             </div>
-
-            {error ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {error}
-              </div>
-            ) : null}
+            {error ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div> : null}
           </div>
-        )}
-
+        ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            取消
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>返回</Button>
           <Button variant="destructive" onClick={handleSubmit} disabled={isSubmitting || !order}>
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            确认作废
+            确认取消（不退款）
           </Button>
         </DialogFooter>
       </DialogContent>

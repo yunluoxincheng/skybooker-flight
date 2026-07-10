@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Eye,
   MoreHorizontal,
-  Pencil,
   Plus,
   Trash2,
   Undo2,
@@ -39,19 +38,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDateFull, formatTime } from "@/lib/date-utils"
 import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
 import type { AdminOrderDetailVO, AdminOrderQueryDTO, OrderVO } from "@/types/order"
 import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
-import { DeleteCancelDialog, type DeleteOrderAction } from "./_components/DeleteCancelDialog"
+import { CancelOrderDialog } from "./_components/CancelOrderDialog"
+import { DeleteCancelDialog } from "./_components/DeleteCancelDialog"
 import { OrderDetailSheet } from "./_components/OrderDetailSheet"
 import { OrderFormDialog } from "./_components/OrderFormDialog"
 import { RefundConfirmDialog } from "./_components/RefundConfirmDialog"
 
-type OrderFormMode = "create" | "edit"
 const PAGE_SIZE = 10
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  ALL: "全部状态",
+  PENDING_PAYMENT: "待支付",
+  ISSUED: "已出票",
+  CHANGED: "已改签",
+  CHANGE_PENDING: "改签处理中",
+  REFUNDED: "已退票",
+  CANCELLED: "已取消",
+  VOIDED: "已作废",
+}
 
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—"
@@ -68,8 +76,6 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
-  const [formMode, setFormMode] = useState<OrderFormMode>("create")
-  const [editingOrder, setEditingOrder] = useState<OrderVO | null>(null)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailOrder, setDetailOrder] = useState<AdminOrderDetailVO | null>(null)
@@ -77,8 +83,8 @@ export default function AdminOrdersPage() {
 
   const [refundOrder, setRefundOrder] = useState<OrderVO | null>(null)
   const [changeOrder, setChangeOrder] = useState<OrderVO | null>(null)
+  const [cancelOrder, setCancelOrder] = useState<OrderVO | null>(null)
   const [deleteOrder, setDeleteOrder] = useState<OrderVO | null>(null)
-  const [deleteInitialType, setDeleteInitialType] = useState<DeleteOrderAction>("cancel")
 
   const fetchOrders = useCallback(async () => {
     setIsLoading(true)
@@ -114,14 +120,6 @@ export default function AdminOrdersPage() {
   }, [fetchOrders])
 
   const openCreate = () => {
-    setFormMode("create")
-    setEditingOrder(null)
-    setFormOpen(true)
-  }
-
-  const openEdit = (order: OrderVO) => {
-    setFormMode("edit")
-    setEditingOrder(order)
     setFormOpen(true)
   }
 
@@ -147,7 +145,7 @@ export default function AdminOrdersPage() {
         <div>
           <h1 className="text-2xl font-bold">订单管理</h1>
           <p className="text-sm text-muted-foreground">
-            支持新增、查看、退票、改签和作废；编辑暂未开放。
+            按订单状态提供取消、退票、改签和作废操作。
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -174,13 +172,14 @@ export default function AdminOrdersPage() {
           }}
         >
           <SelectTrigger className="w-40">
-            <SelectValue placeholder="全部状态" />
+            <SelectValue>{ORDER_STATUS_LABELS[statusFilter]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">全部状态</SelectItem>
             <SelectItem value="PENDING_PAYMENT">待支付</SelectItem>
             <SelectItem value="ISSUED">已出票</SelectItem>
             <SelectItem value="CHANGED">已改签</SelectItem>
+            <SelectItem value="CHANGE_PENDING">改签处理中</SelectItem>
             <SelectItem value="REFUNDED">已退票</SelectItem>
             <SelectItem value="CANCELLED">已取消</SelectItem>
             <SelectItem value="VOIDED">已作废</SelectItem>
@@ -257,45 +256,37 @@ export default function AdminOrdersPage() {
                             <Eye className="h-4 w-4" />
                             查看详情
                           </DropdownMenuItem>
-                          <Tooltip>
-                            <TooltipTrigger render={<span className="block w-full" tabIndex={0} />}>
-                              <span className="block w-full">
-                                <DropdownMenuItem disabled onClick={() => openEdit(order)}>
-                                  <Pencil className="h-4 w-4" />
-                                  编辑
-                                </DropdownMenuItem>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>编辑接口 (PUT) 后端尚未实现</TooltipContent>
-                          </Tooltip>
-                          <DropdownMenuItem onClick={() => setRefundOrder(order)}>
-                            <Undo2 className="h-4 w-4" />
-                            退票
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setChangeOrder(order)}>
-                            <ArrowRightLeft className="h-4 w-4" />
-                            改签
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setDeleteInitialType("cancel")
-                              setDeleteOrder(order)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            普通作废
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => {
-                              setDeleteInitialType("delete")
-                              setDeleteOrder(order)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            删除型作废
-                          </DropdownMenuItem>
+                          {order.status === "PENDING_PAYMENT" ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem variant="destructive" onClick={() => setCancelOrder(order)}>
+                                <Undo2 className="h-4 w-4" />
+                                取消（不退款）
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
+                          {order.status === "ISSUED" || order.status === "CHANGED" ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setRefundOrder(order)}>
+                                <Undo2 className="h-4 w-4" />
+                                退票
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setChangeOrder(order)}>
+                                <ArrowRightLeft className="h-4 w-4" />
+                                改签
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
+                          {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOrder(order)}>
+                                <Trash2 className="h-4 w-4" />
+                                作废
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -338,8 +329,8 @@ export default function AdminOrdersPage() {
       <OrderFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        mode={formMode}
-        order={editingOrder}
+        mode="create"
+        order={null}
         onSuccess={refreshOrders}
       />
 
@@ -367,7 +358,15 @@ export default function AdminOrdersPage() {
           if (!open) setDeleteOrder(null)
         }}
         order={deleteOrder}
-        initialType={deleteInitialType}
+        onSuccess={refreshOrders}
+      />
+
+      <CancelOrderDialog
+        open={Boolean(cancelOrder)}
+        onOpenChange={(open) => {
+          if (!open) setCancelOrder(null)
+        }}
+        order={cancelOrder}
         onSuccess={refreshOrders}
       />
 

@@ -136,6 +136,51 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
     }
 
     @Test
+    void changedOrder_canListOptionsAndChangeAgain() throws Exception {
+        LocalDateTime firstDeparture = LocalDateTime.now(businessClock).plusDays(3);
+        Long originalFlightId = createFlight("REPEAT0", 1L, 3L, firstDeparture,
+                new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+        Long firstNewFlightId = createFlight("REPEAT1", 1L, 3L, firstDeparture.plusDays(2),
+                new BigDecimal("600.00"), "ON_TIME", "PUBLISHED", 12);
+        Long secondNewFlightId = createFlight("REPEAT2", 1L, 3L, firstDeparture.plusDays(4),
+                new BigDecimal("700.00"), "ON_TIME", "PUBLISHED", 12);
+        Long originalSeatId = getAvailableSeatIds(originalFlightId, 1).get(0);
+        Long firstNewSeatId = getAvailableSeatIds(firstNewFlightId, 1).get(0);
+        Long secondNewSeatId = getAvailableSeatIds(secondNewFlightId, 1).get(0);
+        Long orderId = createAndPayOrder(originalFlightId, List.of(1L), List.of(originalSeatId));
+
+        mockMvc.perform(post("/api/orders/{id}/change", orderId)
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                changeDto(firstNewFlightId, List.of(mapping(1L, firstNewSeatId))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CHANGED"))
+                .andExpect(jsonPath("$.data.flightId").value(firstNewFlightId));
+
+        mockMvc.perform(get("/api/orders/{id}/change-options", orderId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.flightId == %s)]".formatted(secondNewFlightId)).isNotEmpty());
+
+        mockMvc.perform(post("/api/orders/{id}/change", orderId)
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                changeDto(secondNewFlightId, List.of(mapping(1L, secondNewSeatId))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CHANGED"))
+                .andExpect(jsonPath("$.data.flightId").value(secondNewFlightId));
+
+        assertThat(changeRecordCount(orderId)).isEqualTo(2);
+        assertThat(remainingSeats(originalFlightId)).isEqualTo(12);
+        assertThat(remainingSeats(firstNewFlightId)).isEqualTo(12);
+        assertThat(remainingSeats(secondNewFlightId)).isEqualTo(11);
+        assertSeatStates(List.of(originalSeatId, firstNewSeatId), "AVAILABLE", null, true);
+        assertSeatStates(List.of(secondNewSeatId), "SOLD", orderId, false);
+    }
+
+    @Test
     void changeOrder_reversedSeatMappings_applyToRequestedPassengers() throws Exception {
         Long oldFlightId = createFlight("REVOLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);

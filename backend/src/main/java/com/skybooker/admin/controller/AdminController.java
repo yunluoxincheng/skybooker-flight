@@ -1,5 +1,6 @@
 package com.skybooker.admin.controller;
 
+import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
@@ -124,6 +125,12 @@ public class AdminController {
     @PostMapping("/orders/{id}/refund")
     public ApiResponse<RefundVO> refundOrder(@PathVariable Long id, @Valid @RequestBody AdminRefundDTO dto) {
         return ApiResponse.success(adminOrderService.refund(id, dto));
+    }
+
+    @PostMapping("/orders/{id}/cancel")
+    public ApiResponse<OrderVO> cancelOrder(@PathVariable Long id,
+                                             @Valid @RequestBody AdminCancelOrderDTO dto) {
+        return ApiResponse.success(adminOrderService.cancel(id, dto));
     }
 
     @PostMapping("/orders/{id}/change")
