@@ -31,6 +31,7 @@ public class AdminService {
 
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             "PENDING_PAYMENT", "ISSUED", "CANCELLED", "REFUNDED", "CHANGED", "CHANGE_PENDING", "VOIDED");
+    private static final Set<String> VALID_USER_STATUSES = Set.of("NORMAL", "DISABLED", "DELETED");
 
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
@@ -39,11 +40,19 @@ public class AdminService {
 
     public PageResponse<UserAdminVO> listUsers(AdminUserQueryDTO query) {
         AdminListQuerySupport.normalize(query);
+        validateUserStatus(query.getStatus());
         int offset = AdminListQuerySupport.offset(query);
-        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), query.getEmail(), offset,
-                query.getSize());
-        long total = authMapper.countUsersByRole("USER", query.getKeyword(), query.getEmail());
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), query.getEmail(),
+                query.getNickname(), query.getStatus(), offset, query.getSize());
+        long total = authMapper.countUsersByRole("USER", query.getKeyword(), query.getEmail(), query.getNickname(),
+                query.getStatus());
         return new PageResponse<>(users, total, query.getPage(), query.getSize());
+    }
+
+    private void validateUserStatus(String status) {
+        if (status != null && !VALID_USER_STATUSES.contains(status)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     @Transactional

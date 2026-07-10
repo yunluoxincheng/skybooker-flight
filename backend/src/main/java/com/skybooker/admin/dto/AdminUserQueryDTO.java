@@ -8,4 +8,6 @@ import lombok.EqualsAndHashCode;
 public class AdminUserQueryDTO extends PageQueryDTO {
     private String keyword;
     private String email;
+    private String nickname;
+    private String status;
 }

@@ -43,13 +43,24 @@
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
         FROM users
-        WHERE role = #{role} AND status != 'DELETED'
+        WHERE role = #{role}
+        <choose>
+            <when test="status != null and status != ''">
+                AND status = #{status}
+            </when>
+            <otherwise>
+                AND status != 'DELETED'
+            </otherwise>
+        </choose>
         <if test="keyword != null and keyword != ''">
             AND (email LIKE CONCAT('%', #{keyword}, '%')
               OR nickname LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <if test="email != null and email != ''">
             AND email LIKE CONCAT('%', #{email}, '%')
+        </if>
+        <if test="nickname != null and nickname != ''">
+            AND nickname LIKE CONCAT('%', #{nickname}, '%')
         </if>
         ORDER BY created_at DESC
         LIMIT #{offset}, #{size}
@@ -57,13 +68,24 @@
 
     <select id="countUsersByRole" resultType="long">
         SELECT COUNT(*) FROM users
-        WHERE role = #{role} AND status != 'DELETED'
+        WHERE role = #{role}
+        <choose>
+            <when test="status != null and status != ''">
+                AND status = #{status}
+            </when>
+            <otherwise>
+                AND status != 'DELETED'
+            </otherwise>
+        </choose>
         <if test="keyword != null and keyword != ''">
             AND (email LIKE CONCAT('%', #{keyword}, '%')
               OR nickname LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <if test="email != null and email != ''">
             AND email LIKE CONCAT('%', #{email}, '%')
+        </if>
+        <if test="nickname != null and nickname != ''">
+            AND nickname LIKE CONCAT('%', #{nickname}, '%')
         </if>
     </select>
 

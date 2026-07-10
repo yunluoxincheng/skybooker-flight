@@ -48,6 +48,8 @@ public final class AdminListQuerySupport {
         validatePage(query);
         query.setKeyword(trimToNull(query.getKeyword()));
         query.setEmail(trimToNull(query.getEmail()));
+        query.setNickname(trimToNull(query.getNickname()));
+        query.setStatus(trimToNull(query.getStatus()));
     }
 
     public static void validatePage(PageQueryDTO query) {

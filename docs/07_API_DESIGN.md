@@ -720,14 +720,14 @@ GET    /api/admin/flights/{flightId}/seats       # 查询指定航班座位图
 ### 普通用户管理
 
 ```http
-GET  /api/admin/users                             # 列表/搜索：?email&keyword&page&size（email 匹配邮箱；keyword 匹配邮箱或昵称）
+GET  /api/admin/users                             # 列表/搜索：?keyword&email&nickname&status&page&size
 POST /api/admin/users
 DELETE /api/admin/users/{id}
 POST /api/admin/users/{id}/disable
 POST /api/admin/users/{id}/enable
 ```
 
-普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 的普通用户；后台不能通过该接口删除、禁用或启用 `role = ADMIN` 的管理员账号。
+普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 且非 `DELETED` 的普通用户；`keyword` 模糊匹配邮箱或昵称，`email` 与 `nickname` 分别模糊匹配对应字段。`status` 仅允许 `NORMAL`、`DISABLED`、`DELETED`，指定后按该状态筛选（可查询 `DELETED` 用户）；非法值返回 `10003`。多个查询条件取交集。后台不能通过该接口删除、禁用或启用 `role = ADMIN` 的管理员账号。
 
 `POST /api/admin/users` 创建普通用户，请求体为 `email`、`password`、`nickname`，可选 `phone`、`realName`。服务端固定写入 `role = USER`、`status = NORMAL`、`email_verified = 0`，使用 BCrypt 存储密码，不发送验证码或验证邮件；请求体中的未知 `role` 字段会被忽略，不能创建管理员账号。
 
