@@ -25,6 +25,7 @@ import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
 import type {
   AdminChangeDTO,
+  AdminCancelOrderDTO,
   AdminNoteDTO,
   AdminOrderDetailVO,
   AdminOrderQueryDTO,
@@ -34,7 +35,6 @@ import type {
   ChangeOrderResultVO,
   ChangeRecordVO,
   CreateAdminOrderDTO,
-  OrderDeleteType,
   OrderVO,
   RefundRecordVO,
   RefundVO,
@@ -169,6 +169,10 @@ export function refundAdminOrder(id: number, data: AdminRefundDTO) {
   return post<RefundVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
 
+export function cancelAdminOrder(id: number, data: AdminCancelOrderDTO) {
+  return post<OrderVO>(`/admin/orders/${id}/cancel`, data, { auth: "admin" })
+}
+
 export function getAdminChangeOptions(id: number) {
   return get<ChangeOptionVO[]>(`/admin/orders/${id}/change-options`, undefined, { auth: "admin" })
 }
@@ -179,14 +183,6 @@ export function changeAdminOrder(id: number, data: AdminChangeDTO) {
 
 export function voidAdminOrder(id: number, data: AdminVoidDTO) {
   return post<OrderVO>(`/admin/orders/${id}/void`, data, { auth: "admin" })
-}
-
-export function voidAdminOrderByDelete(id: number, type: OrderDeleteType, reason?: string) {
-  const searchParams = new URLSearchParams({ type })
-  if (reason?.trim()) {
-    searchParams.set("reason", reason.trim())
-  }
-  return del<OrderVO>(`/admin/orders/${id}?${searchParams.toString()}`, { auth: "admin" })
 }
 
 export function getAdminOrderDetailEnhanced(id: number) {

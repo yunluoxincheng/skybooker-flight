@@ -766,6 +766,63 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void adminCancelPendingOrder_releasesInventoryWithoutRefundAndAuditsReason() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        Long orderId = createAdminOrder(flightId, seatId);
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"customer requested cancellation\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, seatId)).isEqualTo("AVAILABLE");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId)).isEqualTo(12);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refund_record WHERE order_id = ?", Integer.class, orderId)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reason FROM admin_operation_log WHERE target_id = ? AND action = 'ORDER_CANCEL'",
+                String.class, orderId)).isEqualTo("customer requested cancellation");
+    }
+
+    @Test
+    void adminCancelRejectsIssuedOrderAndInvalidReasonWithoutSideEffects() throws Exception {
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long seatId = getAvailableSeatId(flightId);
+        Long orderId = createAdminOrder(flightId, seatId);
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+
+        mockMvc.perform(post("/api/orders/{id}/pay", orderId)
+                        .header("Authorization", "Bearer " + loginAsUser()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/orders/{id}/cancel", orderId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"not allowed after issue\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM ticket_order WHERE id = ?", String.class, orderId)).isEqualTo("ISSUED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM flight_seat WHERE id = ?", String.class, seatId)).isEqualTo("SOLD");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, flightId)).isEqualTo(11);
+        assertThat(countAudit(orderId, "ORDER_CANCEL")).isZero();
+    }
+
+    @Test
     void adminRefundAndChangeForceOverrideCutoffAndAudit() throws Exception {
         Long refundFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long refundOrderId = createAdminOrder(refundFlightId, getAvailableSeatId(refundFlightId));

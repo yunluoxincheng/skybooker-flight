@@ -1,5 +1,6 @@
 package com.skybooker.admin.service;
 
+import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
 import com.skybooker.admin.dto.AdminNoteDTO;
@@ -81,6 +82,20 @@ public class AdminOrderService {
                 force ? AdminOperationLogService.ACTION_REFUND_FORCE : AdminOperationLogService.ACTION_REFUND,
                 dto.getReason());
         return refund;
+    }
+
+    @Transactional
+    public OrderVO cancel(Long orderId, AdminCancelOrderDTO dto) {
+        Long adminUserId = currentAdminId();
+        TicketOrder order = findOrder(orderId);
+        if (!TicketOrder.STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
+
+        OrderVO cancelledOrder = orderService.cancelOrderCore(orderId, order.getUserId());
+        operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, orderId,
+                AdminOperationLogService.ACTION_ORDER_CANCEL, dto.getReason());
+        return cancelledOrder;
     }
 
     @Transactional

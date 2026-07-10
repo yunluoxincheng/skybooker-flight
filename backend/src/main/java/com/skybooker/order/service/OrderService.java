@@ -157,6 +157,10 @@ public class OrderService {
     public OrderVO cancelOrder(Long orderId) {
         Long userId = SecurityUtil.getCurrentUserId();
         cleanupService.cleanupExpiredOrder(orderId);
+        return cancelOrderCore(orderId, userId);
+    }
+
+    public OrderVO cancelOrderCore(Long orderId, Long userId) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);

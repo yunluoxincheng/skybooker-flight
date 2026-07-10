@@ -3,6 +3,7 @@ export type OrderStatus =
   | "PENDING_PAYMENT"
   | "ISSUED"
   | "CHANGED"
+  | "CHANGE_PENDING"
   | "REFUNDED"
   | "CANCELLED"
   | "VOIDED"
@@ -131,6 +132,10 @@ export interface AdminRefundDTO {
 }
 
 export interface AdminVoidDTO {
+  reason: string
+}
+
+export interface AdminCancelOrderDTO {
   reason: string
 }
 
