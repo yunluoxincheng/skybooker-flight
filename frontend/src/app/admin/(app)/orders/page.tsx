@@ -45,7 +45,7 @@ import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
 import type { UserAdminVO } from "@/types/admin"
 import type { FlightVO } from "@/types/flight"
-import type { AdminOrderDetailVO, OrderVO } from "@/types/order"
+import type { AdminOrderDetailVO, AdminOrderQueryDTO, OrderVO } from "@/types/order"
 import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
 import { DeleteCancelDialog, type DeleteOrderAction } from "./_components/DeleteCancelDialog"
 import { OrderDetailSheet } from "./_components/OrderDetailSheet"
@@ -54,7 +54,6 @@ import { RefundConfirmDialog } from "./_components/RefundConfirmDialog"
 
 type OrderFormMode = "create" | "edit"
 const PAGE_SIZE = 10
-const CLIENT_FILTER_BATCH_SIZE = 200
 
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—"
@@ -88,25 +87,20 @@ export default function AdminOrdersPage() {
   const fetchOrders = useCallback(async () => {
     setIsLoading(true)
     try {
-      const hasClientFilter = statusFilter !== "ALL" || Boolean(orderNoFilter.trim())
-      const params: Record<string, string | number | boolean | undefined> = hasClientFilter
-        ? { page: 1, size: CLIENT_FILTER_BATCH_SIZE }
-        : { page, size: PAGE_SIZE }
-      const data = await adminApi.getAdminOrders(params)
-      if (hasClientFilter) {
-        const normalizedKeyword = orderNoFilter.trim().toLowerCase()
-        const filtered = data.records.filter((order) => {
-          const matchesStatus = statusFilter === "ALL" || order.status === statusFilter
-          const matchesOrderNo = !normalizedKeyword || order.orderNo.toLowerCase().includes(normalizedKeyword)
-          return matchesStatus && matchesOrderNo
-        })
-        const startIndex = (page - 1) * PAGE_SIZE
-        setOrders(filtered.slice(startIndex, startIndex + PAGE_SIZE))
-        setTotal(filtered.length)
-      } else {
-        setOrders(data.records)
-        setTotal(data.total)
+      const params: AdminOrderQueryDTO = {
+        page,
+        size: PAGE_SIZE,
       }
+      if (statusFilter !== "ALL") {
+        params.status = statusFilter
+      }
+      if (orderNoFilter.trim()) {
+        params.orderNo = orderNoFilter.trim()
+      }
+
+      const data = await adminApi.getAdminOrders(params)
+      setOrders(data.records)
+      setTotal(data.total)
       setError(null)
     } catch (err) {
       setError((err as ApiError).message || "加载订单失败")
@@ -197,7 +191,7 @@ export default function AdminOrdersPage() {
 
       <div className="flex flex-wrap gap-3">
         <Input
-          placeholder="搜索订单号（客户端筛选）"
+          placeholder="搜索订单号"
           className="w-60"
           value={orderNoFilter}
           onChange={(event) => {

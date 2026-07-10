@@ -47,6 +47,19 @@ export interface OrderVO {
   airlineName?: string
 }
 
+export interface AdminOrderQueryDTO {
+  status?: string
+  orderNo?: string
+  userId?: number
+  userKeyword?: string
+  flightNo?: string
+  flightKeyword?: string
+  departureDateStart?: string
+  departureDateEnd?: string
+  page?: number
+  size?: number
+}
+
 /** 创建订单项 */
 export interface OrderItemDTO {
   passengerId: number

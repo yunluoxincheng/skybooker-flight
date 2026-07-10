@@ -28,6 +28,7 @@ import type {
   AdminChangeDTO,
   AdminNoteDTO,
   AdminOrderDetailVO,
+  AdminOrderQueryDTO,
   AdminRefundDTO,
   AdminVoidDTO,
   ChangeOptionVO,
@@ -153,7 +154,7 @@ export function deleteAirport(id: number) {
 
 // ---- Orders ----
 
-export function getAdminOrders(params?: Record<string, string | number | boolean | undefined>) {
+export function getAdminOrders(params?: AdminOrderQueryDTO) {
   return get<PageData<OrderVO>>("/admin/orders", params, { auth: "admin" })
 }
 

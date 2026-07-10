@@ -37,6 +37,8 @@ interface RequestOptions {
   timeout?: number
 }
 
+type QueryParamValue = string | number | boolean | undefined
+
 function getToken(auth: AuthType): string | null {
   switch (auth) {
     case "user":
@@ -272,12 +274,12 @@ async function request<T>(
 
 export function get<T>(
   url: string,
-  params?: Record<string, string | number | boolean | undefined>,
+  params?: object,
   options?: RequestOptions
 ): Promise<T> {
   const searchParams = new URLSearchParams()
   if (params) {
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(params as Record<string, QueryParamValue>).forEach(([key, value]) => {
       if (value !== undefined && value !== "") {
         searchParams.set(key, String(value))
       }
