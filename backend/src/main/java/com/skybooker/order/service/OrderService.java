@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -31,6 +32,7 @@ public class OrderService {
     private final FlightMapper flightMapper;
     private final PassengerMapper passengerMapper;
     private final OrderCleanupService cleanupService;
+    private final Clock businessClock;
 
     private static final BigDecimal AIRPORT_FEE_PER_PASSENGER = new BigDecimal("50.00");
     private static final BigDecimal FUEL_FEE_PER_PASSENGER = new BigDecimal("30.00");
@@ -54,7 +56,7 @@ public class OrderService {
         Flight flight = validateFlightSellability(dto.getFlightId(), passengerCount);
         List<FlightSeat> seats = validateSeats(items, dto.getFlightId());
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(businessClock);
         LocalDateTime expireTime = now.plusMinutes(ORDER_EXPIRY_MINUTES);
 
         BigDecimal ticketAmount = seats.stream().map(FlightSeat::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -117,7 +119,7 @@ public class OrderService {
         if (!TicketOrder.STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
-        if (order.getExpireTime() != null && order.getExpireTime().isBefore(LocalDateTime.now())) {
+        if (order.getExpireTime() != null && order.getExpireTime().isBefore(LocalDateTime.now(businessClock))) {
             throw new BusinessException(ErrorCode.ORDER_EXPIRED);
         }
 
@@ -131,7 +133,7 @@ public class OrderService {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
-        orderMapper.updatePayTime(orderId, LocalDateTime.now());
+        orderMapper.updatePayTime(orderId, LocalDateTime.now(businessClock));
 
         return getOrderDetailForUser(orderId, userId);
     }
@@ -212,7 +214,7 @@ public class OrderService {
         if (!"PUBLISHED".equals(flight.getPublishStatus())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
-        if (flight.getDepartureTime().isBefore(LocalDateTime.now())) {
+        if (flight.getDepartureTime().isBefore(LocalDateTime.now(businessClock))) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
         if (!"ON_TIME".equals(flight.getStatus()) && !"DELAYED".equals(flight.getStatus())) {
@@ -240,7 +242,7 @@ public class OrderService {
     }
 
     private String generateOrderNo() {
-        return "ORD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+        return "ORD" + LocalDateTime.now(businessClock).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + String.format("%04d", new Random().nextInt(10000));
     }
 

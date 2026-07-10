@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -33,6 +34,7 @@ public class ChangeService {
     private final OrderMapper orderMapper;
     private final FlightMapper flightMapper;
     private final ChangeMapper changeMapper;
+    private final Clock businessClock;
 
     private static final BigDecimal AIRPORT_FEE_PER_PASSENGER = new BigDecimal("50.00");
     private static final BigDecimal FUEL_FEE_PER_PASSENGER = new BigDecimal("30.00");
@@ -204,7 +206,7 @@ public class ChangeService {
     }
 
     private void validateChangeCutoff(Flight flight) {
-        Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
+        Duration remaining = Duration.between(LocalDateTime.now(businessClock), flight.getDepartureTime());
         if (remaining.compareTo(Duration.ofHours(2)) < 0) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
@@ -214,7 +216,7 @@ public class ChangeService {
         if (!"PUBLISHED".equals(flight.getPublishStatus())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
-        if (flight.getDepartureTime().isBefore(LocalDateTime.now())) {
+        if (flight.getDepartureTime().isBefore(LocalDateTime.now(businessClock))) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
         // 改签航班出发时间需晚于原航班出发时间至少 2 小时,候选查询已过滤,此处为直接提交的兜底校验。
@@ -264,7 +266,7 @@ public class ChangeService {
     }
 
     private BigDecimal calculateChangeFeeRate(Flight flight) {
-        Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
+        Duration remaining = Duration.between(LocalDateTime.now(businessClock), flight.getDepartureTime());
         if (remaining.compareTo(Duration.ofHours(24)) > 0) {
             return new BigDecimal("0.10");
         }

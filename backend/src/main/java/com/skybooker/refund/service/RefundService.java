@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,6 +35,7 @@ public class RefundService {
     private final FlightMapper flightMapper;
     private final RefundMapper refundMapper;
     private final WaitlistFulfillmentService waitlistFulfillmentService;
+    private final Clock businessClock;
 
     @Transactional
     public RefundVO refundOrder(Long orderId, String reason) {
@@ -117,14 +119,14 @@ public class RefundService {
     }
 
     private void validateRefundWindow(Flight flight) {
-        Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
+        Duration remaining = Duration.between(LocalDateTime.now(businessClock), flight.getDepartureTime());
         if (remaining.compareTo(Duration.ofHours(2)) < 0) {
             throw new BusinessException(ErrorCode.REFUND_WINDOW_CLOSED);
         }
     }
 
     private BigDecimal calculateFeeRate(Flight flight) {
-        Duration remaining = Duration.between(LocalDateTime.now(), flight.getDepartureTime());
+        Duration remaining = Duration.between(LocalDateTime.now(businessClock), flight.getDepartureTime());
         if (remaining.compareTo(Duration.ofHours(24)) > 0) {
             return new BigDecimal("0.10");
         }

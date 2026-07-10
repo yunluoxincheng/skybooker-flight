@@ -19,12 +19,14 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,6 +55,9 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock businessClock;
 
     private String userToken;
     private String adminToken;
@@ -331,6 +336,40 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
                 .andExpect(jsonPath("$.code").value(50007));
 
         assertThat(snapshot(orderId, oldFlightId, newFlightId, oldSeatIds, newSeatIds)).isEqualTo(before);
+    }
+
+    @Test
+    void changeOrder_rejectsDepartedNewFlight_underUtcJvm() throws Exception {
+        // issue #139 回归：JVM=UTC 容器下，改签到刚起飞的新航班仍应被拒（FLIGHT_NOT_SELLABLE = 30001）
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            // 原航班：业务时间 3 天后起飞（处于改签窗口内）
+            Long oldFlightId = createFlight("TZOLD", 1L, 3L,
+                    LocalDateTime.now(businessClock).plusDays(3),
+                    new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+            // 新航班：业务时间 1 小时前已起飞（同航线）。8h 时区偏差会让裸 now() 误判为可改签。
+            Long departedNewId = createFlight("TZNEW", 1L, 3L,
+                    LocalDateTime.now(businessClock).minusHours(1),
+                    new BigDecimal("600.00"), "ON_TIME", "PUBLISHED", 12);
+            List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 1);
+            Long orderId = createAndPayOrder(oldFlightId, List.of(1L), oldSeatIds);
+            List<Long> newSeatIds = getAvailableSeatIds(departedNewId, 1);
+            ChangeSnapshot before = snapshot(orderId, oldFlightId, departedNewId, oldSeatIds, newSeatIds);
+
+            ChangeOrderDTO dto = changeDto(departedNewId, List.of(mapping(1L, newSeatIds.get(0))));
+
+            mockMvc.perform(post("/api/orders/" + orderId + "/change")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(30001));
+
+            assertThat(snapshot(orderId, oldFlightId, departedNewId, oldSeatIds, newSeatIds)).isEqualTo(before);
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 
     @Test

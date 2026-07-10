@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -31,6 +32,7 @@ public class WaitlistService {
     private final WaitlistMapper waitlistMapper;
     private final FlightMapper flightMapper;
     private final PassengerMapper passengerMapper;
+    private final Clock businessClock;
 
     private static final BigDecimal AIRPORT_FEE_PER_PASSENGER = new BigDecimal("50.00");
     private static final BigDecimal FUEL_FEE_PER_PASSENGER = new BigDecimal("30.00");
@@ -59,7 +61,7 @@ public class WaitlistService {
                 .add(FUEL_FEE_PER_PASSENGER.multiply(BigDecimal.valueOf(passengerCount)))
                 .add(SERVICE_FEE);
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(businessClock);
         LocalDateTime expireTime = now.plusMinutes(WAITLIST_EXPIRY_MINUTES);
 
         WaitlistOrder order = new WaitlistOrder();
@@ -123,7 +125,7 @@ public class WaitlistService {
         if (!"PENDING_PAYMENT".equals(vo.getStatus())) {
             throw new BusinessException(ErrorCode.WAITLIST_STATE_INVALID);
         }
-        if (vo.getExpireTime() != null && vo.getExpireTime().isBefore(LocalDateTime.now())) {
+        if (vo.getExpireTime() != null && vo.getExpireTime().isBefore(LocalDateTime.now(businessClock))) {
             throw new BusinessException(ErrorCode.WAITLIST_STATE_INVALID);
         }
 
@@ -131,7 +133,7 @@ public class WaitlistService {
         if (cas == 0) {
             return waitlistMapper.findDetailById(id);
         }
-        waitlistMapper.updatePaidAt(id, LocalDateTime.now());
+        waitlistMapper.updatePaidAt(id, LocalDateTime.now(businessClock));
 
         return waitlistMapper.findDetailById(id);
     }
@@ -165,7 +167,7 @@ public class WaitlistService {
                 return waitlistMapper.findDetailById(id);
             }
             waitlistMapper.updateStatus(id, "REFUNDED");
-            waitlistMapper.updateRefund(id, vo.getPayAmount(), LocalDateTime.now());
+            waitlistMapper.updateRefund(id, vo.getPayAmount(), LocalDateTime.now(businessClock));
             return waitlistMapper.findDetailById(id);
         }
 
@@ -192,7 +194,7 @@ public class WaitlistService {
                 int cas = waitlistMapper.updateStatusCAS(order.getId(), "WAITING", "FAILED");
                 if (cas > 0) {
                     waitlistMapper.updateStatus(order.getId(), "REFUNDED");
-                    waitlistMapper.updateRefund(order.getId(), order.getPayAmount(), LocalDateTime.now());
+                    waitlistMapper.updateRefund(order.getId(), order.getPayAmount(), LocalDateTime.now(businessClock));
                 }
             } catch (Exception e) {
                 log.warn("Failed to cleanup unfulfillable waitlist {}: {}", order.getId(), e.getMessage());
@@ -217,7 +219,7 @@ public class WaitlistService {
         if (!"PUBLISHED".equals(flight.getPublishStatus())) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
-        if (flight.getDepartureTime().isBefore(LocalDateTime.now())) {
+        if (flight.getDepartureTime().isBefore(LocalDateTime.now(businessClock))) {
             throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
         }
         if (!"ON_TIME".equals(flight.getStatus()) && !"DELAYED".equals(flight.getStatus())) {
@@ -243,7 +245,7 @@ public class WaitlistService {
     }
 
     private String generateWaitlistNo() {
-        return "WL" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
+        return "WL" + LocalDateTime.now(businessClock).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     }
 }

@@ -24,6 +24,9 @@ spring:
       port: ${REDIS_PORT:6379}
   jpa:
     open-in-view: false
+  # issue #139: 统一 Jackson 时间序列化时区，保证 API 返回的时间字段按业务时区(Asia/Shanghai)渲染
+  jackson:
+    time-zone: Asia/Shanghai
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml

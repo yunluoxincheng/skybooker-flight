@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.List;
 
 @Service
@@ -19,11 +20,13 @@ public class OrderCleanupService {
 
     private final OrderMapper orderMapper;
     private final FlightMapper flightMapper;
+    private final Clock businessClock;
     private OrderCleanupService self;
 
-    public OrderCleanupService(OrderMapper orderMapper, FlightMapper flightMapper) {
+    public OrderCleanupService(OrderMapper orderMapper, FlightMapper flightMapper, Clock businessClock) {
         this.orderMapper = orderMapper;
         this.flightMapper = flightMapper;
+        this.businessClock = businessClock;
     }
 
     @Autowired
@@ -47,7 +50,7 @@ public class OrderCleanupService {
     public void cleanupExpiredOrder(Long orderId) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order != null && "PENDING_PAYMENT".equals(order.getStatus())
-                && order.getExpireTime() != null && order.getExpireTime().isBefore(java.time.LocalDateTime.now())) {
+                && order.getExpireTime() != null && order.getExpireTime().isBefore(java.time.LocalDateTime.now(businessClock))) {
             cancelSingleExpiredOrder(order);
         }
     }
