@@ -252,8 +252,8 @@ class FulfillmentIntegrationTest {
         dto.setAirlineId(1L);
         dto.setDepartureAirportId(1L);
         dto.setArrivalAirportId(3L);
-        dto.setDepartureTime(LocalDateTime.now().plusDays(3));
-        dto.setArrivalTime(LocalDateTime.now().plusDays(3).plusHours(2));
+        dto.setDepartureTime(LocalDateTime.now(businessClock).plusDays(3));
+        dto.setArrivalTime(LocalDateTime.now(businessClock).plusDays(3).plusHours(2));
         dto.setDurationMinutes(120);
         dto.setBasePrice(new BigDecimal("500.00"));
         dto.setTotalSeats(totalSeats);

@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,9 @@ class RefundIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private Clock businessClock;
+
     private String userToken;
     private String adminToken;
 
@@ -57,7 +61,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_success_moreThan24h() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, userToken))
@@ -75,7 +79,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_success_2hTo24h() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusHours(5));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusHours(5));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, userToken))
@@ -86,8 +90,8 @@ class RefundIntegrationTest {
 
     @Test
     void refund_changedOrder_releasesCurrentChangedSeat() throws Exception {
-        Long oldFlightId = createFlight(LocalDateTime.now().plusDays(3));
-        Long newFlightId = createFlight(LocalDateTime.now().plusDays(5));
+        Long oldFlightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
+        Long newFlightId = createFlight(LocalDateTime.now(businessClock).plusDays(5));
         Long orderId = createAndPayOrder(oldFlightId);
         Long newSeatId = getAvailableSeatId(newFlightId);
 
@@ -140,10 +144,10 @@ class RefundIntegrationTest {
 
     @Test
     void refund_boundary_justOver24h_charges10pct() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(24).plusSeconds(30), flightId);
+                LocalDateTime.now(businessClock).plusHours(24).plusSeconds(30), flightId);
 
         mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
@@ -153,10 +157,10 @@ class RefundIntegrationTest {
 
     @Test
     void refund_boundary_justUnder24h_charges30pct() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(24).minusSeconds(30), flightId);
+                LocalDateTime.now(businessClock).plusHours(24).minusSeconds(30), flightId);
 
         mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
@@ -166,10 +170,10 @@ class RefundIntegrationTest {
 
     @Test
     void refund_boundary_justOver2h_allowsRefund() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(2).plusSeconds(30), flightId);
+                LocalDateTime.now(businessClock).plusHours(2).plusSeconds(30), flightId);
 
         mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isOk())
@@ -179,10 +183,10 @@ class RefundIntegrationTest {
 
     @Test
     void refund_boundary_justUnder2h_rejected() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(2).minusMinutes(1), flightId);
+                LocalDateTime.now(businessClock).plusHours(2).minusMinutes(1), flightId);
 
         mockMvc.perform(refund(orderId, userToken))
                 .andExpect(status().isBadRequest())
@@ -193,7 +197,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_rejectsTooLate() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusHours(1));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusHours(1));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, userToken))
@@ -203,7 +207,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_rejectsNotOwned() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, adminToken))
@@ -212,7 +216,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_rejectsInvalidStates() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createIssuedOrderViaDb(flightId, "PENDING_PAYMENT");
 
         mockMvc.perform(refund(orderId, userToken))
@@ -229,7 +233,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_idempotentOnAlreadyRefunded() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, userToken))
@@ -249,7 +253,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_releasesSeatsAndIncreasesRemaining() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         Integer soldBefore = jdbcTemplate.queryForObject(
@@ -275,7 +279,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_releasesOnlySnapshotSeats_keepsStaleOrderIdSoldUntouched() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         // 当前订单关联的快照座位(order_passenger.seat_id)
@@ -317,7 +321,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_cabinClassesFromSnapshot_excludesStaleSoldCabin() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         Long snapshotSeatId = jdbcTemplate.queryForObject(
@@ -358,7 +362,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_rejectsMissingReason() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(post("/api/orders/" + orderId + "/refund")
@@ -370,7 +374,7 @@ class RefundIntegrationTest {
 
     @Test
     void refund_persistsReason() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3));
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3));
         Long orderId = createAndPayOrder(flightId);
 
         mockMvc.perform(refund(orderId, userToken))

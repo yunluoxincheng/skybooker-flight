@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -47,6 +48,9 @@ class WaitlistIntegrationTest {
     @Autowired
     private WaitlistService waitlistService;
 
+    @Autowired
+    private Clock businessClock;
+
     private String userToken;
     private String adminToken;
 
@@ -74,7 +78,7 @@ class WaitlistIntegrationTest {
 
     @Test
     void createWaitlist_rejectsUnsellableFlight() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().minusDays(1), "PUBLISHED", "ON_TIME");
+        Long flightId = createFlight(LocalDateTime.now(businessClock).minusDays(1), "PUBLISHED", "ON_TIME");
         mockMvc.perform(post("/api/waitlist")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +90,7 @@ class WaitlistIntegrationTest {
 
     @Test
     void createWaitlist_rejectsAvailableInventory() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3), "PUBLISHED", "ON_TIME");
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3), "PUBLISHED", "ON_TIME");
         mockMvc.perform(post("/api/waitlist")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -187,7 +191,7 @@ class WaitlistIntegrationTest {
                 .get("data").get("id").asLong();
 
         jdbcTemplate.update("UPDATE waitlist_order SET expire_time = ? WHERE id = ?",
-                LocalDateTime.now().minusMinutes(1), wlId);
+                LocalDateTime.now(businessClock).minusMinutes(1), wlId);
 
         mockMvc.perform(post("/api/waitlist/" + wlId + "/pay")
                         .header("Authorization", "Bearer " + userToken))
@@ -284,7 +288,7 @@ class WaitlistIntegrationTest {
 
     @Test
     void cleanupUnfulfillableWaiting_viaService() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().minusDays(1), "PUBLISHED", "ON_TIME");
+        Long flightId = createFlight(LocalDateTime.now(businessClock).minusDays(1), "PUBLISHED", "ON_TIME");
         Long wlId = insertWaitingWaitlist(flightId);
 
         waitlistService.cleanupUnfulfillableWaiting();
@@ -353,7 +357,7 @@ class WaitlistIntegrationTest {
     }
 
     private Long createFlightWithSoldOut() throws Exception {
-        Long flightId = createFlight(LocalDateTime.now().plusDays(3), "PUBLISHED", "ON_TIME");
+        Long flightId = createFlight(LocalDateTime.now(businessClock).plusDays(3), "PUBLISHED", "ON_TIME");
 
         jdbcTemplate.update("UPDATE flight_seat SET status = 'SOLD' WHERE flight_id = ? AND status = 'AVAILABLE'",
                 flightId);
