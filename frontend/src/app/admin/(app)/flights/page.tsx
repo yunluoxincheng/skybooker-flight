@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo } from "react"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2 } from "lucide-react"
@@ -146,20 +146,20 @@ export default function AdminFlightsPage() {
   const [isSavingCabins, setIsSavingCabins] = useState(false)
 
   const {
+    control,
     register,
     handleSubmit,
     reset,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<z.infer<typeof flightSchema>>({
     resolver: zodResolver(flightSchema) as Resolver<z.infer<typeof flightSchema>>,
     defaultValues: { directFlag: true, basePrice: 500, totalSeats: 180, baggageAllowance: "20kg" },
   })
 
-  const selectedAirlineId = watch("airlineId")
-  const selectedDepartureAirportId = watch("departureAirportId")
-  const selectedArrivalAirportId = watch("arrivalAirportId")
+  const selectedAirlineId = useWatch({ control, name: "airlineId" })
+  const selectedDepartureAirportId = useWatch({ control, name: "departureAirportId" })
+  const selectedArrivalAirportId = useWatch({ control, name: "arrivalAirportId" })
 
   const [filterFlightNo, setFilterFlightNo] = useState("")
   const [filterDepartureCity, setFilterDepartureCity] = useState("")
@@ -354,7 +354,11 @@ export default function AdminFlightsPage() {
 
     const configuredCabins = cabinForm
       .filter((item) => item.totalSeats > 0)
-      .map(({ remainingSeats: _remainingSeats, ...item }) => item)
+      .map((item) => ({
+        cabinClass: item.cabinClass,
+        price: item.price,
+        totalSeats: item.totalSeats,
+      }))
 
     const totalConfiguredSeats = configuredCabins.reduce((sum, item) => sum + item.totalSeats, 0)
     if (totalConfiguredSeats !== cabinFlight.totalSeats) {

@@ -64,7 +64,7 @@ function OrdersContent() {
     if (isAuthenticated) {
       fetchOrders()
     }
-  }, [isAuthenticated, isAuthLoading, fetchOrders])
+  }, [fetchOrders, isAuthLoading, isAuthenticated, router])
 
   const switchStatus = (status: string) => {
     const params = new URLSearchParams()

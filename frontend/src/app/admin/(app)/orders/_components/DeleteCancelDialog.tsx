@@ -103,7 +103,7 @@ export function DeleteCancelDialog({
         <DialogHeader>
           <DialogTitle>作废订单</DialogTitle>
           <DialogDescription>
-            两种作废方式均为逻辑作废（将订单状态置为"已作废"），系统保留订单数据与操作痕迹，不会物理删除。仅允许作废"已取消"或"已退票"状态的订单。
+            两种作废方式均为逻辑作废（将订单状态置为&ldquo;已作废&rdquo;），系统保留订单数据与操作痕迹，不会物理删除。仅允许作废&ldquo;已取消&rdquo;或&ldquo;已退票&rdquo;状态的订单。
           </DialogDescription>
         </DialogHeader>
 
@@ -133,7 +133,7 @@ export function DeleteCancelDialog({
                   <div>
                     <p className="font-medium">普通作废</p>
                     <p className="text-muted-foreground">
-                      调用标准作废接口（POST void），将符合条件的订单（已取消 / 已退票）状态更新为"已作废"。订单数据与操作记录完整保留。
+                      调用标准作废接口（POST void），将符合条件的订单（已取消 / 已退票）状态更新为&ldquo;已作废&rdquo;。订单数据与操作记录完整保留。
                     </p>
                   </div>
                 </label>
@@ -142,7 +142,7 @@ export function DeleteCancelDialog({
                   <div>
                     <p className="font-medium">删除型作废</p>
                     <p className="text-muted-foreground">
-                      调用 DELETE 接口作废（DELETE void），效果与普通作废一致——将符合条件的订单（已取消 / 已退票）状态更新为"已作废"。订单数据与操作记录完整保留，不执行物理删除。
+                      调用 DELETE 接口作废（DELETE void），效果与普通作废一致，将符合条件的订单（已取消 / 已退票）状态更新为&ldquo;已作废&rdquo;。订单数据与操作记录完整保留，不执行物理删除。
                     </p>
                   </div>
                 </label>

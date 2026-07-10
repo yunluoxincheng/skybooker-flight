@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Clock, Plane, Luggage, TrendingUp } from "lucide-react"
+import { Plane, Luggage, TrendingUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FlightStatusBadge } from "./FlightStatusBadge"

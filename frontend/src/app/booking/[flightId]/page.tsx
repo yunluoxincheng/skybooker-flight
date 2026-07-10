@@ -75,6 +75,7 @@ export default function BookingPage() {
   const booking = useBooking(flightId)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const { loadFlight, loadPassengers, step, myPassengers } = booking
 
   const {
     register,
@@ -94,16 +95,16 @@ export default function BookingPage() {
       return
     }
     if (isAuthenticated) {
-      booking.loadFlight()
+      loadFlight()
     }
-  }, [isAuthenticated, isAuthLoading, flightId])
+  }, [flightId, isAuthLoading, isAuthenticated, loadFlight, router])
 
   // 进入乘机人步骤时加载
   useEffect(() => {
-    if (booking.step === 1 && booking.myPassengers.length === 0) {
-      booking.loadPassengers()
+    if (step === 1 && myPassengers.length === 0) {
+      loadPassengers()
     }
-  }, [booking.step])
+  }, [loadPassengers, myPassengers.length, step])
 
   const handleAddPassenger = async (data: PassengerFormData) => {
     setAddError(null)
@@ -111,7 +112,7 @@ export default function BookingPage() {
       await passengerApi.createPassenger(data)
       setAddDialogOpen(false)
       reset()
-      booking.loadPassengers()
+      loadPassengers()
     } catch (err) {
       setAddError((err as ApiError).message || "添加失败")
     }

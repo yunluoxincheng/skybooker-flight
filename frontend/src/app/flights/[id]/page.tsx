@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { Plane, Clock, Luggage, TrendingUp, MapPin, ChevronRight } from "lucide-react"
+import { Plane, Luggage, TrendingUp, MapPin, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"

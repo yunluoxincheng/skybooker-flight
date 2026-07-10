@@ -133,7 +133,7 @@ export function useAiChat() {
     if (sessionId && messages.length === 0) {
       loadHistory()
     }
-  }, [sessionId])
+  }, [loadHistory, messages.length, sessionId])
 
   return {
     sessionId,
