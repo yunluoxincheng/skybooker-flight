@@ -125,7 +125,11 @@ public class OrderService {
 
         int cas = orderMapper.updateOrderStatusCAS(orderId, TicketOrder.STATUS_PENDING_PAYMENT, TicketOrder.STATUS_ISSUED);
         if (cas == 0) {
-            return getOrderDetailForUser(orderId, userId);
+            TicketOrder current = orderMapper.findById(orderId);
+            if (current != null && TicketOrder.STATUS_ISSUED.equals(current.getStatus())) {
+                return getOrderDetailForUser(orderId, userId);
+            }
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
         int passengerCount = countOrderPassengers(orderId);
         int sold = flightMapper.updateSeatStatusToSold(orderId);
