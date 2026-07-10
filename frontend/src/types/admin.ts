@@ -57,11 +57,14 @@ export interface CreateUserAdminDTO {
 
 /** 删除用户前阻断信息 */
 export interface DeleteUserBlockInfoVO {
-  activeOrderCount: number
-  waitlistCount: number
-  pendingRefundCount: number
-  pendingChangeCount: number
   canDelete: boolean
+  orderCount: number
+  passengerCount: number
+  waitlistCount: number
+  refundOrChangeCount: number
+  oauthBound: boolean
+  aiSessionCount: number
+  aiRecommendationCount: number
   blockReasons: string[]
 }
 

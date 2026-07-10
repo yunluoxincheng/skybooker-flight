@@ -25,11 +25,14 @@ interface DeleteUserDialogProps {
 
 function buildFallbackBlockInfo(): DeleteUserBlockInfoVO {
   return {
-    activeOrderCount: 0,
-    waitlistCount: 0,
-    pendingRefundCount: 0,
-    pendingChangeCount: 0,
     canDelete: true,
+    orderCount: 0,
+    passengerCount: 0,
+    waitlistCount: 0,
+    refundOrChangeCount: 0,
+    oauthBound: false,
+    aiSessionCount: 0,
+    aiRecommendationCount: 0,
     blockReasons: ["预检查暂不可用，删除结果以后端实际为准"],
   }
 }
@@ -113,20 +116,32 @@ export function DeleteUserDialog({
                 {checkInfo && (
                   <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 text-sm sm:grid-cols-2">
                     <div>
-                      <p className="text-xs text-muted-foreground">进行中订单</p>
-                      <p className="font-medium">{checkInfo.activeOrderCount}</p>
+                      <p className="text-xs text-muted-foreground">订单记录</p>
+                      <p className="font-medium">{checkInfo.orderCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">乘机人记录</p>
+                      <p className="font-medium">{checkInfo.passengerCount}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">候补记录</p>
                       <p className="font-medium">{checkInfo.waitlistCount}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">待处理退款</p>
-                      <p className="font-medium">{checkInfo.pendingRefundCount}</p>
+                      <p className="text-xs text-muted-foreground">退款/改签记录</p>
+                      <p className="font-medium">{checkInfo.refundOrChangeCount}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">待处理改签</p>
-                      <p className="font-medium">{checkInfo.pendingChangeCount}</p>
+                      <p className="text-xs text-muted-foreground">第三方登录绑定</p>
+                      <p className="font-medium">{checkInfo.oauthBound ? "已绑定" : "未绑定"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">AI 对话记录</p>
+                      <p className="font-medium">{checkInfo.aiSessionCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">AI 推荐记录</p>
+                      <p className="font-medium">{checkInfo.aiRecommendationCount}</p>
                     </div>
                   </div>
                 )}
