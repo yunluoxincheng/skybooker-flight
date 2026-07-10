@@ -3,12 +3,9 @@ export type FlightStatus =
   | "ON_TIME"
   | "DELAYED"
   | "CANCELLED"
-  | "BOARDING"
-  | "DEPARTED"
-  | "ARRIVED"
 
 /** 上架状态 */
-export type PublishStatus = "PUBLISHED" | "UNPUBLISHED"
+export type PublishStatus = "PUBLISHED" | "DRAFT"
 
 /** 舱位类型 */
 export type CabinClass = "ECONOMY" | "BUSINESS" | "FIRST"
