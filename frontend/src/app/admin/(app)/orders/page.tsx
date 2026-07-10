@@ -147,7 +147,7 @@ export default function AdminOrdersPage() {
         <div>
           <h1 className="text-2xl font-bold">订单管理</h1>
           <p className="text-sm text-muted-foreground">
-            支持新增、编辑、退票、改签和作废操作。
+            支持新增、查看、退票、改签和作废；编辑暂未开放。
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -184,7 +184,6 @@ export default function AdminOrdersPage() {
             <SelectItem value="REFUNDED">已退票</SelectItem>
             <SelectItem value="CANCELLED">已取消</SelectItem>
             <SelectItem value="VOIDED">已作废</SelectItem>
-            <SelectItem value="EXPIRED">已过期</SelectItem>
           </SelectContent>
         </Select>
         <Button

@@ -6,7 +6,6 @@ export type OrderStatus =
   | "REFUNDED"
   | "CANCELLED"
   | "VOIDED"
-  | "EXPIRED"
 
 /** 乘机人类型 */
 export type PassengerType = "ADULT" | "CHILD" | "INFANT"

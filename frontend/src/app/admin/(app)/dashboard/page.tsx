@@ -33,7 +33,6 @@ const STATUS_LABELS: Record<string, string> = {
   REFUNDED: "已退票",
   CANCELLED: "已取消",
   VOIDED: "已作废",
-  EXPIRED: "已过期",
 }
 
 export default function AdminDashboardPage() {
