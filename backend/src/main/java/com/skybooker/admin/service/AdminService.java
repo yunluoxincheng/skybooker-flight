@@ -3,6 +3,7 @@ package com.skybooker.admin.service;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
+import com.skybooker.admin.dto.AdminUserQueryDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
@@ -36,11 +37,11 @@ public class AdminService {
     private final AdminOperationLogService operationLogService;
     private final PasswordEncoder passwordEncoder;
 
-    public PageResponse<UserAdminVO> listUsers(PageQueryDTO query) {
-        AdminListQuerySupport.validatePage(query);
+    public PageResponse<UserAdminVO> listUsers(AdminUserQueryDTO query) {
+        AdminListQuerySupport.normalize(query);
         int offset = AdminListQuerySupport.offset(query);
-        List<UserAdminVO> users = authMapper.findUsersByRole("USER", offset, query.getSize());
-        long total = authMapper.countUsersByRole("USER");
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), offset, query.getSize());
+        long total = authMapper.countUsersByRole("USER", query.getKeyword());
         return new PageResponse<>(users, total, query.getPage(), query.getSize());
     }
 

@@ -1126,6 +1126,28 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void listUsers_filtersByEmailOrNickname() throws Exception {
+        String emailKeyword = unique("user-search-email");
+        String nicknameKeyword = unique("user-search-nickname");
+        jdbcTemplate.update("""
+                INSERT INTO users(email, password_hash, nickname, role, status, email_verified, phone_verified)
+                VALUES(?, 'hash', ?, 'USER', 'NORMAL', 0, 0)
+                """, emailKeyword + "@example.com", nicknameKeyword);
+
+        mockMvc.perform(get("/api/admin/users").param("keyword", emailKeyword)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value(emailKeyword + "@example.com"));
+
+        mockMvc.perform(get("/api/admin/users").param("keyword", nicknameKeyword)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].nickname").value(nicknameKeyword));
+    }
+
+    @Test
     void disableAndEnableUser() throws Exception {
         String email = uniqueEmail("disable-target");
         MvcResult createResult = mockMvc.perform(post("/api/admin/users")

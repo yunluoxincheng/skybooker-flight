@@ -42,13 +42,23 @@
         SELECT id, email, phone, nickname, real_name, avatar_url,
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
-        FROM users WHERE role = #{role} AND status != 'DELETED'
+        FROM users
+        WHERE role = #{role} AND status != 'DELETED'
+        <if test="keyword != null and keyword != ''">
+            AND (email LIKE CONCAT('%', #{keyword}, '%')
+              OR nickname LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
         ORDER BY created_at DESC
         LIMIT #{offset}, #{size}
     </select>
 
     <select id="countUsersByRole" resultType="long">
-        SELECT COUNT(*) FROM users WHERE role = #{role} AND status != 'DELETED'
+        SELECT COUNT(*) FROM users
+        WHERE role = #{role} AND status != 'DELETED'
+        <if test="keyword != null and keyword != ''">
+            AND (email LIKE CONCAT('%', #{keyword}, '%')
+              OR nickname LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
     </select>
 
     <update id="updateUserStatus">
