@@ -117,7 +117,6 @@ public class AdminService {
         if (user == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         if ("ADMIN".equals(user.getRole())) throw new BusinessException(ErrorCode.ADMIN_ACCOUNT_PROTECTED);
         if (!"NORMAL".equals(user.getStatus())) throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
-        validateNoActiveBusiness(userId);
         int updated = authMapper.updateStatusCAS(userId, "NORMAL", "DISABLED");
         if (updated == 0) throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         operationLogService.log(adminUserId, AdminOperationLogService.TARGET_USER, userId,
@@ -170,22 +169,6 @@ public class AdminService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return user;
-    }
-
-    /**
-     * 禁用前的活跃业务校验:有未完成订单 / 进行中候补 / 处理中退改则拒绝。
-     * 这是"活跃"子集语义,与硬删除的"所有业务数据"校验({@link #collectDeleteCheck})不同。
-     */
-    private void validateNoActiveBusiness(Long userId) {
-        if (authMapper.countActiveOrdersByUserId(userId) > 0) {
-            throw new BusinessException(ErrorCode.USER_HAS_ACTIVE_ORDERS);
-        }
-        if (authMapper.existsPendingWaitlistByUserId(userId)) {
-            throw new BusinessException(ErrorCode.USER_HAS_PENDING_WAITLIST);
-        }
-        if (authMapper.existsProcessingRefundOrChangeByUserId(userId)) {
-            throw new BusinessException(ErrorCode.USER_HAS_PROCESSING_REFUND_OR_CHANGE);
-        }
     }
 
     /**
