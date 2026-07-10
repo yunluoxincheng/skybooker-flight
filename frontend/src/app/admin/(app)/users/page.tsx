@@ -161,7 +161,7 @@ export default function AdminUsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>ID</TableHead>
-                <TableHead>姓名</TableHead>
+                <TableHead>昵称</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>注册时间</TableHead>

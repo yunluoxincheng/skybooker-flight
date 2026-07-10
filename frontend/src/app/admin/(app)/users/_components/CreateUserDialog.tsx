@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import type { z } from "zod"
 import { Loader2 } from "lucide-react"
 import { PasswordInput } from "@/components/common/PasswordInput"
 import { Button } from "@/components/ui/button"
@@ -19,18 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
-
-const createUserSchema = z.object({
-  email: z.string().trim().email("请输入有效的邮箱地址"),
-  realName: z.string().trim().min(1, "请输入真实姓名").max(50, "姓名长度不能超过 50"),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^1[3-9]\d{9}$/, "请输入有效的手机号")
-    .optional()
-    .or(z.literal("")),
-  password: z.string().min(6, "密码至少 6 位").max(72, "密码最多 72 位"),
-})
+import { createUserSchema } from "./createUserSchema"
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>
 
@@ -55,7 +44,7 @@ export function CreateUserDialog({
     resolver: zodResolver(createUserSchema) as Resolver<CreateUserFormValues>,
     defaultValues: {
       email: "",
-      realName: "",
+      nickname: "",
       phone: "",
       password: "",
     },
@@ -65,7 +54,7 @@ export function CreateUserDialog({
     if (!open) return
     reset({
       email: "",
-      realName: "",
+      nickname: "",
       phone: "",
       password: "",
     })
@@ -77,7 +66,7 @@ export function CreateUserDialog({
     try {
       await adminApi.createAdminUser({
         email: values.email.trim(),
-        realName: values.realName.trim(),
+        nickname: values.nickname.trim(),
         phone: values.phone?.trim() || undefined,
         password: values.password,
       })
@@ -113,14 +102,14 @@ export function CreateUserDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="create-user-realName">真实姓名</Label>
+            <Label htmlFor="create-user-nickname">昵称</Label>
             <Input
-              id="create-user-realName"
-              placeholder="请输入真实姓名"
-              aria-invalid={errors.realName ? "true" : "false"}
-              {...register("realName")}
+              id="create-user-nickname"
+              placeholder="请输入昵称"
+              aria-invalid={errors.nickname ? "true" : "false"}
+              {...register("nickname")}
             />
-            {errors.realName && <p className="text-xs text-destructive">{errors.realName.message}</p>}
+            {errors.nickname && <p className="text-xs text-destructive">{errors.nickname.message}</p>}
           </div>
 
           <div className="space-y-1.5">
