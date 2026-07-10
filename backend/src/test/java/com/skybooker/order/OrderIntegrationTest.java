@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -44,6 +45,9 @@ class OrderIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock businessClock;
 
     private String userToken;
     private String adminToken;
@@ -82,8 +86,8 @@ class OrderIntegrationTest {
         dto.setAirlineId(1L);
         dto.setDepartureAirportId(1L);
         dto.setArrivalAirportId(3L);
-        dto.setDepartureTime(LocalDateTime.now().plusDays(7));
-        dto.setArrivalTime(LocalDateTime.now().plusDays(7).plusHours(2));
+        dto.setDepartureTime(LocalDateTime.now(businessClock).plusDays(7));
+        dto.setArrivalTime(LocalDateTime.now(businessClock).plusDays(7).plusHours(2));
         dto.setDurationMinutes(120);
         dto.setBasePrice(new BigDecimal("500.00"));
         dto.setTotalSeats(12);

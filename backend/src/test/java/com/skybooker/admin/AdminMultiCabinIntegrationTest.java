@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -42,6 +43,9 @@ class AdminMultiCabinIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock businessClock;
 
     private String adminToken;
     private String userToken;
@@ -78,8 +82,8 @@ class AdminMultiCabinIntegrationTest {
         dto.setAirlineId(1L);
         dto.setDepartureAirportId(1L);
         dto.setArrivalAirportId(3L);
-        dto.setDepartureTime(LocalDateTime.now().plusDays(7));
-        dto.setArrivalTime(LocalDateTime.now().plusDays(7).plusHours(2));
+        dto.setDepartureTime(LocalDateTime.now(businessClock).plusDays(7));
+        dto.setArrivalTime(LocalDateTime.now(businessClock).plusDays(7).plusHours(2));
         dto.setDurationMinutes(120);
         dto.setBasePrice(new BigDecimal("500.00"));
         dto.setTotalSeats(totalSeats);
@@ -322,8 +326,8 @@ class AdminMultiCabinIntegrationTest {
         update.setAirlineId(1L);
         update.setDepartureAirportId(1L);
         update.setArrivalAirportId(3L);
-        update.setDepartureTime(LocalDateTime.now().plusDays(7));
-        update.setArrivalTime(LocalDateTime.now().plusDays(7).plusHours(2));
+        update.setDepartureTime(LocalDateTime.now(businessClock).plusDays(7));
+        update.setArrivalTime(LocalDateTime.now(businessClock).plusDays(7).plusHours(2));
         update.setDurationMinutes(120);
         update.setBasePrice(new BigDecimal("500.00"));
         update.setTotalSeats(20); // 配过舱位后改总数,应拒绝(防 cabin 总数与航班总数漂移)

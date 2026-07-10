@@ -5,9 +5,11 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: ${MYSQL_DB:-flight_booking}
+      TZ: Asia/Shanghai
     ports:
       - "${MYSQL_PORT:-127.0.0.1:3306}:3306"
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    # issue #139: default-time-zone 让 NOW() 返回北京时间，与 DATETIME 存储语义一致
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-time-zone=+08:00
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
@@ -62,6 +64,7 @@ services:
       AI_CONFIG_ENC_KEY: ${AI_CONFIG_ENC_KEY:-}
       DB_USE_SSL: ${DB_USE_SSL:-false}
       DB_ALLOW_PUBLIC_KEY_RETRIEVAL: ${DB_ALLOW_PUBLIC_KEY_RETRIEVAL:-true}
+      TZ: Asia/Shanghai
     ports:
       - "${BACKEND_PORT:-127.0.0.1:8080}:8080"
     healthcheck:

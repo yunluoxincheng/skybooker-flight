@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +39,9 @@ class AdminIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private Clock businessClock;
 
     private String adminToken;
     private static final AtomicInteger COUNTER = new AtomicInteger();
@@ -74,8 +78,8 @@ class AdminIntegrationTest {
         dto.setAirlineId(1L);
         dto.setDepartureAirportId(1L);
         dto.setArrivalAirportId(3L);
-        dto.setDepartureTime(LocalDateTime.now().plusDays(3));
-        dto.setArrivalTime(LocalDateTime.now().plusDays(3).plusHours(2));
+        dto.setDepartureTime(LocalDateTime.now(businessClock).plusDays(3));
+        dto.setArrivalTime(LocalDateTime.now(businessClock).plusDays(3).plusHours(2));
         dto.setDurationMinutes(120);
         dto.setBasePrice(new BigDecimal("500.00"));
         dto.setTotalSeats(12);
@@ -209,7 +213,7 @@ class AdminIntegrationTest {
 
     @Test
     void listFlights_filterByKeyword() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(10));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(10));
         String flightNo = jdbcTemplate.queryForObject(
                 "SELECT flight_no FROM flight WHERE id = ?", String.class, flightId);
 
@@ -522,7 +526,7 @@ class AdminIntegrationTest {
 
     @Test
     void listOrders_filtersByStatusAndOrderNoAndRejectsInvalidStatus() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
         String orderNo = jdbcTemplate.queryForObject(
                 "SELECT order_no FROM ticket_order WHERE id = ?", String.class, orderId);
@@ -557,7 +561,7 @@ class AdminIntegrationTest {
 
     @Test
     void listOrders_filtersByUserFlightAndDepartureDate() throws Exception {
-        LocalDateTime departureTime = LocalDateTime.now().plusDays(12);
+        LocalDateTime departureTime = LocalDateTime.now(businessClock).plusDays(12);
         Long flightId = createPublishedFlight(departureTime);
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
         String flightNo = "UF" + COUNTER.incrementAndGet();
@@ -614,7 +618,7 @@ class AdminIntegrationTest {
 
     @Test
     void adminCreateOrder_usesTargetUserAndAudits() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
 
         Integer auditCount = jdbcTemplate.queryForObject(
@@ -632,7 +636,7 @@ class AdminIntegrationTest {
 
     @Test
     void adminCreateOrder_acceptsUserIdAliasAndRejectsConflictingAlias() throws Exception {
-        Long aliasFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long aliasFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long aliasSeatId = getAvailableSeatId(aliasFlightId);
 
         mockMvc.perform(post("/api/admin/orders")
@@ -650,7 +654,7 @@ class AdminIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
 
         Long conflictUserId = createCleanUser(uniqueEmail("conflict-alias"));
-        Long conflictFlightId = createPublishedFlight(LocalDateTime.now().plusDays(8));
+        Long conflictFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(8));
         Long conflictSeatId = getAvailableSeatId(conflictFlightId);
         Integer remainingBefore = jdbcTemplate.queryForObject(
                 "SELECT remaining_seats FROM flight WHERE id = ?", Integer.class, conflictFlightId);
@@ -680,7 +684,7 @@ class AdminIntegrationTest {
     @Test
     void adminCreateOrder_rejectsPassengerOutsideTargetUser() throws Exception {
         Long targetUserId = createCleanUser(uniqueEmail("target-mismatch"));
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long seatId = getAvailableSeatId(flightId);
 
         mockMvc.perform(post("/api/admin/orders")
@@ -700,7 +704,7 @@ class AdminIntegrationTest {
     void adminCreateOrder_rejectsNonNormalOrNonUserTarget() throws Exception {
         Long targetUserId = createCleanUser(uniqueEmail("target-status"));
         Long passengerId = createPassenger(targetUserId, "Target Status");
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long seatId = getAvailableSeatId(flightId);
         String request = """
                 {
@@ -737,7 +741,7 @@ class AdminIntegrationTest {
 
     @Test
     void adminCreateOrder_rejectsUnsellableFlightWithoutInventoryChange() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long seatId = getAvailableSeatId(flightId);
         jdbcTemplate.update("UPDATE flight SET publish_status = 'DRAFT' WHERE id = ?", flightId);
 
@@ -763,14 +767,14 @@ class AdminIntegrationTest {
 
     @Test
     void adminRefundAndChangeForceOverrideCutoffAndAudit() throws Exception {
-        Long refundFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long refundFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long refundOrderId = createAdminOrder(refundFlightId, getAvailableSeatId(refundFlightId));
         String userToken = loginAsUser();
         mockMvc.perform(post("/api/orders/{id}/pay", refundOrderId)
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(1), refundFlightId);
+                LocalDateTime.now(businessClock).plusHours(1), refundFlightId);
 
         mockMvc.perform(post("/api/admin/orders/{id}/refund", refundOrderId)
                         .header("Authorization", "Bearer " + adminToken)
@@ -780,14 +784,14 @@ class AdminIntegrationTest {
                 .andExpect(jsonPath("$.data.feeAmount").value(174.00))
                 .andExpect(jsonPath("$.data.refundAmount").value(406.00));
 
-        Long oldFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
-        Long newFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long oldFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long newFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(9));
         Long changeOrderId = createAdminOrder(oldFlightId, getAvailableSeatId(oldFlightId));
         mockMvc.perform(post("/api/orders/{id}/pay", changeOrderId)
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk());
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(1), oldFlightId);
+                LocalDateTime.now(businessClock).plusHours(1), oldFlightId);
 
         mockMvc.perform(post("/api/admin/orders/{id}/change", changeOrderId)
                         .header("Authorization", "Bearer " + adminToken)
@@ -812,13 +816,13 @@ class AdminIntegrationTest {
 
     @Test
     void adminRefundHonorsWindowRequiresReasonIsIdempotentAndListsRecords() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
         mockMvc.perform(post("/api/orders/{id}/pay", orderId)
                         .header("Authorization", "Bearer " + loginAsUser()))
                 .andExpect(status().isOk());
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(1), flightId);
+                LocalDateTime.now(businessClock).plusHours(1), flightId);
 
         mockMvc.perform(post("/api/admin/orders/{id}/refund", orderId)
                         .header("Authorization", "Bearer " + adminToken)
@@ -866,16 +870,16 @@ class AdminIntegrationTest {
 
     @Test
     void adminChangeHonorsCutoffRequiresReasonRejectsDifferentRouteAndListsRecords() throws Exception {
-        Long oldFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
-        Long newFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
-        Long otherRouteFlightId = createPublishedFlight(LocalDateTime.now().plusDays(10));
+        Long oldFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long newFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(9));
+        Long otherRouteFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(10));
         jdbcTemplate.update("UPDATE flight SET arrival_airport_id = 2 WHERE id = ?", otherRouteFlightId);
         Long orderId = createAdminOrder(oldFlightId, getAvailableSeatId(oldFlightId));
         mockMvc.perform(post("/api/orders/{id}/pay", orderId)
                         .header("Authorization", "Bearer " + loginAsUser()))
                 .andExpect(status().isOk());
         jdbcTemplate.update("UPDATE flight SET departure_time = ? WHERE id = ?",
-                LocalDateTime.now().plusHours(1), oldFlightId);
+                LocalDateTime.now(businessClock).plusHours(1), oldFlightId);
 
         String validMapping = """
                 {
@@ -924,8 +928,8 @@ class AdminIntegrationTest {
 
     @Test
     void adminHelperReads_returnPassengersSeatsAndChangeOptions() throws Exception {
-        Long oldFlightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
-        Long newFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long oldFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
+        Long newFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(9));
         Long orderId = createAdminOrder(oldFlightId, getAvailableSeatId(oldFlightId));
         mockMvc.perform(post("/api/orders/{id}/pay", orderId)
                         .header("Authorization", "Bearer " + loginAsUser()))
@@ -967,10 +971,10 @@ class AdminIntegrationTest {
 
     @Test
     void adminVoidAndAdminNoteOnlyTouchOrderMetadata() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
         String userToken = loginAsUser();
-        Long newFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long newFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(9));
 
         mockMvc.perform(patch("/api/admin/orders/{id}/admin-note", orderId)
                         .header("Authorization", "Bearer " + adminToken)
@@ -1028,7 +1032,7 @@ class AdminIntegrationTest {
 
     @Test
     void adminDeleteOrderAsVoidNeverHardDeletesAndValidatesInputs() throws Exception {
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
         String userToken = loginAsUser();
         mockMvc.perform(post("/api/orders/{id}/cancel", orderId)
@@ -1055,7 +1059,7 @@ class AdminIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(remainingAfterDelete).isEqualTo(remainingBeforeDelete);
         org.assertj.core.api.Assertions.assertThat(countAudit(orderId, "VOID")).isEqualTo(1);
 
-        Long pendingFlightId = createPublishedFlight(LocalDateTime.now().plusDays(8));
+        Long pendingFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(8));
         Long pendingOrderId = createAdminOrder(pendingFlightId, getAvailableSeatId(pendingFlightId));
         mockMvc.perform(delete("/api/admin/orders/{id}", pendingOrderId)
                         .param("type", "delete")
@@ -1065,7 +1069,7 @@ class AdminIntegrationTest {
                 .andExpect(jsonPath("$.code").value(40020));
         org.assertj.core.api.Assertions.assertThat(countAudit(pendingOrderId, "VOID")).isZero();
 
-        Long missingReasonFlightId = createPublishedFlight(LocalDateTime.now().plusDays(9));
+        Long missingReasonFlightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(9));
         Long missingReasonOrderId = createAdminOrder(missingReasonFlightId, getAvailableSeatId(missingReasonFlightId));
         mockMvc.perform(post("/api/orders/{id}/cancel", missingReasonOrderId)
                         .header("Authorization", "Bearer " + userToken))
@@ -1097,7 +1101,7 @@ class AdminIntegrationTest {
     @Test
     void checkConstraintsAllowDeletedUsersAndVoidedOrders() throws Exception {
         Long userId = createCleanUser(uniqueEmail("check-status"));
-        Long flightId = createPublishedFlight(LocalDateTime.now().plusDays(7));
+        Long flightId = createPublishedFlight(LocalDateTime.now(businessClock).plusDays(7));
         Long orderId = createAdminOrder(flightId, getAvailableSeatId(flightId));
 
         jdbcTemplate.update("UPDATE users SET status = 'DELETED' WHERE id = ?", userId);

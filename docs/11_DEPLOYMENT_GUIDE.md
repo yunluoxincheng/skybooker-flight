@@ -438,6 +438,18 @@ AI_LLM_API_KEY=
 
 `AI_CONFIG_ENC_KEY` 必须妥善备份。丢失后，数据库中已加密保存的 AI provider key 无法解密，只能回退到环境变量配置或重新写入。
 
+### 业务时区统一（Asia/Shanghai）
+
+航班起飞时间以 `DATETIME`（北京时间数值）存储，公共搜索 SQL 的 `NOW()` 谓词与 JVM 侧 `LocalDateTime.now()` 业务判断（下单、候补、改签、退款、订单过期清理）必须按同一业务时区 `Asia/Shanghai` 解释。若容器默认 UTC，会出现约 8 小时偏差，导致已起飞航班仍可被搜索、下单、候补与改签（issue #139）。
+
+时区在三个层面统一，均硬编码在编排/镜像里，**不要改为 UTC 或随意删除**：
+
+- **MySQL**：`docker-compose.yml` 与 `deploy/docker-compose.prod.yml` 的 mysql 服务设 `TZ: Asia/Shanghai` 与 `--default-time-zone=+08:00`，使 `NOW()` 返回北京时间。修改后需 `docker compose up -d --force-recreate mysql` 重建容器才生效。
+- **backend JVM**：`backend/Dockerfile` 的 `ENV JAVA_OPTS="-Duser.timezone=Asia/Shanghai"`，compose 同时设 `TZ: Asia/Shanghai`。代码层另有固定 `Asia/Shanghai` 的 `Clock` bean（`BusinessClockConfig`）作为防御纵深，业务判断不依赖 JVM 默认时区，便于在 UTC 时钟下回归测试。
+- **序列化**：`application.yml` 的 `spring.jackson.time-zone: Asia/Shanghai`，保证 API 时间字段按北京时间渲染。
+
+JDBC URL 的 `serverTimezone=Asia/Shanghai` 只影响驱动如何解释 `DATETIME`，不改变 `NOW()` 或 JVM 默认时区，不能替代上述三层配置。修改任一层都会破坏“已起飞航班不可售”的判断。
+
 ## 8. 生产路由
 
 生产 Compose 使用 `deploy/nginx/prod.conf`：

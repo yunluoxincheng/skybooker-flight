@@ -19,12 +19,14 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,6 +56,9 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private Clock businessClock;
+
     private String userToken;
     private String adminToken;
 
@@ -71,9 +76,9 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
     @Test
     void changeOrder_success_updatesOrderInventorySeatsAndRecords() throws Exception {
-        Long oldFlightId = createFlight("OLD", 1L, 3L, LocalDateTime.now().plusDays(3),
+        Long oldFlightId = createFlight("OLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
-        Long newFlightId = createFlight("NEW", 1L, 3L, LocalDateTime.now().plusDays(5),
+        Long newFlightId = createFlight("NEW", 1L, 3L, LocalDateTime.now(businessClock).plusDays(5),
                 new BigDecimal("700.00"), "DELAYED", "PUBLISHED", 12);
         Long passengerTwo = createPassenger("Change Success Passenger");
         List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 2);
@@ -132,9 +137,9 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
     @Test
     void changeOrder_reversedSeatMappings_applyToRequestedPassengers() throws Exception {
-        Long oldFlightId = createFlight("REVOLD", 1L, 3L, LocalDateTime.now().plusDays(3),
+        Long oldFlightId = createFlight("REVOLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
-        Long newFlightId = createFlight("REVNEW", 1L, 3L, LocalDateTime.now().plusDays(5),
+        Long newFlightId = createFlight("REVNEW", 1L, 3L, LocalDateTime.now(businessClock).plusDays(5),
                 new BigDecimal("700.00"), "ON_TIME", "PUBLISHED", 12);
         Long passengerTwo = createPassenger("Reversed Mapping Passenger");
         List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 2);
@@ -164,9 +169,9 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
     @Test
     void changeEndpoints_rejectOwnershipAnonymousAdminAndNonIssuedOrder() throws Exception {
-        Long oldFlightId = createFlight("OWNOLD", 1L, 3L, LocalDateTime.now().plusDays(3),
+        Long oldFlightId = createFlight("OWNOLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
-        Long newFlightId = createFlight("OWNNEW", 1L, 3L, LocalDateTime.now().plusDays(4),
+        Long newFlightId = createFlight("OWNNEW", 1L, 3L, LocalDateTime.now(businessClock).plusDays(4),
                 new BigDecimal("520.00"), "ON_TIME", "PUBLISHED", 12);
         Long orderId = createAndPayOrder(oldFlightId, List.of(1L), getAvailableSeatIds(oldFlightId, 1));
         Long newSeatId = getAvailableSeatIds(newFlightId, 1).get(0);
@@ -276,7 +281,7 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
     @Test
     void changeOptions_excludeFlightsEarlierThanOriginalPlus2Hours() throws Exception {
         // 原航班 now+3天;改签候选需 departure_time >= 原航班出发时间 + 2h
-        LocalDateTime originalDep = LocalDateTime.now().plusDays(3);
+        LocalDateTime originalDep = LocalDateTime.now(businessClock).plusDays(3);
         Long oldFlightId = createFlight("OPTOLD", 1L, 3L, originalDep,
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
         // 候选A: 原航班+1h,晚于 NOW() 但早于原+2h,应被排除
@@ -310,7 +315,7 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
     @Test
     void changeOrder_rejectsNewFlightEarlierThanOriginalPlus2Hours() throws Exception {
         // 原航班 now+3天;新航班原+1h(晚于 NOW 但早于原+2h),应被 CHANGE_FLIGHT_EARLIER_THAN_ORIGINAL(50007) 拒绝
-        LocalDateTime originalDep = LocalDateTime.now().plusDays(3);
+        LocalDateTime originalDep = LocalDateTime.now(businessClock).plusDays(3);
         Long oldFlightId = createFlight("REJOLD", 1L, 3L, originalDep,
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
         Long newFlightId = createFlight("REJNEW", 1L, 3L, originalDep.plusHours(1),
@@ -334,10 +339,44 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
     }
 
     @Test
+    void changeOrder_rejectsDepartedNewFlight_underUtcJvm() throws Exception {
+        // issue #139 回归：JVM=UTC 容器下，改签到刚起飞的新航班仍应被拒（FLIGHT_NOT_SELLABLE = 30001）
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            // 原航班：业务时间 3 天后起飞（处于改签窗口内）
+            Long oldFlightId = createFlight("TZOLD", 1L, 3L,
+                    LocalDateTime.now(businessClock).plusDays(3),
+                    new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
+            // 新航班：业务时间 1 小时前已起飞（同航线）。8h 时区偏差会让裸 now() 误判为可改签。
+            Long departedNewId = createFlight("TZNEW", 1L, 3L,
+                    LocalDateTime.now(businessClock).minusHours(1),
+                    new BigDecimal("600.00"), "ON_TIME", "PUBLISHED", 12);
+            List<Long> oldSeatIds = getAvailableSeatIds(oldFlightId, 1);
+            Long orderId = createAndPayOrder(oldFlightId, List.of(1L), oldSeatIds);
+            List<Long> newSeatIds = getAvailableSeatIds(departedNewId, 1);
+            ChangeSnapshot before = snapshot(orderId, oldFlightId, departedNewId, oldSeatIds, newSeatIds);
+
+            ChangeOrderDTO dto = changeDto(departedNewId, List.of(mapping(1L, newSeatIds.get(0))));
+
+            mockMvc.perform(post("/api/orders/" + orderId + "/change")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(30001));
+
+            assertThat(snapshot(orderId, oldFlightId, departedNewId, oldSeatIds, newSeatIds)).isEqualTo(before);
+        } finally {
+            TimeZone.setDefault(original);
+        }
+    }
+
+    @Test
     void concurrentChangeRequests_sameNewSeat_onlyOneWins() throws Exception {
-        Long oldFlightId = createFlight("CONOLD", 1L, 3L, LocalDateTime.now().plusDays(3),
+        Long oldFlightId = createFlight("CONOLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
-        Long newFlightId = createFlight("CONNEW", 1L, 3L, LocalDateTime.now().plusDays(5),
+        Long newFlightId = createFlight("CONNEW", 1L, 3L, LocalDateTime.now(businessClock).plusDays(5),
                 new BigDecimal("600.00"), "ON_TIME", "PUBLISHED", 12);
         Long passengerTwo = createPassenger("Concurrent Change Passenger");
         List<Long> oldSeats = getAvailableSeatIds(oldFlightId, 2);
@@ -421,10 +460,10 @@ class ChangeIntegrationTest extends com.skybooker.common.AbstractIntegrationTest
 
     private ChangeFixture createFixture(String label, int passengerCount, Long newDepartureAirportId,
                                         Long newArrivalAirportId, BigDecimal newPrice) throws Exception {
-        Long oldFlightId = createFlight(label + "OLD", 1L, 3L, LocalDateTime.now().plusDays(3),
+        Long oldFlightId = createFlight(label + "OLD", 1L, 3L, LocalDateTime.now(businessClock).plusDays(3),
                 new BigDecimal("500.00"), "ON_TIME", "PUBLISHED", 12);
         Long newFlightId = createFlight(label + "NEW", newDepartureAirportId, newArrivalAirportId,
-                LocalDateTime.now().plusDays(5), newPrice, "ON_TIME", "PUBLISHED", 12);
+                LocalDateTime.now(businessClock).plusDays(5), newPrice, "ON_TIME", "PUBLISHED", 12);
         List<Long> passengerIds = new ArrayList<>();
         passengerIds.add(1L);
         for (int i = 1; i < passengerCount; i++) {

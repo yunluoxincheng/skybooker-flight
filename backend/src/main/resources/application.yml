@@ -13,6 +13,9 @@ spring:
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # SQL 中的 NOW() 依赖数据库会话时区；CI 的 MySQL service 不读取 Compose 配置。
+      connection-init-sql: "SET time_zone = '+08:00'"
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -24,6 +27,9 @@ spring:
       port: ${REDIS_PORT:6379}
   jpa:
     open-in-view: false
+  # issue #139: 统一 Jackson 时间序列化时区，保证 API 返回的时间字段按业务时区(Asia/Shanghai)渲染
+  jackson:
+    time-zone: Asia/Shanghai
 
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
