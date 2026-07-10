@@ -7,9 +7,6 @@ export interface BookableResult {
 
 const STATUS_REASONS: Partial<Record<FlightStatus, string>> = {
   CANCELLED: "该航班已取消",
-  BOARDING: "该航班已停止售票，正在登机中",
-  DEPARTED: "该航班已出发",
-  ARRIVED: "该航班已到达",
 }
 
 export function isFlightBookable(flight: FlightVO): BookableResult {

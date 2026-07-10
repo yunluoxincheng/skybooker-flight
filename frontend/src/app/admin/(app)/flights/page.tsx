@@ -84,21 +84,18 @@ interface CabinFormItem extends FlightCabinSettingDTO {
   remainingSeats: number
 }
 
-const FLIGHT_STATUS_FILTERS: Array<{ value: "ALL" | FlightStatus; label: string }> = [
-  { value: "ALL", label: "全部状态" },
-  { value: "ON_TIME", label: "准点" },
-  { value: "DELAYED", label: "延误" },
-  { value: "CANCELLED", label: "已取消" },
-  { value: "BOARDING", label: "登机中" },
-  { value: "DEPARTED", label: "已起飞" },
-  { value: "ARRIVED", label: "已到达" },
-]
+const FLIGHT_STATUS_LABELS: Record<"ALL" | FlightStatus, string> = {
+  ALL: "全部状态",
+  ON_TIME: "准点",
+  DELAYED: "延误",
+  CANCELLED: "已取消",
+}
 
-const PUBLISH_STATUS_FILTERS: Array<{ value: "ALL" | PublishStatus; label: string }> = [
-  { value: "ALL", label: "全部发布状态" },
-  { value: "PUBLISHED", label: "已上架" },
-  { value: "UNPUBLISHED", label: "未上架" },
-]
+const PUBLISH_STATUS_LABELS: Record<"ALL" | PublishStatus, string> = {
+  ALL: "全部发布状态",
+  PUBLISHED: "已上架",
+  DRAFT: "未上架",
+}
 
 function buildCabinForm(flight: FlightVO): CabinFormItem[] {
   const configuredCabins = new Map((flight.cabins ?? []).map((cabin) => [cabin.cabinClass, cabin]))
@@ -458,12 +455,12 @@ export default function AdminFlightsPage() {
           }}
         >
           <SelectTrigger className="w-32">
-            <SelectValue placeholder="全部状态" />
+            <SelectValue>{FLIGHT_STATUS_LABELS[filterStatus]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {FLIGHT_STATUS_FILTERS.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
+            {Object.entries(FLIGHT_STATUS_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -476,12 +473,12 @@ export default function AdminFlightsPage() {
           }}
         >
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="全部发布状态" />
+            <SelectValue>{PUBLISH_STATUS_LABELS[filterPublishStatus]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {PUBLISH_STATUS_FILTERS.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
+            {Object.entries(PUBLISH_STATUS_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>
