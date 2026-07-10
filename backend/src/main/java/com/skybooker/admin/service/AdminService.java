@@ -3,6 +3,7 @@ package com.skybooker.admin.service;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
+import com.skybooker.admin.dto.AdminUserQueryDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
@@ -30,18 +31,28 @@ public class AdminService {
 
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             "PENDING_PAYMENT", "ISSUED", "CANCELLED", "REFUNDED", "CHANGED", "CHANGE_PENDING", "VOIDED");
+    private static final Set<String> VALID_USER_STATUSES = Set.of("NORMAL", "DISABLED", "DELETED");
 
     private final AuthMapper authMapper;
     private final OrderMapper orderMapper;
     private final AdminOperationLogService operationLogService;
     private final PasswordEncoder passwordEncoder;
 
-    public PageResponse<UserAdminVO> listUsers(PageQueryDTO query) {
-        AdminListQuerySupport.validatePage(query);
+    public PageResponse<UserAdminVO> listUsers(AdminUserQueryDTO query) {
+        AdminListQuerySupport.normalize(query);
+        validateUserStatus(query.getStatus());
         int offset = AdminListQuerySupport.offset(query);
-        List<UserAdminVO> users = authMapper.findUsersByRole("USER", offset, query.getSize());
-        long total = authMapper.countUsersByRole("USER");
+        List<UserAdminVO> users = authMapper.findUsersByRole("USER", query.getKeyword(), query.getEmail(),
+                query.getNickname(), query.getStatus(), offset, query.getSize());
+        long total = authMapper.countUsersByRole("USER", query.getKeyword(), query.getEmail(), query.getNickname(),
+                query.getStatus());
         return new PageResponse<>(users, total, query.getPage(), query.getSize());
+    }
+
+    private void validateUserStatus(String status) {
+        if (status != null && !VALID_USER_STATUSES.contains(status)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     @Transactional

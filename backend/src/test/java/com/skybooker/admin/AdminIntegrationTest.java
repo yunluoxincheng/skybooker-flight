@@ -1126,6 +1126,75 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void listUsers_filtersByEmailOrNickname() throws Exception {
+        String emailKeyword = unique("user-search-email");
+        String nicknameKeyword = unique("user-search-nickname");
+        jdbcTemplate.update("""
+                INSERT INTO users(email, password_hash, nickname, role, status, email_verified, phone_verified)
+                VALUES(?, 'hash', ?, 'USER', 'NORMAL', 0, 0)
+                """, emailKeyword + "@example.com", nicknameKeyword);
+
+        mockMvc.perform(get("/api/admin/users").param("email", emailKeyword)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value(emailKeyword + "@example.com"));
+
+        mockMvc.perform(get("/api/admin/users").param("keyword", nicknameKeyword)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].nickname").value(nicknameKeyword));
+    }
+
+    @Test
+    void listUsers_filtersByNicknameStatusAndCombinedConditions() throws Exception {
+        String normalEmail = unique("user-filter-normal") + "@example.com";
+        String normalNickname = unique("user-filter-nickname");
+        String deletedEmail = unique("user-filter-deleted") + "@example.com";
+        String adminEmail = unique("user-filter-admin") + "@example.com";
+        String adminKeyword = unique("admin-only-keyword");
+        jdbcTemplate.update("""
+                INSERT INTO users(email, password_hash, nickname, role, status, email_verified, phone_verified)
+                VALUES (?, 'hash', ?, 'USER', 'NORMAL', 0, 0),
+                       (?, 'hash', 'Deleted User', 'USER', 'DELETED', 0, 0),
+                       (?, 'hash', ?, 'ADMIN', 'NORMAL', 0, 0)
+                """, normalEmail, normalNickname, deletedEmail, adminEmail, adminKeyword);
+
+        mockMvc.perform(get("/api/admin/users").param("nickname", normalNickname)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value(normalEmail));
+
+        mockMvc.perform(get("/api/admin/users").param("status", "DELETED").param("email", deletedEmail)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value(deletedEmail));
+
+        mockMvc.perform(get("/api/admin/users")
+                        .param("keyword", normalNickname.substring(0, 8))
+                        .param("email", normalEmail.substring(0, normalEmail.indexOf('@')))
+                        .param("nickname", normalNickname)
+                        .param("status", "NORMAL")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].email").value(normalEmail));
+
+        mockMvc.perform(get("/api/admin/users").param("keyword", adminKeyword)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        mockMvc.perform(get("/api/admin/users").param("status", "UNKNOWN")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
     void disableAndEnableUser() throws Exception {
         String email = uniqueEmail("disable-target");
         MvcResult createResult = mockMvc.perform(post("/api/admin/users")

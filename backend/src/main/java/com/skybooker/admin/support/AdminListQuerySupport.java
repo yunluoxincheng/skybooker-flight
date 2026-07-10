@@ -3,6 +3,7 @@ package com.skybooker.admin.support;
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.admin.dto.AdminKeywordStatusQueryDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
+import com.skybooker.admin.dto.AdminUserQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
@@ -41,6 +42,14 @@ public final class AdminListQuerySupport {
         query.setFlightKeyword(trimToNull(query.getFlightKeyword()));
         query.setDepartureDateStart(trimToNull(query.getDepartureDateStart()));
         query.setDepartureDateEnd(trimToNull(query.getDepartureDateEnd()));
+    }
+
+    public static void normalize(AdminUserQueryDTO query) {
+        validatePage(query);
+        query.setKeyword(trimToNull(query.getKeyword()));
+        query.setEmail(trimToNull(query.getEmail()));
+        query.setNickname(trimToNull(query.getNickname()));
+        query.setStatus(trimToNull(query.getStatus()));
     }
 
     public static void validatePage(PageQueryDTO query) {

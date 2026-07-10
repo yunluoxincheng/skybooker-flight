@@ -7,6 +7,7 @@ import com.skybooker.admin.dto.AdminDeleteOrderDTO;
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.admin.dto.AdminNoteDTO;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
+import com.skybooker.admin.dto.AdminUserQueryDTO;
 import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
@@ -172,7 +173,7 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<PageResponse<UserAdminVO>> listUsers(PageQueryDTO query) {
+    public ApiResponse<PageResponse<UserAdminVO>> listUsers(AdminUserQueryDTO query) {
         return ApiResponse.success(adminService.listUsers(query));
     }
 
