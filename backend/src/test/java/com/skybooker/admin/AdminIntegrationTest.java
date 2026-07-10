@@ -1459,11 +1459,107 @@ class AdminIntegrationTest {
     }
 
     @Test
-    void disableUserWithActiveOrdersIsRejected() throws Exception {
-        mockMvc.perform(post("/api/admin/users/2/disable")
+    void disableUserAllowsActiveBusinessAndRejectsAuthenticationWhileDisabled() throws Exception {
+        String email = uniqueEmail("disable-active-business");
+        Long userId = createCleanUser(email);
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"User@123456\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        var loginData = objectMapper.readTree(loginResult.getResponse().getContentAsString()).get("data");
+        String accessToken = loginData.get("accessToken").asText();
+        String refreshToken = loginData.get("refreshToken").asText();
+
+        jdbcTemplate.update("""
+                INSERT INTO ticket_order(order_no, user_id, flight_id, status, total_amount)
+                VALUES(?, ?, 1, 'PENDING_PAYMENT', 580.00), (?, ?, 1, 'ISSUED', 680.00)
+                """, unique("PENDING"), userId, unique("ISSUED"), userId);
+        Long issuedOrderId = jdbcTemplate.queryForObject("""
+                SELECT id FROM ticket_order
+                WHERE user_id = ? AND status = 'ISSUED'
+                ORDER BY id DESC LIMIT 1
+                """, Long.class, userId);
+        jdbcTemplate.update("UPDATE ticket_order SET pay_time = NOW() WHERE id = ?", issuedOrderId);
+        jdbcTemplate.update("""
+                INSERT INTO waitlist_order(waitlist_no, user_id, flight_id, passenger_count, cabin_class, pay_amount, status, paid_at)
+                VALUES(?, ?, 1, 1, 'ECONOMY', 580.00, 'WAITING', NOW())
+                """, unique("WAIT"), userId);
+        jdbcTemplate.update("""
+                INSERT INTO refund_record(order_id, user_id, reason, refund_amount, fee_amount, status)
+                VALUES(?, ?, 'manual', 0.00, 0.00, 'PROCESSING')
+                """, issuedOrderId, userId);
+        jdbcTemplate.update("""
+                INSERT INTO change_record(order_id, old_flight_id, new_flight_id, price_diff, change_fee, status)
+                VALUES(?, 1, 2, 0.00, 0.00, 'PROCESSING')
+                """, issuedOrderId);
+
+        String orderStateAndPaymentBefore = jdbcTemplate.queryForObject("""
+                SELECT GROUP_CONCAT(CONCAT(status, ':', total_amount, ':', COALESCE(DATE_FORMAT(pay_time, '%Y-%m-%d %H:%i:%s'), 'NULL')) ORDER BY id)
+                FROM ticket_order WHERE user_id = ?
+                """, String.class, userId);
+        String waitlistStatusesBefore = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM waitlist_order WHERE user_id = ?", String.class, userId);
+        String refundStatusesBefore = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM refund_record WHERE user_id = ?", String.class, userId);
+        String changeStatusesBefore = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM change_record WHERE order_id = ?", String.class, issuedOrderId);
+        String seatStatusesBefore = jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM flight_seat WHERE flight_id = 1", String.class);
+        Integer totalSeatsBefore = jdbcTemplate.queryForObject(
+                "SELECT total_seats FROM flight WHERE id = 1", Integer.class);
+
+        mockMvc.perform(post("/api/admin/users/{id}/disable", userId)
                         .header("Authorization", "Bearer " + adminToken))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40021));
+                .andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM users WHERE id = ?", String.class, userId)).isEqualTo("DISABLED");
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                """
+                SELECT GROUP_CONCAT(CONCAT(status, ':', total_amount, ':', COALESCE(DATE_FORMAT(pay_time, '%Y-%m-%d %H:%i:%s'), 'NULL')) ORDER BY id)
+                FROM ticket_order WHERE user_id = ?
+                """, String.class, userId)).isEqualTo(orderStateAndPaymentBefore);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM waitlist_order WHERE user_id = ?", String.class, userId)).isEqualTo(waitlistStatusesBefore);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM refund_record WHERE user_id = ?", String.class, userId)).isEqualTo(refundStatusesBefore);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM change_record WHERE order_id = ?", String.class, issuedOrderId)).isEqualTo(changeStatusesBefore);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT GROUP_CONCAT(status ORDER BY id) FROM flight_seat WHERE flight_id = 1", String.class)).isEqualTo(seatStatusesBefore);
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT total_seats FROM flight WHERE id = 1", Integer.class)).isEqualTo(totalSeatsBefore);
+        org.assertj.core.api.Assertions.assertThat(countAudit(userId, "USER_DISABLE")).isEqualTo(1);
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"User@123456\"}".formatted(email)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/admin/users/{id}/disable", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(10008));
+        org.assertj.core.api.Assertions.assertThat(countAudit(userId, "USER_DISABLE")).isEqualTo(1);
+
+        mockMvc.perform(post("/api/admin/users/{id}/enable", userId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+                .andExpect(status().isOk());
     }
 
     @Test
