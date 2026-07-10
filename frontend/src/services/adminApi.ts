@@ -1,5 +1,4 @@
 import { del, get, patch, post, put } from "@/lib/request"
-import { getFlightSeats as getPublicFlightSeats } from "@/services/flightApi"
 import type { AdminLoginResponse, AdminUser } from "@/types/auth"
 import type {
   AirlineFormDTO,
@@ -22,7 +21,7 @@ import type {
   CreateUserAdminDTO,
   DeleteUserBlockInfoVO,
 } from "@/types/admin"
-import type { FlightCabinVO, FlightVO } from "@/types/flight"
+import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
 import type {
   AdminChangeDTO,
@@ -211,7 +210,7 @@ export function updateAdminNote(id: number, data: AdminNoteDTO) {
 }
 
 export function getAdminFlightSeats(flightId: number) {
-  return getPublicFlightSeats(flightId)
+  return get<FlightSeatVO[]>(`/admin/flights/${flightId}/seats`, undefined, { auth: "admin" })
 }
 
 // ---- Users ----
