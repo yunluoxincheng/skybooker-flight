@@ -203,6 +203,7 @@ export function OrderFormDialog({
       setIsUsersLoading(true)
       setLoadError(null)
       try {
+        // TODO(#132): 后端暂不支持 keyword 搜索，目前拉取 50 条后由 Combobox 在客户端做二次过滤
         const data = await adminApi.getUsers({
           keyword: debouncedUserSearch,
           page: 1,

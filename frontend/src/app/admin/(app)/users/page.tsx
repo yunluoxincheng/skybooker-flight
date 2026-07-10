@@ -58,6 +58,7 @@ export default function AdminUsersPage() {
         size: 10,
         role: "USER",
       }
+      // TODO(#132): 后端暂不支持 email 搜索，待 AdminController.listUsers 实现后即可生效
       if (emailFilter) params.email = emailFilter
 
       const data = await adminApi.getUsers(params)
