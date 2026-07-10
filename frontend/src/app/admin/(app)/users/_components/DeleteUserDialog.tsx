@@ -79,7 +79,7 @@ export function DeleteUserDialog({
     setIsSubmitting(true)
     setError(null)
     try {
-      await adminApi.deleteAdminUser(user.id, "soft")
+      await adminApi.deleteUser(user.id)
       onOpenChange(false)
       await onSuccess?.()
     } catch (err) {
@@ -96,7 +96,7 @@ export function DeleteUserDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>删除用户</DialogTitle>
-          <DialogDescription>删除后用户将从当前管理列表中移除，请确认后继续。</DialogDescription>
+          <DialogDescription>此操作将永久删除用户数据（物理删除），不可恢复。仅无业务记录的账户可被删除；有订单、乘机人等数据时，请改用禁用功能。</DialogDescription>
         </DialogHeader>
 
         {!user ? null : (
@@ -164,7 +164,7 @@ export function DeleteUserDialog({
                 ) : (
                   <>
                     <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                      此操作不可撤销，删除后将刷新当前用户列表。
+                      此为物理删除，数据不可恢复。仅零业务引用的干净账号可删除。存在业务记录时请返回并选择"禁用"。
                     </div>
                   </>
                 )}

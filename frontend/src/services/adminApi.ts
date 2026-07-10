@@ -231,8 +231,8 @@ export function createAdminUser(data: CreateUserAdminDTO) {
   return post<UserAdminVO>("/admin/users", data, { auth: "admin" })
 }
 
-export function deleteAdminUser(id: number, type: "hard" | "soft") {
-  return del<null>(`/admin/users/${id}?type=${type}`, { auth: "admin" })
+export function deleteUser(id: number) {
+  return del<null>(`/admin/users/${id}`, { auth: "admin" })
 }
 
 export function checkUserDeletable(id: number) {
