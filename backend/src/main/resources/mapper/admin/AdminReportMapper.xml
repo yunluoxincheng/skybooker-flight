@@ -5,6 +5,23 @@
 
     <sql id="activeOrderStatuses">'ISSUED', 'CHANGED'</sql>
 
+    <!-- V14 segment snapshots may inherit a different server-default collation than legacy airport.city. -->
+    <sql id="orderDepartureCity">
+        COALESCE(
+            (SELECT CONVERT(s.departure_city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+             FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1),
+            CONVERT(da.city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci
+    </sql>
+
+    <sql id="orderArrivalCity">
+        COALESCE(
+            (SELECT CONVERT(s.arrival_city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+             FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1),
+            CONVERT(aa.city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci
+    </sql>
+
     <sql id="routeJoin">
         JOIN flight f ON o.flight_id = f.id
         JOIN airport da ON f.departure_airport_id = da.id
@@ -67,8 +84,8 @@
         FROM (
             <!-- Revenue side: active orders grouped by route -->
             SELECT
-                COALESCE((SELECT s.departure_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1), da.city) AS departure_city,
-                COALESCE((SELECT s.arrival_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1), aa.city) AS arrival_city,
+                <include refid="orderDepartureCity"/> AS departure_city,
+                <include refid="orderArrivalCity"/> AS arrival_city,
                 COUNT(DISTINCT o.id) AS active_order_count,
                 COALESCE(SUM(op_cnt.cnt), 0) AS passenger_count,
                 COALESCE(SUM(o.total_amount), 0.00) AS revenue,
@@ -86,16 +103,16 @@
               <if test="airlineId != null">AND (f.airline_id = #{airlineId} OR EXISTS (
                   SELECT 1 FROM ticket_order_segment s JOIN flight sf ON sf.id=s.flight_id
                   WHERE s.order_id=o.id AND sf.airline_id=#{airlineId}))</if>
-              <if test="departureCity != null">AND COALESCE((SELECT s.departure_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1), da.city) = #{departureCity}</if>
-              <if test="arrivalCity != null">AND COALESCE((SELECT s.arrival_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1), aa.city) = #{arrivalCity}</if>
+              <if test="departureCity != null">AND <include refid="orderDepartureCity"/> = #{departureCity}</if>
+              <if test="arrivalCity != null">AND <include refid="orderArrivalCity"/> = #{arrivalCity}</if>
             GROUP BY departure_city, arrival_city
 
             UNION ALL
 
             <!-- Refund side: refund records grouped by route -->
             SELECT
-                COALESCE((SELECT s.departure_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1), da.city) AS departure_city,
-                COALESCE((SELECT s.arrival_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1), aa.city) AS arrival_city,
+                <include refid="orderDepartureCity"/> AS departure_city,
+                <include refid="orderArrivalCity"/> AS arrival_city,
                 0 AS active_order_count,
                 0 AS passenger_count,
                 0.00 AS revenue,
@@ -111,8 +128,8 @@
               <if test="airlineId != null">AND (f.airline_id = #{airlineId} OR EXISTS (
                   SELECT 1 FROM ticket_order_segment s JOIN flight sf ON sf.id=s.flight_id
                   WHERE s.order_id=o.id AND sf.airline_id=#{airlineId}))</if>
-              <if test="departureCity != null">AND COALESCE((SELECT s.departure_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1), da.city) = #{departureCity}</if>
-              <if test="arrivalCity != null">AND COALESCE((SELECT s.arrival_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1), aa.city) = #{arrivalCity}</if>
+              <if test="departureCity != null">AND <include refid="orderDepartureCity"/> = #{departureCity}</if>
+              <if test="arrivalCity != null">AND <include refid="orderArrivalCity"/> = #{arrivalCity}</if>
             GROUP BY departure_city, arrival_city
         ) combined
         GROUP BY combined.departure_city, combined.arrival_city
