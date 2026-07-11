@@ -22,6 +22,8 @@ import type {
   DeleteUserBlockInfoVO,
   CreateConnectingFlightsDTO,
   ConnectingFlightPairVO,
+  ConnectingItineraryAdminVO,
+  ConnectingItineraryFormDTO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
@@ -86,6 +88,26 @@ export function createFlight(data: FlightFormDTO) {
 
 export function createConnectingFlights(data: CreateConnectingFlightsDTO) {
   return post<ConnectingFlightPairVO>("/admin/flights/connecting-pair", data, { auth: "admin" })
+}
+
+export function getConnectingItineraries() {
+  return get<ConnectingItineraryAdminVO[]>("/admin/connecting-itineraries", undefined, { auth: "admin" })
+}
+
+export function createConnectingItinerary(data: ConnectingItineraryFormDTO) {
+  return post<ConnectingItineraryAdminVO>("/admin/connecting-itineraries", data, { auth: "admin" })
+}
+
+export function updateConnectingItinerary(id: number, data: ConnectingItineraryFormDTO) {
+  return put<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}`, data, { auth: "admin" })
+}
+
+export function publishConnectingItinerary(id: number) {
+  return post<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}/publish`, undefined, { auth: "admin" })
+}
+
+export function unpublishConnectingItinerary(id: number) {
+  return post<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}/unpublish`, undefined, { auth: "admin" })
 }
 
 export function updateFlight(id: number, data: FlightFormDTO) {

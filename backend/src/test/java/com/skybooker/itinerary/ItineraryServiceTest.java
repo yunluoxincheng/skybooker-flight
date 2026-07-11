@@ -5,6 +5,7 @@ import com.skybooker.flight.service.FlightService;
 import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.itinerary.mapper.ItineraryMapper;
 import com.skybooker.itinerary.service.ItineraryService;
+import com.skybooker.itinerary.entity.ConnectingItinerary;
 import com.skybooker.flight.mapper.FlightMapper;
 import com.skybooker.passenger.mapper.PassengerMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,15 +21,21 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ItineraryServiceTest {
     private ItineraryService service;
+    private ItineraryMapper itineraryMapper;
     private final LocalDateTime now = LocalDateTime.of(2026, 7, 11, 10, 0);
 
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-07-11T02:00:00Z"), ZoneId.of("Asia/Shanghai"));
-        service = new ItineraryService(mock(ItineraryMapper.class), mock(FlightMapper.class),
+        itineraryMapper = mock(ItineraryMapper.class);
+        ConnectingItinerary published = new ConnectingItinerary();
+        published.setPublishStatus("PUBLISHED");
+        when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(published);
+        service = new ItineraryService(itineraryMapper, mock(FlightMapper.class),
                 mock(FlightService.class), mock(PassengerMapper.class), clock);
     }
 
@@ -58,6 +65,14 @@ class ItineraryServiceTest {
         List<FlightVO> flights = pair(120);
         flights.getFirst().setDirectFlag(0);
         assertThrows(BusinessException.class, () -> service.validate(flights, 1));
+    }
+
+    @Test void rejectsUnmanagedOrDraftConnectingPair() {
+        when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(null);
+        assertThrows(BusinessException.class, () -> service.validate(pair(120), 1));
+        ConnectingItinerary draft = new ConnectingItinerary(); draft.setPublishStatus("DRAFT");
+        when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(draft);
+        assertThrows(BusinessException.class, () -> service.validate(pair(120), 1));
     }
 
     private List<FlightVO> pair(int transferMinutes) {

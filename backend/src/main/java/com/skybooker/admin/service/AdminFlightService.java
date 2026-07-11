@@ -4,8 +4,10 @@ import com.skybooker.admin.dto.AdminFlightQueryDTO;
 import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.ConnectingFlightPairVO;
+import com.skybooker.admin.vo.ConnectingItineraryAdminVO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
@@ -17,6 +19,9 @@ import com.skybooker.flight.mapper.FlightCabinMapper;
 import com.skybooker.flight.mapper.FlightMapper;
 import com.skybooker.flight.vo.FlightCabinVO;
 import com.skybooker.flight.vo.FlightVO;
+import com.skybooker.itinerary.entity.ConnectingItinerary;
+import com.skybooker.itinerary.mapper.ItineraryMapper;
+import com.skybooker.common.security.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +45,7 @@ public class AdminFlightService {
 
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
+    private final ItineraryMapper itineraryMapper;
 
     public PageResponse<FlightVO> listFlights(AdminFlightQueryDTO query) {
         AdminListQuerySupport.normalize(query);
@@ -73,7 +79,7 @@ public class AdminFlightService {
 
     @Transactional
     public FlightVO createFlight(FlightFormDTO dto) {
-        validateFlightForm(dto);
+        validateFlightForm(dto, true);
         Flight flight = insertFlight(dto);
         return flightMapper.findFlightByIdAnyStatus(flight.getId());
     }
@@ -82,18 +88,14 @@ public class AdminFlightService {
     public ConnectingFlightPairVO createConnectingFlights(AdminCreateConnectingFlightsDTO dto) {
         FlightFormDTO first = dto.getFirstSegment();
         FlightFormDTO second = dto.getSecondSegment();
-        validateFlightForm(first);
-        validateFlightForm(second);
-        if (!first.getArrivalAirportId().equals(second.getDepartureAirportId())) {
-            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
-        }
-        long transferMinutes = Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
-        if (transferMinutes < 90 || transferMinutes > 360) {
-            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
-        }
+        validateFlightForm(first, true);
+        validateFlightForm(second, true);
+        long transferMinutes = validateConnection(first.getDepartureAirportId(), first.getArrivalAirportId(),
+                first.getArrivalTime(), second.getDepartureAirportId(), second.getArrivalAirportId(), second.getDepartureTime());
 
         Flight firstFlight = insertFlight(first);
         Flight secondFlight = insertFlight(second);
+        createManaged(firstFlight.getId(), secondFlight.getId(), "DRAFT");
         return new ConnectingFlightPairVO(
                 flightMapper.findFlightByIdAnyStatus(firstFlight.getId()),
                 flightMapper.findFlightByIdAnyStatus(secondFlight.getId()),
@@ -128,12 +130,56 @@ public class AdminFlightService {
             throw new BusinessException(ErrorCode.FLIGHT_HAS_INVENTORY);
         }
 
-        validateFlightForm(dto);
+        validateFlightForm(dto, false);
         Flight updated = toEntity(dto);
         updated.setId(id);
+        // Ordinary maintenance must never reclassify legacy stopover rows. New
+        // itinerary composition only accepts direct rows; migration is a separate concern.
+        updated.setDirectFlag(existing.getDirectFlag());
         updated.setRemainingSeats(existing.getRemainingSeats());
         flightMapper.updateFlight(updated);
         return flightMapper.findFlightByIdAnyStatus(id);
+    }
+
+    public List<ConnectingItineraryAdminVO> listConnectingItineraries() {
+        return itineraryMapper.findAllManaged().stream().map(this::toManagedVO).toList();
+    }
+
+    @Transactional
+    public ConnectingItineraryAdminVO createConnectingItinerary(ConnectingItineraryFormDTO dto) {
+        validateManagedFlights(dto.getFirstFlightId(), dto.getSecondFlightId());
+        if (itineraryMapper.findManagedPair(dto.getFirstFlightId(), dto.getSecondFlightId()) != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        return toManagedVO(createManaged(dto.getFirstFlightId(), dto.getSecondFlightId(), "DRAFT"));
+    }
+
+    @Transactional
+    public ConnectingItineraryAdminVO updateConnectingItinerary(Long id, ConnectingItineraryFormDTO dto) {
+        ConnectingItinerary existing = requireManaged(id);
+        if ("PUBLISHED".equals(existing.getPublishStatus())) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
+        validateManagedFlights(dto.getFirstFlightId(), dto.getSecondFlightId());
+        ConnectingItinerary duplicate = itineraryMapper.findManagedPair(dto.getFirstFlightId(), dto.getSecondFlightId());
+        if (duplicate != null && !id.equals(duplicate.getId())) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        itineraryMapper.updateManagedFlights(id, dto.getFirstFlightId(), dto.getSecondFlightId());
+        return toManagedVO(requireManaged(id));
+    }
+
+    @Transactional
+    public ConnectingItineraryAdminVO setConnectingItineraryPublished(Long id, boolean published) {
+        ConnectingItinerary itinerary = requireManaged(id);
+        if (published) {
+            validateManagedFlights(itinerary.getFirstFlightId(), itinerary.getSecondFlightId());
+            Flight first = flightMapper.findById(itinerary.getFirstFlightId());
+            Flight second = flightMapper.findById(itinerary.getSecondFlightId());
+            if (!"PUBLISHED".equals(first.getPublishStatus()) || !"PUBLISHED".equals(second.getPublishStatus())) {
+                throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
+            }
+        }
+        itineraryMapper.updateManagedStatus(id, published ? "PUBLISHED" : "DRAFT");
+        return toManagedVO(requireManaged(id));
     }
 
     @Transactional
@@ -293,10 +339,10 @@ public class AdminFlightService {
         };
     }
 
-    private void validateFlightForm(FlightFormDTO dto) {
-        // A flight row is one independently sellable nonstop segment.  A connecting
-        // itinerary is represented by two such rows and composed dynamically.
-        if (Boolean.FALSE.equals(dto.getDirectFlag())) {
+    private void validateFlightForm(FlightFormDTO dto, boolean requireDirect) {
+        // A flight row is one independently sellable nonstop segment. A managed
+        // connecting itinerary references two such rows without copying inventory.
+        if (requireDirect && Boolean.FALSE.equals(dto.getDirectFlag())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
         if (!flightMapper.existsAirlineById(dto.getAirlineId())) {
@@ -357,5 +403,53 @@ public class AdminFlightService {
         flight.setRemainingSeats(0);
         flightMapper.insertFlight(flight);
         return flight;
+    }
+
+    private long validateManagedFlights(Long firstFlightId, Long secondFlightId) {
+        if (firstFlightId == null || secondFlightId == null || firstFlightId.equals(secondFlightId)) {
+            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+        Flight first = flightMapper.findById(firstFlightId);
+        Flight second = flightMapper.findById(secondFlightId);
+        if (first == null || second == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!Boolean.TRUE.equals(first.getDirectFlag()) || !Boolean.TRUE.equals(second.getDirectFlag())) {
+            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+        return validateConnection(first.getDepartureAirportId(), first.getArrivalAirportId(), first.getArrivalTime(),
+                second.getDepartureAirportId(), second.getArrivalAirportId(), second.getDepartureTime());
+    }
+
+    private long validateConnection(Long originId, Long connectionArrivalId, java.time.LocalDateTime firstArrival,
+                                    Long connectionDepartureId, Long destinationId, java.time.LocalDateTime secondDeparture) {
+        long transferMinutes = Duration.between(firstArrival, secondDeparture).toMinutes();
+        if (!connectionArrivalId.equals(connectionDepartureId) || originId.equals(destinationId)
+                || transferMinutes < 90 || transferMinutes > 360) {
+            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+        return transferMinutes;
+    }
+
+    private ConnectingItinerary createManaged(Long firstFlightId, Long secondFlightId, String status) {
+        ConnectingItinerary itinerary = new ConnectingItinerary();
+        itinerary.setFirstFlightId(firstFlightId);
+        itinerary.setSecondFlightId(secondFlightId);
+        itinerary.setPublishStatus(status);
+        itinerary.setCreatedBy(SecurityUtil.getCurrentUserId());
+        itineraryMapper.insertManaged(itinerary);
+        return itineraryMapper.findManagedById(itinerary.getId());
+    }
+
+    private ConnectingItinerary requireManaged(Long id) {
+        ConnectingItinerary itinerary = itineraryMapper.findManagedById(id);
+        if (itinerary == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return itinerary;
+    }
+
+    private ConnectingItineraryAdminVO toManagedVO(ConnectingItinerary itinerary) {
+        FlightVO first = flightMapper.findFlightByIdAnyStatus(itinerary.getFirstFlightId());
+        FlightVO second = flightMapper.findFlightByIdAnyStatus(itinerary.getSecondFlightId());
+        int transfer = (int) Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
+        return new ConnectingItineraryAdminVO(itinerary.getId(), first, second, itinerary.getPublishStatus(), transfer,
+                itinerary.getCreatedBy(), itinerary.getCreatedAt(), itinerary.getUpdatedAt());
     }
 }

@@ -98,6 +98,10 @@ public class ItineraryService {
             long transfer = Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
             if (!first.getArrivalAirportId().equals(second.getDepartureAirportId()) || transfer < 90 || transfer > 360)
                 throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+            var managed = itineraryMapper.findManagedPair(first.getId(), second.getId());
+            if (managed == null || !"PUBLISHED".equals(managed.getPublishStatus())) {
+                throw new BusinessException(ErrorCode.ITINERARY_INVALID);
+            }
         }
     }
 

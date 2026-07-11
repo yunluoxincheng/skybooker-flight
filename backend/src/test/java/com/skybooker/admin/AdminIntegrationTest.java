@@ -385,10 +385,21 @@ class AdminIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM flight WHERE id IN (?, ?) AND direct_flag = 1",
                 Integer.class, firstId, secondId)).isEqualTo(2);
+        Long itineraryId = jdbcTemplate.queryForObject(
+                "SELECT id FROM connecting_itinerary WHERE first_flight_id=? AND second_flight_id=? AND publish_status='DRAFT'",
+                Long.class, firstId, secondId);
 
         mockMvc.perform(post("/api/admin/flights/{id}/generate-seats", firstId)
                         .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
         mockMvc.perform(post("/api/admin/flights/{id}/generate-seats", secondId)
+                        .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/itineraries/search")
+                        .param("departureCity", "北京").param("arrivalCity", "广州")
+                        .param("departureDate", first.getDepartureTime().toLocalDate().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[?(@.journeyType == 'CONNECTING' && @.segments[0].id == "
+                        + firstId + " && @.segments[1].id == " + secondId + ")]").isEmpty());
+        mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/publish", itineraryId)
                         .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
         mockMvc.perform(get("/api/itineraries/search")
                         .param("departureCity", "北京")
@@ -397,6 +408,85 @@ class AdminIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[?(@.journeyType == 'CONNECTING' && @.segments[0].id == "
                         + firstId + " && @.segments[1].id == " + secondId + ")]").isNotEmpty());
+    }
+
+    @Test
+    void legacyNonDirectFlightCanBeMaintainedWithoutReclassification() throws Exception {
+        FlightFormDTO dto = buildValidFlightForm();
+        jdbcTemplate.update("INSERT INTO flight(flight_no, airline_id, departure_airport_id, arrival_airport_id, " +
+                        "departure_time, arrival_time, duration_minutes, base_price, total_seats, remaining_seats, " +
+                        "status, publish_status, direct_flag, baggage_allowance) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                dto.getFlightNo(), dto.getAirlineId(), dto.getDepartureAirportId(), dto.getArrivalAirportId(),
+                dto.getDepartureTime(), dto.getArrivalTime(), dto.getDurationMinutes(), dto.getBasePrice(),
+                dto.getTotalSeats(), 0, "ON_TIME", "DRAFT", 0, dto.getBaggageAllowance());
+        Long id = jdbcTemplate.queryForObject("SELECT MAX(id) FROM flight WHERE flight_no=?", Long.class, dto.getFlightNo());
+        dto.setBaggageAllowance("25kg");
+        dto.setDirectFlag(true); // even a crafted client cannot silently migrate the row
+
+        mockMvc.perform(put("/api/admin/flights/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.directFlag").value(0))
+                .andExpect(jsonPath("$.data.baggageAllowance").value("25kg"));
+        assertThat(jdbcTemplate.queryForObject("SELECT direct_flag FROM flight WHERE id=?", Integer.class, id)).isZero();
+    }
+
+    @Test
+    void managedItineraryCanBeCreatedFromExistingFlightsEditedAndToggled() throws Exception {
+        FlightFormDTO first = buildValidFlightForm();
+        first.setDepartureAirportId(3L); first.setArrivalAirportId(1L);
+        FlightFormDTO second = buildValidFlightForm();
+        second.setDepartureAirportId(1L); second.setArrivalAirportId(5L);
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(120));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        long firstId = createFlightThroughApi(first);
+        long secondId = createFlightThroughApi(second);
+
+        MvcResult created = mockMvc.perform(post("/api/admin/connecting-itineraries")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.publishStatus").value("DRAFT")).andReturn();
+        long id = objectMapper.readTree(created.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[?(@.id == " + id + ")]").isNotEmpty());
+        mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/publish", id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(30001));
+        mockMvc.perform(post("/api/admin/flights/{id}/publish", firstId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/flights/{id}/publish", secondId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/publish", id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.publishStatus").value("PUBLISHED"));
+        mockMvc.perform(put("/api/admin/connecting-itineraries/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(40001));
+        mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/unpublish", id)
+                        .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.publishStatus").value("DRAFT"));
+        mockMvc.perform(put("/api/admin/connecting-itineraries/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/connecting-itineraries")
+                        .header("Authorization", "Bearer " + loginAsUser()))
+                .andExpect(status().isForbidden());
+    }
+
+    private long createFlightThroughApi(FlightFormDTO dto) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk()).andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
     }
 
     @Test
@@ -439,6 +529,7 @@ class AdminIntegrationTest {
 
         second.setDepartureTime(first.getArrivalTime().plusMinutes(90));
         second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        second.setArrivalAirportId(5L);
         String failingFlightNo = second.getFlightNo();
         jdbcTemplate.execute("DROP TRIGGER IF EXISTS test_fail_connecting_pair_second_insert");
         jdbcTemplate.execute("CREATE TRIGGER test_fail_connecting_pair_second_insert BEFORE INSERT ON flight FOR EACH ROW " +

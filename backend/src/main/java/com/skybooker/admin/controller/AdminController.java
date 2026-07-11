@@ -15,6 +15,7 @@ import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
@@ -22,6 +23,7 @@ import com.skybooker.admin.service.AdminOrderService;
 import com.skybooker.admin.service.AdminService;
 import com.skybooker.admin.vo.AdminOrderDetailVO;
 import com.skybooker.admin.vo.ConnectingFlightPairVO;
+import com.skybooker.admin.vo.ConnectingItineraryAdminVO;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
@@ -69,6 +71,33 @@ public class AdminController {
     public ApiResponse<ConnectingFlightPairVO> createConnectingFlights(
             @Valid @RequestBody AdminCreateConnectingFlightsDTO dto) {
         return ApiResponse.success(adminFlightService.createConnectingFlights(dto));
+    }
+
+    @GetMapping("/connecting-itineraries")
+    public ApiResponse<List<ConnectingItineraryAdminVO>> listConnectingItineraries() {
+        return ApiResponse.success(adminFlightService.listConnectingItineraries());
+    }
+
+    @PostMapping("/connecting-itineraries")
+    public ApiResponse<ConnectingItineraryAdminVO> createConnectingItinerary(
+            @Valid @RequestBody ConnectingItineraryFormDTO dto) {
+        return ApiResponse.success(adminFlightService.createConnectingItinerary(dto));
+    }
+
+    @PutMapping("/connecting-itineraries/{id}")
+    public ApiResponse<ConnectingItineraryAdminVO> updateConnectingItinerary(
+            @PathVariable Long id, @Valid @RequestBody ConnectingItineraryFormDTO dto) {
+        return ApiResponse.success(adminFlightService.updateConnectingItinerary(id, dto));
+    }
+
+    @PostMapping("/connecting-itineraries/{id}/publish")
+    public ApiResponse<ConnectingItineraryAdminVO> publishConnectingItinerary(@PathVariable Long id) {
+        return ApiResponse.success(adminFlightService.setConnectingItineraryPublished(id, true));
+    }
+
+    @PostMapping("/connecting-itineraries/{id}/unpublish")
+    public ApiResponse<ConnectingItineraryAdminVO> unpublishConnectingItinerary(@PathVariable Long id) {
+        return ApiResponse.success(adminFlightService.setConnectingItineraryPublished(id, false));
     }
 
     @PutMapping("/flights/{id}")

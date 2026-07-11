@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import * as adminApi from "@/services/adminApi"
 import type { AirlineVO, AirportVO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
+import { toConnectingPairPayload, validateConnection } from "./connectingFlightPair"
 
 const selectId = (label: string) => z.number().int().positive(`请选择${label}`)
 const segmentSchema = z.object({
@@ -49,10 +50,10 @@ const pairSchema = z.object({
   if (first.arrivalAirportId !== second.departureAirportId) {
     context.addIssue({ code: "custom", path: ["secondSegment", "departureAirportId"], message: "必须与第一航段到达机场一致" })
   }
-  const firstArrival = new Date(first.arrivalTime).getTime()
-  const secondDeparture = new Date(second.departureTime).getTime()
-  const transferMinutes = (secondDeparture - firstArrival) / 60_000
-  if (!Number.isFinite(transferMinutes) || transferMinutes < 90 || transferMinutes > 360) {
+  if (first.departureAirportId === second.arrivalAirportId) {
+    context.addIssue({ code: "custom", path: ["secondSegment", "arrivalAirportId"], message: "起终点不能形成环线" })
+  }
+  if (validateConnection(first as FlightFormDTO, second as FlightFormDTO)?.includes("中转时间")) {
     context.addIssue({ code: "custom", path: ["secondSegment", "departureTime"], message: "中转时间须为 90 分钟至 6 小时" })
   }
 })
@@ -211,17 +212,8 @@ export function ConnectingFlightPairDialog({
   const submit = async (values: PairForm) => {
     setSubmitting(true)
     setError(null)
-    const normalize = (segment: PairForm[SegmentKey]): FlightFormDTO => ({
-      ...segment,
-      departureTime: segment.departureTime.length === 16 ? `${segment.departureTime}:00` : segment.departureTime,
-      arrivalTime: segment.arrivalTime.length === 16 ? `${segment.arrivalTime}:00` : segment.arrivalTime,
-      directFlag: true,
-    })
     try {
-      await adminApi.createConnectingFlights({
-        firstSegment: normalize(values.firstSegment),
-        secondSegment: normalize(values.secondSegment),
-      })
+      await adminApi.createConnectingFlights(toConnectingPairPayload(values.firstSegment, values.secondSegment))
       onOpenChange(false)
       onCreated()
     } catch (cause) {
@@ -241,7 +233,7 @@ export function ConnectingFlightPairDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          本操作会在同一事务中创建两条独立直飞航班；中转机场必须一致，中转时间须为 90 分钟至 6 小时。创建后请分别设置两段舱位库存、生成座位并上架，系统会自动组合为联程行程。
+          本操作会在同一事务中创建两条独立直飞航班和一个草稿联程方案；中转机场必须一致，中转时间须为 90 分钟至 6 小时。创建后请分别设置两段舱位库存、生成座位并上架，最后在“联程方案视图”上架方案。
         </div>
         {error && <div className="rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</div>}
         <form onSubmit={form.handleSubmit(submit)} className="space-y-5">
@@ -254,7 +246,7 @@ export function ConnectingFlightPairDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>
             <Button type="submit" disabled={submitting || airlines.length === 0 || airports.length === 0}>
               {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              创建两条航段
+              创建两条航段与草稿方案
             </Button>
           </div>
         </form>

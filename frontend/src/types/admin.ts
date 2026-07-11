@@ -133,6 +133,22 @@ export interface ConnectingFlightPairVO {
   transferMinutes: number
 }
 
+export interface ConnectingItineraryFormDTO {
+  firstFlightId: number
+  secondFlightId: number
+}
+
+export interface ConnectingItineraryAdminVO {
+  id: number
+  firstSegment: FlightVO
+  secondSegment: FlightVO
+  publishStatus: "DRAFT" | "PUBLISHED"
+  transferMinutes: number
+  createdBy?: number
+  createdAt: string
+  updatedAt: string
+}
+
 /** 销售趋势 — 匹配后端 SalesTrendVO */
 export interface SalesTrendVO {
   period: string

@@ -3,12 +3,14 @@
 <mapper namespace="com.skybooker.itinerary.mapper.ItineraryMapper">
     <select id="findConnectingPairs" resultType="com.skybooker.itinerary.vo.ConnectingPairVO">
         SELECT f1.id AS first_flight_id, f2.id AS second_flight_id
-        FROM flight f1
+        FROM connecting_itinerary ci
+        JOIN flight f1 ON f1.id = ci.first_flight_id
         JOIN airport origin ON origin.id = f1.departure_airport_id
         JOIN airport connection ON connection.id = f1.arrival_airport_id
-        JOIN flight f2 ON f2.departure_airport_id = f1.arrival_airport_id
+        JOIN flight f2 ON f2.id = ci.second_flight_id AND f2.departure_airport_id = f1.arrival_airport_id
         JOIN airport destination ON destination.id = f2.arrival_airport_id
-        WHERE origin.city = #{departureCity}
+        WHERE ci.publish_status = 'PUBLISHED'
+          AND origin.city = #{departureCity}
           AND destination.city = #{arrivalCity}
           AND DATE(f1.departure_time) = #{departureDate}
           AND f1.departure_time &gt; NOW()
@@ -24,4 +26,36 @@
           </if>
         ORDER BY f1.departure_time, f2.arrival_time
     </select>
+
+    <resultMap id="managedMap" type="com.skybooker.itinerary.entity.ConnectingItinerary">
+        <id property="id" column="id"/>
+        <result property="firstFlightId" column="first_flight_id"/>
+        <result property="secondFlightId" column="second_flight_id"/>
+        <result property="publishStatus" column="publish_status"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findAllManaged" resultMap="managedMap">
+        SELECT * FROM connecting_itinerary ORDER BY created_at DESC, id DESC
+    </select>
+    <select id="findManagedById" resultMap="managedMap">
+        SELECT * FROM connecting_itinerary WHERE id = #{id}
+    </select>
+    <select id="findManagedPair" resultMap="managedMap">
+        SELECT * FROM connecting_itinerary
+        WHERE first_flight_id = #{firstFlightId} AND second_flight_id = #{secondFlightId}
+    </select>
+    <insert id="insertManaged" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO connecting_itinerary(first_flight_id, second_flight_id, publish_status, created_by)
+        VALUES(#{firstFlightId}, #{secondFlightId}, #{publishStatus}, #{createdBy})
+    </insert>
+    <update id="updateManagedFlights">
+        UPDATE connecting_itinerary SET first_flight_id=#{firstFlightId}, second_flight_id=#{secondFlightId}
+        WHERE id=#{id}
+    </update>
+    <update id="updateManagedStatus">
+        UPDATE connecting_itinerary SET publish_status=#{publishStatus} WHERE id=#{id}
+    </update>
 </mapper>

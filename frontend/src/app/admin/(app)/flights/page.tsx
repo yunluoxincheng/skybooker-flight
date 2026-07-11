@@ -52,6 +52,7 @@ import {
 import type { AirlineVO, AirportVO, FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
 import { ConnectingFlightPairDialog } from "./_components/ConnectingFlightPairDialog"
+import { ConnectingItineraryManagerDialog } from "./_components/ConnectingItineraryManagerDialog"
 
 const selectNumberField = (label: string) =>
   z.preprocess(
@@ -135,6 +136,7 @@ export default function AdminFlightsPage() {
   const [editingFlight, setEditingFlight] = useState<FlightVO | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pairDialogOpen, setPairDialogOpen] = useState(false)
+  const [itineraryDialogOpen, setItineraryDialogOpen] = useState(false)
 
   // 舱位库存 Dialog
   const [cabinDialogOpen, setCabinDialogOpen] = useState(false)
@@ -397,6 +399,9 @@ export default function AdminFlightsPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">航班管理</h1>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setItineraryDialogOpen(true)} className="gap-1.5">
+            <Route className="h-4 w-4" /> 联程方案视图
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setPairDialogOpen(true)} className="gap-1.5">
             <Route className="h-4 w-4" /> 快速创建联程航段
           </Button>
@@ -540,6 +545,7 @@ export default function AdminFlightsPage() {
                     <TableCell>{f.remainingSeats}/{f.totalSeats}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
+                        {!f.directFlag && <Badge variant="outline" className="border-amber-300 text-amber-700">旧经停数据 · 不参与联程</Badge>}
                         <FlightStatusBadge status={f.status} />
                         {f.publishStatus === "PUBLISHED" ? (
                           <Badge variant="secondary" className="text-xs">已上架</Badge>
@@ -737,6 +743,8 @@ export default function AdminFlightsPage() {
           fetchFlights()
         }}
       />
+
+      <ConnectingItineraryManagerDialog open={itineraryDialogOpen} onOpenChange={setItineraryDialogOpen} />
 
       {/* 舱位库存 Dialog */}
       <Dialog open={cabinDialogOpen} onOpenChange={setCabinDialogOpen}>
