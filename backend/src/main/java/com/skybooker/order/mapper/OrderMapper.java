@@ -59,6 +59,7 @@ public interface OrderMapper {
 
     void updateOrderFlightAndAmounts(@Param("id") Long id,
                                      @Param("flightId") Long flightId,
+                                     @Param("journeyType") String journeyType,
                                      @Param("ticketAmount") java.math.BigDecimal ticketAmount,
                                      @Param("airportFee") java.math.BigDecimal airportFee,
                                      @Param("fuelFee") java.math.BigDecimal fuelFee,

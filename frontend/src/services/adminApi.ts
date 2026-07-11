@@ -35,11 +35,14 @@ import type {
   ChangeOrderResultVO,
   ChangeRecordVO,
   CreateAdminOrderDTO,
+  CreateAdminConnectingOrderDTO,
+  ConnectingChangeDTO,
   OrderVO,
   RefundRecordVO,
   RefundVO,
 } from "@/types/order"
 import type { PageData } from "@/types/api"
+import type { FlightSearchParams, ItineraryVO } from "@/types/flight"
 
 // ---- Auth ----
 
@@ -165,6 +168,14 @@ export function createAdminOrder(data: CreateAdminOrderDTO) {
   return post<OrderVO>("/admin/orders", data, { auth: "admin" })
 }
 
+export function searchAdminItineraries(params: FlightSearchParams) {
+  return get<PageData<ItineraryVO>>("/itineraries/search", params as Record<string, string | number | boolean | undefined>, { auth: "admin" })
+}
+
+export function createAdminConnectingOrder(data: CreateAdminConnectingOrderDTO) {
+  return post<OrderVO>("/admin/orders/connecting", data, { auth: "admin" })
+}
+
 export function refundAdminOrder(id: number, data: AdminRefundDTO) {
   return post<RefundVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
@@ -179,6 +190,14 @@ export function getAdminChangeOptions(id: number) {
 
 export function changeAdminOrder(id: number, data: AdminChangeDTO) {
   return post<ChangeOrderResultVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
+}
+
+export function getAdminConnectingChangeOptions(id: number, startDate?: string, endDate?: string) {
+  return get<ItineraryVO[]>(`/admin/orders/${id}/connecting-change-options`, { startDate, endDate }, { auth: "admin" })
+}
+
+export function changeAdminConnectingOrder(id: number, data: ConnectingChangeDTO) {
+  return post<OrderVO>(`/admin/orders/${id}/connecting-change`, data, { auth: "admin" })
 }
 
 export function voidAdminOrder(id: number, data: AdminVoidDTO) {

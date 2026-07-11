@@ -147,6 +147,12 @@ export interface CreateAdminOrderDTO {
   items: OrderItemDTO[]
 }
 
+export interface CreateAdminConnectingOrderDTO {
+  userId: number
+  clientRequestId: string
+  segments: { flightId: number; items: OrderItemDTO[] }[]
+}
+
 export interface AdminRefundDTO {
   reason: string
   force?: boolean

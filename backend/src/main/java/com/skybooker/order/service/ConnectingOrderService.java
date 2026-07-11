@@ -40,7 +40,11 @@ public class ConnectingOrderService {
 
     @Transactional
     public OrderVO create(CreateConnectingOrderDTO dto) {
-        Long userId = SecurityUtil.getCurrentUserId();
+        return createForUser(SecurityUtil.getCurrentUserId(), dto);
+    }
+
+    @Transactional
+    public OrderVO createForUser(Long userId, CreateConnectingOrderDTO dto) {
         String requestId = dto.getClientRequestId().toString();
         orderMapper.lockUserForIdempotency(userId);
         TicketOrder existing = orderMapper.findByUserAndClientRequestId(userId, requestId);

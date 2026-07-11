@@ -2,6 +2,9 @@ package com.skybooker.change.service;
 
 import com.skybooker.change.dto.ConnectingChangeDTO;
 import com.skybooker.change.entity.ConnectingChangeRecord;
+import com.skybooker.change.entity.ConnectingChangeSegmentSnapshot;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skybooker.change.mapper.ConnectingChangeMapper;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
@@ -27,6 +30,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -34,19 +38,34 @@ import java.util.*;
 public class ConnectingChangeService {
     private final OrderMapper orderMapper; private final FlightMapper flightMapper; private final ItineraryService itineraryService;
     private final ConnectingChangeMapper changeMapper; private final OrderService orderService; private final Clock businessClock;
+    private final ObjectMapper objectMapper;
 
     public List<ItineraryVO> options(Long orderId) {
-        return optionsCore(orderId, SecurityUtil.getCurrentUserId());
+        return optionsCore(orderId, SecurityUtil.getCurrentUserId(), null, null);
     }
-    public List<ItineraryVO> optionsForAdmin(Long orderId) { return optionsCore(orderId, null); }
-    private List<ItineraryVO> optionsCore(Long orderId, Long userId) {
-        TicketOrder order = owned(orderId, userId); requireConnecting(order);
-        var current = orderMapper.findSegmentsByOrderId(orderId); ensureChangeWindow(current.getFirst().getDepartureTime(), false);
+    public List<ItineraryVO> options(Long orderId, LocalDate startDate, LocalDate endDate) {
+        return optionsCore(orderId, SecurityUtil.getCurrentUserId(), startDate, endDate);
+    }
+    public List<ItineraryVO> optionsForAdmin(Long orderId, LocalDate startDate, LocalDate endDate) {
+        return optionsCore(orderId, null, startDate, endDate);
+    }
+    private List<ItineraryVO> optionsCore(Long orderId, Long userId, LocalDate requestedStart, LocalDate requestedEnd) {
+        TicketOrder order = owned(orderId, userId);
+        var current = orderMapper.findSegmentsByOrderId(orderId); requireItineraryManaged(current);
+        ensureChangeWindow(current.getFirst().getDepartureTime(), false);
+        LocalDate originalDate = current.getFirst().getDepartureTime().toLocalDate();
+        LocalDate startDate = requestedStart == null ? originalDate : requestedStart;
+        LocalDate endDate = requestedEnd == null ? startDate.plusDays(30) : requestedEnd;
+        if (startDate.isBefore(originalDate) || endDate.isBefore(startDate) || endDate.isAfter(startDate.plusDays(30))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
         FlightSearchDTO q = new FlightSearchDTO(); q.setDepartureCity(current.getFirst().getDepartureCity()); q.setArrivalCity(current.getLast().getArrivalCity());
-        q.setDepartureDate(current.getFirst().getDepartureTime().toLocalDate()); q.setPassengerCount(orderMapper.findSegmentPassengers(current.getFirst().getId()).size()); q.setSize(100);
-        List<ItineraryVO> candidates = new ArrayList<>(itineraryService.search(q).getRecords());
-        q.setDepartureDate(q.getDepartureDate().plusDays(1));
-        candidates.addAll(itineraryService.search(q).getRecords());
+        q.setPassengerCount(orderMapper.findSegmentPassengers(current.getFirst().getId()).size()); q.setSize(100);
+        List<ItineraryVO> candidates = new ArrayList<>();
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            q.setDepartureDate(date);
+            candidates.addAll(itineraryService.search(q).getRecords());
+        }
         return candidates.stream().filter(i -> i.getSegments().getFirst().getDepartureTime()
                 .isAfter(current.getFirst().getDepartureTime().plusHours(2))).toList();
     }
@@ -61,14 +80,16 @@ public class ConnectingChangeService {
     private OrderVO changeCore(Long orderId, Long userId, ConnectingChangeDTO dto) {
         TicketOrder order = orderMapper.findByIdForUpdate(orderId);
         if (order == null || (userId != null && !userId.equals(order.getUserId()))) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        requireConnecting(order);
+        var oldSegments = orderMapper.findSegmentsByOrderId(orderId);
+        requireItineraryManaged(oldSegments);
         ConnectingChangeRecord duplicate = changeMapper.findByUserAndRequest(order.getUserId(), dto.getClientRequestId().toString());
         if (duplicate != null) {
-            if (!orderId.equals(duplicate.getOrderId())) throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            if (!orderId.equals(duplicate.getOrderId()) || !matchesNewSnapshot(duplicate.getId(), dto))
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
             return orderService.getOrderDetailForUser(orderId, order.getUserId());
         }
         if (!(TicketOrder.STATUS_ISSUED.equals(order.getStatus()) || TicketOrder.STATUS_CHANGED.equals(order.getStatus()))) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
-        var oldSegments = orderMapper.findSegmentsByOrderId(orderId); ensureChangeWindow(oldSegments.getFirst().getDepartureTime(), Boolean.TRUE.equals(dto.getForce()));
+        ensureChangeWindow(oldSegments.getFirst().getDepartureTime(), Boolean.TRUE.equals(dto.getForce()));
         Set<Long> passengers = orderMapper.findSegmentPassengers(oldSegments.getFirst().getId()).stream().map(OrderSegmentPassenger::getPassengerId).collect(java.util.stream.Collectors.toSet());
         for (var segment : dto.getSegments()) if (!passengers.equals(segment.getItems().stream().map(i -> i.getPassengerId()).collect(java.util.stream.Collectors.toSet()))) throw new BusinessException(ErrorCode.INCOMPLETE_SEGMENT_SEATS);
         List<FlightVO> flights = dto.getSegments().stream().map(s -> flightMapper.findPublishedFlightById(s.getFlightId())).toList(); itineraryService.validate(flights, passengers.size());
@@ -96,11 +117,35 @@ public class ConnectingChangeService {
         for(int i=0;i<flights.size();i++){ TicketOrderSegment seg=snapshot(orderId,i+1,flights.get(i),newSeats.get(i)); orderMapper.insertOrderSegment(seg); List<OrderSegmentPassenger> ps=new ArrayList<>(); for(int j=0;j<dto.getSegments().get(i).getItems().size();j++){var item=dto.getSegments().get(i).getItems().get(j); var old=orderMapper.findPassengersByOrderId(orderId).stream().filter(p->p.getPassengerId().equals(item.getPassengerId())).findFirst().orElseThrow(); var seat=newSeats.get(i).get(j); OrderSegmentPassenger p=new OrderSegmentPassenger();p.setOrderSegmentId(seg.getId());p.setPassengerId(old.getPassengerId());p.setPassengerName(old.getPassengerName());p.setPassengerType(old.getPassengerType());p.setSeatId(seat.getId());p.setSeatNo(seat.getSeatNo());p.setTicketPrice(seat.getPrice());ps.add(p);}orderMapper.batchInsertSegmentPassengers(ps); if(i==0)for(var p:ps){var legacy=orderMapper.findPassengersByOrderId(orderId).stream().filter(x->x.getPassengerId().equals(p.getPassengerId())).findFirst().orElseThrow();orderMapper.updateOrderPassengerSeat(legacy.getId(),p.getSeatId(),p.getSeatNo(),p.getTicketPrice());}}
         changeMapper.insertSnapshotsFromOrder(rec.getId(), "NEW", orderId);
         int sold=flightMapper.updateSeatStatusToSold(orderId); if(sold!=newSeats.stream().mapToInt(List::size).sum()) throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        orderMapper.updateOrderFlightAndAmounts(orderId,flights.getFirst().getId(),ticket,airport,fuel,BigDecimal.ZERO,total); if(orderMapper.updateOrderStatusCAS(orderId,order.getStatus(),TicketOrder.STATUS_CHANGED)!=1) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        orderMapper.updateOrderFlightAndAmounts(orderId,flights.getFirst().getId(),
+                flights.size() == 1 ? "DIRECT" : "CONNECTING",ticket,airport,fuel,BigDecimal.ZERO,total); if(orderMapper.updateOrderStatusCAS(orderId,order.getStatus(),TicketOrder.STATUS_CHANGED)!=1) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         return orderService.getOrderDetailForUser(orderId,order.getUserId());
     }
     private TicketOrder owned(Long id,Long user){TicketOrder o=orderMapper.findById(id);if(o==null||(user!=null&&!user.equals(o.getUserId())))throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);return o;}
-    private void requireConnecting(TicketOrder o){if(!"CONNECTING".equals(o.getJourneyType()))throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);}
+    private void requireItineraryManaged(List<TicketOrderSegment> segments){if(segments.isEmpty())throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);}
+    private boolean matchesNewSnapshot(Long changeRecordId, ConnectingChangeDTO dto) {
+        List<ConnectingChangeSegmentSnapshot> stored = changeMapper.findSegmentSnapshots(changeRecordId, "NEW");
+        if (stored.size() != dto.getSegments().size()) return false;
+        try {
+            for (int i = 0; i < stored.size(); i++) {
+                var requested = dto.getSegments().get(i);
+                if (!Objects.equals(stored.get(i).getFlightId(), requested.getFlightId())) return false;
+                Map<Long, Long> expected = new HashMap<>();
+                for (var item : requested.getItems()) {
+                    if (expected.put(item.getPassengerId(), item.getSeatId()) != null) return false;
+                }
+                Map<Long, Long> actual = new HashMap<>();
+                JsonNode seats = objectMapper.readTree(stored.get(i).getPassengerSeats());
+                for (JsonNode seat : seats) {
+                    if (actual.put(seat.get("passengerId").asLong(), seat.get("seatId").asLong()) != null) return false;
+                }
+                if (!expected.equals(actual)) return false;
+            }
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
     private void ensureChangeWindow(LocalDateTime departure,boolean force){if(!force&&Duration.between(LocalDateTime.now(businessClock),departure).compareTo(Duration.ofHours(2))<0)throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);}
     private TicketOrderSegment snapshot(Long oid,int no,FlightVO f,List<FlightSeat> seats){TicketOrderSegment s=new TicketOrderSegment();s.setOrderId(oid);s.setSegmentNo(no);s.setFlightId(f.getId());s.setFlightNo(f.getFlightNo());s.setAirlineCode(f.getAirlineCode());s.setAirlineName(f.getAirlineName());s.setDepartureAirportCode(f.getDepartureAirportCode());s.setDepartureAirportName(f.getDepartureAirportName());s.setDepartureCity(f.getDepartureCity());s.setArrivalAirportCode(f.getArrivalAirportCode());s.setArrivalAirportName(f.getArrivalAirportName());s.setArrivalCity(f.getArrivalCity());s.setDepartureTime(f.getDepartureTime());s.setArrivalTime(f.getArrivalTime());s.setTicketAmount(seats.stream().map(FlightSeat::getPrice).reduce(BigDecimal.ZERO,BigDecimal::add));return s;}
 }

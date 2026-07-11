@@ -27,13 +27,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
     @Autowired MockMvc mvc; @Autowired ObjectMapper json; @Autowired JdbcTemplate jdbc; @Autowired Clock clock;
-    String token;
+    String token; String adminToken;
 
     @BeforeEach void login() throws Exception {
         var result=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"user1@example.com\",\"password\":\"User@123456\"}"))
                 .andExpect(status().isOk()).andReturn();
         token=json.readTree(result.getResponse().getContentAsString()).path("data").path("accessToken").asText();
+        var admin=mvc.perform(post("/api/admin/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"admin\",\"password\":\"SkyBooker@Init2026!\"}"))
+                .andExpect(status().isOk()).andReturn();
+        adminToken=json.readTree(admin.getResponse().getContentAsString()).path("data").path("accessToken").asText();
     }
 
     @AfterEach void cleanupFeatureData() {
@@ -133,6 +137,28 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM refund_record WHERE order_id=?",Integer.class,orderId));
     }
 
+    @Test void connectingRefundFulfillsOrdinaryWaitlistOnReleasedSecondLeg() throws Exception {
+        Pair pair=createPair(120); long orderId=createOrder(pair);
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        KeyHolder key=new GeneratedKeyHolder();
+        jdbc.update(connection -> { PreparedStatement statement=connection.prepareStatement(
+                "INSERT INTO waitlist_order(waitlist_no,user_id,flight_id,passenger_count,cabin_class,pay_amount,status,paid_at) VALUES(?,2,?,1,'ECONOMY',580,'WAITING',NOW())",
+                Statement.RETURN_GENERATED_KEYS); statement.setString(1,"CNXWL"+System.nanoTime()); statement.setLong(2,pair.secondFlight); return statement; },key);
+        long waitlistId=key.getKey().longValue();
+        jdbc.update("INSERT INTO waitlist_passenger(waitlist_id,passenger_id,passenger_name,passenger_type) SELECT ?,id,name,passenger_type FROM passenger WHERE id=1",waitlistId);
+        mvc.perform(post("/api/orders/"+orderId+"/refund").header("Authorization","Bearer "+token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"联程释放候补测试\"}"))
+                .andExpect(status().isOk());
+        assertEquals("SUCCESS",jdbc.queryForObject("SELECT status FROM waitlist_order WHERE id=?",String.class,waitlistId));
+        Long fulfilledOrder=jdbc.queryForObject("SELECT ticket_order_id FROM waitlist_order WHERE id=?",Long.class,waitlistId);
+        jdbc.update("UPDATE waitlist_order SET ticket_order_id=NULL WHERE id=?",waitlistId);
+        jdbc.update("DELETE FROM waitlist_passenger WHERE waitlist_id=?",waitlistId);
+        jdbc.update("DELETE FROM waitlist_order WHERE id=?",waitlistId);
+        jdbc.update("DELETE FROM order_passenger WHERE order_id=?",fulfilledOrder);
+        jdbc.update("UPDATE flight_seat SET status='AVAILABLE',locked_by_order_id=NULL,lock_expire_time=NULL WHERE locked_by_order_id=?",fulfilledOrder);
+        jdbc.update("DELETE FROM ticket_order WHERE id=?",fulfilledOrder);
+    }
+
     @Test void wholeItineraryChangeToDirectProtectsNewSeatAndAuditsSnapshots() throws Exception {
         Pair pair=createPair(120); long orderId=createOrder(pair);
         mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
@@ -143,9 +169,98 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(post("/api/orders/"+orderId+"/connecting-change").header("Authorization","Bearer "+token)
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CHANGED")).andExpect(jsonPath("$.data.segments",hasSize(1)));
+        assertEquals("DIRECT",jdbc.queryForObject("SELECT journey_type FROM ticket_order WHERE id=?",String.class,orderId));
         assertEquals("SOLD",jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,replacementSeat));
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM flight_seat WHERE id IN (?,?) AND status='AVAILABLE'",Integer.class,pair.firstSeat,pair.secondSeat));
         assertEquals(3,jdbc.queryForObject("SELECT COUNT(*) FROM connecting_change_segment cs JOIN connecting_change_record cr ON cr.id=cs.change_record_id WHERE cr.order_id=?",Integer.class,orderId));
+        long secondReplacement=flight("DIR"+System.nanoTime(),3,5,pair.departure.plusHours(8),pair.departure.plusHours(11));
+        long secondSeat=seat(secondReplacement);
+        String secondBody=json.writeValueAsString(java.util.Map.of("clientRequestId",UUID.randomUUID().toString(),"reason","直飞后再次整段改签",
+                "segments",java.util.List.of(java.util.Map.of("flightId",secondReplacement,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",secondSeat))))));
+        mvc.perform(post("/api/orders/"+orderId+"/connecting-change").header("Authorization","Bearer "+token)
+                        .contentType(MediaType.APPLICATION_JSON).content(secondBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.journeyType").value("DIRECT"))
+                .andExpect(jsonPath("$.data.segments",hasSize(1)));
+        assertEquals("AVAILABLE",jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,replacementSeat));
+        assertEquals("SOLD",jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,secondSeat));
+    }
+
+    @Test void adminCanCreateConnectingOrderAndOperationIsAudited() throws Exception {
+        Pair pair=createPair(120); UUID request=UUID.randomUUID();
+        JsonNode payload=json.readTree(connectingRequest(pair,request));
+        ((com.fasterxml.jackson.databind.node.ObjectNode)payload).put("userId",2);
+        var result=mvc.perform(post("/api/admin/orders/connecting").header("Authorization","Bearer "+adminToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(payload)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.journeyType").value("CONNECTING"))
+                .andExpect(jsonPath("$.data.segments",hasSize(2))).andReturn();
+        long orderId=json.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM admin_operation_log WHERE target_type='ORDER' AND target_id=? AND action='ORDER_CREATE'",Integer.class,orderId));
+        String secondFlightNo=jdbc.queryForObject("SELECT flight_no FROM flight WHERE id=?",String.class,pair.secondFlight);
+        mvc.perform(get("/api/admin/orders").header("Authorization","Bearer "+adminToken).param("flightNo",secondFlightNo))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[?(@.id == "+orderId+")]").isNotEmpty());
+        mvc.perform(get("/api/admin/orders").header("Authorization","Bearer "+adminToken).param("flightKeyword","广州"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == "+orderId+")]").isNotEmpty());
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        String today=LocalDateTime.now(clock).toLocalDate().toString();
+        mvc.perform(get("/api/admin/reports/route-performance").header("Authorization","Bearer "+adminToken)
+                        .param("startDate",today).param("endDate",today).param("departureCity","北京").param("arrivalCity","广州"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[?(@.routeLabel == '北京 - 广州')]").isNotEmpty());
+        String departureDay=pair.departure.toLocalDate().toString();
+        mvc.perform(get("/api/admin/reports/flight-load-factor").header("Authorization","Bearer "+adminToken)
+                        .param("startDate",departureDay).param("endDate",departureDay).param("limit","50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.flightId == "+pair.secondFlight+" && @.soldPassengerCount == 1)]").isNotEmpty());
+        mvc.perform(get("/api/admin/dashboard/hot-routes").header("Authorization","Bearer "+adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[?(@.routeLabel == '北京 - 广州')]").isNotEmpty());
+        mvc.perform(post("/api/admin/orders/connecting").header("Authorization","Bearer "+token)
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(payload)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void connectingChangeRejectsSameRequestIdWithDifferentReplacement() throws Exception {
+        Pair pair=createPair(120); long orderId=createOrder(pair);
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        long first=flight("DIR"+System.nanoTime(),3,5,pair.departure.plusHours(4),pair.departure.plusHours(7));
+        long firstSeat=seat(first); UUID request=UUID.randomUUID();
+        String original=json.writeValueAsString(java.util.Map.of("clientRequestId",request.toString(),"reason","首次改签",
+                "segments",java.util.List.of(java.util.Map.of("flightId",first,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",firstSeat))))));
+        response(post("/api/orders/"+orderId+"/connecting-change"),original);
+        response(post("/api/orders/"+orderId+"/connecting-change"),original);
+        long other=flight("DIR"+System.nanoTime(),3,5,pair.departure.plusDays(1),pair.departure.plusDays(1).plusHours(3));
+        long otherSeat=seat(other);
+        String conflict=json.writeValueAsString(java.util.Map.of("clientRequestId",request.toString(),"reason","冲突重试",
+                "segments",java.util.List.of(java.util.Map.of("flightId",other,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",otherSeat))))));
+        mvc.perform(post("/api/orders/"+orderId+"/connecting-change").header("Authorization","Bearer "+token)
+                        .contentType(MediaType.APPLICATION_JSON).content(conflict))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(30007));
+    }
+
+    @Test void adminConnectingChangeUsesAuditChainAndForceAction() throws Exception {
+        Pair pair=createPair(120); long orderId=createOrder(pair);
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        long replacement=flight("DIR"+System.nanoTime(),3,5,pair.departure.plusHours(4),pair.departure.plusHours(7));
+        long replacementSeat=seat(replacement);
+        String body=json.writeValueAsString(java.util.Map.of("clientRequestId",UUID.randomUUID().toString(),"reason","管理员保障改签","force",true,
+                "segments",java.util.List.of(java.util.Map.of("flightId",replacement,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",replacementSeat))))));
+        mvc.perform(post("/api/admin/orders/"+orderId+"/connecting-change").header("Authorization","Bearer "+adminToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.journeyType").value("DIRECT"));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM admin_operation_log WHERE target_type='ORDER' AND target_id=? AND action='CHANGE_FORCE' AND reason='管理员保障改签'",Integer.class,orderId));
+        mvc.perform(get("/api/admin/orders/"+orderId+"/detail").header("Authorization","Bearer "+adminToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.timeline[?(@.eventType == 'CONNECTING_CHANGED')]").isNotEmpty());
+    }
+
+    @Test void connectingChangeOptionsSupportExplicitFutureWindow() throws Exception {
+        Pair pair=createPair(120); long orderId=createOrder(pair);
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        LocalDateTime later=pair.departure.plusDays(4);
+        long replacement=flight("DIR"+System.nanoTime(),3,5,later,later.plusHours(3));
+        mvc.perform(get("/api/orders/"+orderId+"/connecting-change-options").header("Authorization","Bearer "+token)
+                        .param("startDate",pair.departure.toLocalDate().toString())
+                        .param("endDate",pair.departure.toLocalDate().plusDays(5).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.segments[0].id == "+replacement+")]").isNotEmpty());
     }
 
     private JsonNode response(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,String body)throws Exception{return json.readTree(mvc.perform(request.header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());}

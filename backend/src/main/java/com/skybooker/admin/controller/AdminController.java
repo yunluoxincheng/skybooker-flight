@@ -3,6 +3,7 @@ package com.skybooker.admin.controller;
 import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingOrderDTO;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminDeleteOrderDTO;
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
@@ -26,7 +27,6 @@ import com.skybooker.admin.vo.UserAdminVO;
 import com.skybooker.admin.vo.UserDeleteCheckVO;
 import com.skybooker.change.entity.ChangeRecord;
 import com.skybooker.change.vo.ChangeOrderResultVO;
-import com.skybooker.change.service.ConnectingChangeService;
 import com.skybooker.change.vo.ChangeOptionVO;
 import com.skybooker.common.response.ApiResponse;
 import com.skybooker.common.response.PageResponse;
@@ -52,7 +52,6 @@ public class AdminController {
     private final AdminService adminService;
     private final AdminDashboardService adminDashboardService;
     private final AdminOrderService adminOrderService;
-    private final ConnectingChangeService connectingChangeService;
 
     @GetMapping("/flights")
     public ApiResponse<PageResponse<FlightVO>> listFlights(AdminFlightQueryDTO query) {
@@ -124,6 +123,11 @@ public class AdminController {
         return ApiResponse.success(adminOrderService.createOrderForUser(dto));
     }
 
+    @PostMapping("/orders/connecting")
+    public ApiResponse<OrderVO> createConnectingOrderForUser(@Valid @RequestBody AdminCreateConnectingOrderDTO dto) {
+        return ApiResponse.success(adminOrderService.createConnectingOrderForUser(dto));
+    }
+
     @PostMapping("/orders/{id}/refund")
     public ApiResponse<RefundVO> refundOrder(@PathVariable Long id, @Valid @RequestBody AdminRefundDTO dto) {
         return ApiResponse.success(adminOrderService.refund(id, dto));
@@ -141,13 +145,16 @@ public class AdminController {
     }
 
     @GetMapping("/orders/{id}/connecting-change-options")
-    public ApiResponse<List<com.skybooker.itinerary.vo.ItineraryVO>> connectingChangeOptions(@PathVariable Long id) {
-        return ApiResponse.success(connectingChangeService.optionsForAdmin(id));
+    public ApiResponse<List<com.skybooker.itinerary.vo.ItineraryVO>> connectingChangeOptions(
+            @PathVariable Long id,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate startDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate endDate) {
+        return ApiResponse.success(adminOrderService.listConnectingChangeOptions(id, startDate, endDate));
     }
 
     @PostMapping("/orders/{id}/connecting-change")
     public ApiResponse<OrderVO> connectingChange(@PathVariable Long id, @Valid @RequestBody com.skybooker.change.dto.ConnectingChangeDTO dto) {
-        return ApiResponse.success(connectingChangeService.changeForAdmin(id, dto));
+        return ApiResponse.success(adminOrderService.changeConnecting(id, dto));
     }
 
     @PostMapping("/orders/{id}/void")

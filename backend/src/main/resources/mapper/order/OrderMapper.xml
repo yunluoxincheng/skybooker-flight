@@ -219,7 +219,9 @@
                   OR u.phone LIKE CONCAT('%', #{query.userKeyword}, '%'))
             </if>
             <if test="query.flightNo != null and query.flightNo != ''">
-                AND f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
+                AND (f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
+                  OR EXISTS (SELECT 1 FROM ticket_order_segment os
+                             WHERE os.order_id = o.id AND os.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')))
             </if>
             <if test="query.flightKeyword != null and query.flightKeyword != ''">
                 AND (f.flight_no LIKE CONCAT('%', #{query.flightKeyword}, '%')
@@ -227,22 +229,37 @@
                   OR da.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
                   OR da.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
                   OR aa.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
-                  OR aa.name LIKE CONCAT('%', #{query.flightKeyword}, '%'))
+                  OR aa.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR EXISTS (SELECT 1 FROM ticket_order_segment os
+                             WHERE os.order_id = o.id AND (os.flight_no LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.airline_name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.departure_city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.departure_airport_name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.arrival_city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.arrival_airport_name LIKE CONCAT('%', #{query.flightKeyword}, '%'))))
             </if>
             <if test="query.departureDateStart != null and query.departureDateStart != ''">
-                AND f.departure_time &gt;= #{query.departureDateStart}
+                AND COALESCE((SELECT os.departure_time FROM ticket_order_segment os
+                              WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time)
+                    &gt;= #{query.departureDateStart}
             </if>
             <if test="query.departureDateEnd != null and query.departureDateEnd != ''">
-                AND f.departure_time &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
+                AND COALESCE((SELECT os.departure_time FROM ticket_order_segment os
+                              WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time)
+                    &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
             </if>
         </where>
     </sql>
 
     <select id="searchOrdersAdmin" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, o.journey_type, f.flight_no,
+        SELECT o.id, o.order_no, o.flight_id, o.journey_type,
+               COALESCE((SELECT GROUP_CONCAT(os.flight_no ORDER BY os.segment_no SEPARATOR ' / ')
+                         FROM ticket_order_segment os WHERE os.order_id=o.id), f.flight_no) AS flight_no,
                al.name AS airline_name,
-               da.city AS departure_city, aa.city AS arrival_city,
-               f.departure_time, f.arrival_time,
+               COALESCE((SELECT os.departure_city FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), da.city) AS departure_city,
+               COALESCE((SELECT os.arrival_city FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no DESC LIMIT 1), aa.city) AS arrival_city,
+               COALESCE((SELECT os.departure_time FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time) AS departure_time,
+               COALESCE((SELECT os.arrival_time FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no DESC LIMIT 1), f.arrival_time) AS arrival_time,
                o.user_id, u.email AS user_email, u.nickname AS user_nickname,
                o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
@@ -272,6 +289,7 @@
     <update id="updateOrderFlightAndAmounts">
         UPDATE ticket_order
         SET flight_id = #{flightId},
+            journey_type = #{journeyType},
             ticket_amount = #{ticketAmount},
             airport_fee = #{airportFee},
             fuel_fee = #{fuelFee},

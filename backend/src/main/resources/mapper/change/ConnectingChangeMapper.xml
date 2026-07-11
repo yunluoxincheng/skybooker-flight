@@ -6,15 +6,15 @@
     VALUES(#{orderId},#{userId},#{clientRequestId},#{oldTotalAmount},#{newTotalAmount},#{priceDifference},#{changeFee},#{reason},#{status})
   </insert>
   <select id="findByOrderAndRequest" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
-    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
     FROM connecting_change_record WHERE order_id=#{orderId} AND client_request_id=#{clientRequestId}
   </select>
   <select id="findByUserAndRequest" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
-    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
     FROM connecting_change_record WHERE user_id=#{userId} AND client_request_id=#{clientRequestId}
   </select>
   <select id="findByOrderId" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
-    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
     FROM connecting_change_record WHERE order_id=#{orderId} ORDER BY id
   </select>
   <insert id="insertSnapshotsFromOrder">
@@ -28,4 +28,10 @@
     WHERE s.order_id=#{orderId}
     GROUP BY s.id,s.segment_no,s.flight_id,s.flight_no,s.departure_airport_code,s.arrival_airport_code,s.departure_time,s.arrival_time
   </insert>
+  <select id="findSegmentSnapshots" resultType="com.skybooker.change.entity.ConnectingChangeSegmentSnapshot">
+    SELECT segment_no, flight_id, CAST(passenger_seats AS CHAR) AS passenger_seats
+    FROM connecting_change_segment
+    WHERE change_record_id=#{changeRecordId} AND snapshot_type=#{snapshotType}
+    ORDER BY segment_no
+  </select>
 </mapper>

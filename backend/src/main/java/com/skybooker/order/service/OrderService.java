@@ -187,8 +187,9 @@ public class OrderService {
         }
         int passengerCount = expectedSeatCount(order);
         int released = flightMapper.releaseSeatsByOrderId(orderId);
-        if (released == passengerCount && "CONNECTING".equals(order.getJourneyType())) {
-            orderMapper.findSegmentsByOrderId(orderId).forEach(s -> flightMapper.incrementRemainingSeats(
+        var managedSegments = orderMapper.findSegmentsByOrderId(orderId);
+        if (released == passengerCount && !managedSegments.isEmpty()) {
+            managedSegments.forEach(s -> flightMapper.incrementRemainingSeats(
                     s.getFlightId(), orderMapper.findSegmentPassengers(s.getId()).size()));
         } else if (released == passengerCount) {
             flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
@@ -281,16 +282,19 @@ public class OrderService {
     }
 
     private int expectedSeatCount(TicketOrder order) {
-        if ("CONNECTING".equals(order.getJourneyType())) {
-            return orderMapper.findSegmentsByOrderId(order.getId()).stream()
+        var segments = orderMapper.findSegmentsByOrderId(order.getId());
+        if (!segments.isEmpty()) {
+            return segments.stream()
                     .mapToInt(s -> orderMapper.findSegmentPassengers(s.getId()).size()).sum();
         }
         return countOrderPassengers(order.getId());
     }
 
     private void hydrateSegments(OrderVO order) {
-        if (order == null || !"CONNECTING".equals(order.getJourneyType())) return;
-        order.setSegments(orderMapper.findSegmentsByOrderId(order.getId()).stream().map(s -> new OrderVO.OrderSegmentVO(
+        if (order == null) return;
+        var segments = orderMapper.findSegmentsByOrderId(order.getId());
+        if (segments.isEmpty()) return;
+        order.setSegments(segments.stream().map(s -> new OrderVO.OrderSegmentVO(
                 s.getId(), s.getSegmentNo(), s.getFlightId(), s.getFlightNo(), s.getAirlineCode(), s.getAirlineName(),
                 s.getDepartureAirportCode(), s.getDepartureAirportName(), s.getDepartureCity(), s.getArrivalAirportCode(),
                 s.getArrivalAirportName(), s.getArrivalCity(), s.getDepartureTime(), s.getArrivalTime(), s.getTicketAmount(),

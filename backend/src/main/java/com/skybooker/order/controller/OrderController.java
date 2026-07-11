@@ -34,7 +34,12 @@ public class OrderController {
     }
 
     @GetMapping("/{id}/connecting-change-options")
-    public ApiResponse<List<ItineraryVO>> connectingChangeOptions(@PathVariable Long id) { return ApiResponse.success(connectingChangeService.options(id)); }
+    public ApiResponse<List<ItineraryVO>> connectingChangeOptions(
+            @PathVariable Long id,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate startDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate endDate) {
+        return ApiResponse.success(connectingChangeService.options(id, startDate, endDate));
+    }
 
     @PostMapping("/{id}/connecting-change")
     public ApiResponse<OrderVO> connectingChange(@PathVariable Long id, @Valid @RequestBody ConnectingChangeDTO dto) { return ApiResponse.success(connectingChangeService.change(id, dto)); }

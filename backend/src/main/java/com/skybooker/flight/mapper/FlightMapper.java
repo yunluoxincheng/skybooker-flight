@@ -166,6 +166,9 @@ public interface FlightMapper {
 
     List<String> findCabinClassesBySeatIds(@Param("seatIds") List<Long> seatIds);
 
+    int countSeatsByIdsAndCabin(@Param("seatIds") List<Long> seatIds,
+                                @Param("cabinClass") String cabinClass);
+
     Long findAirlineIdByCodeOrName(@Param("code") String code, @Param("name") String name);
 
     int releaseSoldSeatsBySeatIds(@Param("seatIds") List<Long> seatIds);

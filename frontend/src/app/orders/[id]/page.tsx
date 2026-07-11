@@ -193,9 +193,9 @@ export default function OrderDetailPage() {
                     size="sm"
                     variant="outline"
                     disabled={!canChangeEnabled}
-                    onClick={() => router.push(order.journeyType === "CONNECTING" ? `/orders/${id}/connecting-change` : `/orders/${id}/change`)}
+                    onClick={() => router.push(order.segments?.length ? `/orders/${id}/connecting-change` : `/orders/${id}/change`)}
                   >
-                    {order.journeyType === "CONNECTING" ? "整段联程改签" : "改签"}
+                    {order.segments?.length ? "整段行程改签" : "改签"}
                   </Button>
                 </span>
               )}

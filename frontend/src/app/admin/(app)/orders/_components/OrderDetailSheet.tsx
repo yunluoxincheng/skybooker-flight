@@ -86,7 +86,7 @@ export function OrderDetailSheet({
                   <p>{formatDateTime(order.createdAt)}</p>
                 </div>
               </div>
-              {order.journeyType === "CONNECTING" && order.segments && (
+              {order.segments?.length ? (
                 <div className="space-y-2">
                   {order.segments.map(segment => <div key={segment.id} className="rounded-lg border bg-muted/30 p-3 text-sm">
                     <p className="font-medium">第 {segment.segmentNo} 段 · {segment.airlineName} {segment.flightNo}</p>
@@ -94,7 +94,7 @@ export function OrderDetailSheet({
                     <p className="mt-1 text-xs text-muted-foreground">{segment.passengers.map(p => `${p.passengerName}·${p.seatNo}`).join(" / ")}</p>
                   </div>)}
                 </div>
-              )}
+              ) : null}
             </section>
 
             <section className="space-y-3 rounded-xl border p-4">

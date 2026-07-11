@@ -25,6 +25,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -87,13 +88,23 @@ public class RefundService {
         // 改签后 order_passenger.seat_id 已更新为新座,此处只释放当前关联座位,
         // 避免 orderId 名下残留脏 SOLD(异常/并发历史数据)被误释放,导致
         // incrementRemainingSeats(当前航班) 与实际释放座位所属航班错配。
-        if ("CONNECTING".equals(order.getJourneyType())) {
-            var segments = orderMapper.findSegmentsByOrderId(orderId);
+        var segments = orderMapper.findSegmentsByOrderId(orderId);
+        if (!segments.isEmpty()) {
             var seatIds = segments.stream().flatMap(s -> orderMapper.findSegmentPassengers(s.getId()).stream())
                     .map(com.skybooker.order.entity.OrderSegmentPassenger::getSeatId).toList();
+            List<WaitlistRelease> releases = new ArrayList<>();
+            for (var segment : segments) {
+                List<Long> segmentSeatIds = orderMapper.findSegmentPassengers(segment.getId()).stream()
+                        .map(com.skybooker.order.entity.OrderSegmentPassenger::getSeatId).toList();
+                for (String cabinClass : flightMapper.findCabinClassesBySeatIds(segmentSeatIds)) {
+                    releases.add(new WaitlistRelease(segment.getFlightId(), cabinClass,
+                            flightMapper.countSeatsByIdsAndCabin(segmentSeatIds, cabinClass)));
+                }
+            }
             int released = flightMapper.releaseSoldSeatsBySeatIds(seatIds);
             if (released != seatIds.size()) throw new BusinessException(ErrorCode.SYSTEM_ERROR);
             segments.forEach(s -> flightMapper.incrementRemainingSeats(s.getFlightId(), orderMapper.findSegmentPassengers(s.getId()).size()));
+            registerWaitlistFulfillment(orderId, releases);
             return refundMapper.findByOrderId(orderId);
         }
 
@@ -127,6 +138,25 @@ public class RefundService {
 
         return refundMapper.findByOrderId(orderId);
     }
+
+    private void registerWaitlistFulfillment(Long orderId, List<WaitlistRelease> releases) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                for (WaitlistRelease release : releases) {
+                    try {
+                        waitlistFulfillmentService.tryFulfillWaitlists(
+                                release.flightId(), release.cabinClass(), release.count());
+                    } catch (Exception e) {
+                        log.warn("候补兑现失败(联程退款已提交)order={}, flight={}, cabin={}",
+                                orderId, release.flightId(), release.cabinClass(), e);
+                    }
+                }
+            }
+        });
+    }
+
+    private record WaitlistRelease(Long flightId, String cabinClass, int count) {}
 
     private void validateRefundWindow(Flight flight) {
         Duration remaining = Duration.between(LocalDateTime.now(businessClock), flight.getDepartureTime());

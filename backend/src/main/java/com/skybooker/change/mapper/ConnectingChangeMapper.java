@@ -1,5 +1,6 @@
 package com.skybooker.change.mapper;
 import com.skybooker.change.entity.ConnectingChangeRecord;
+import com.skybooker.change.entity.ConnectingChangeSegmentSnapshot;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.util.List;
@@ -12,4 +13,6 @@ public interface ConnectingChangeMapper {
     void insertSnapshotsFromOrder(@Param("changeRecordId") Long changeRecordId,
                                   @Param("snapshotType") String snapshotType,
                                   @Param("orderId") Long orderId);
+    List<ConnectingChangeSegmentSnapshot> findSegmentSnapshots(@Param("changeRecordId") Long changeRecordId,
+                                                               @Param("snapshotType") String snapshotType);
 }
