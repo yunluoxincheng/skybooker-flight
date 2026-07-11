@@ -4,6 +4,7 @@ import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
 import com.skybooker.admin.dto.AdminCreateConnectingOrderDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminDeleteOrderDTO;
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
@@ -20,6 +21,7 @@ import com.skybooker.admin.service.AdminFlightService;
 import com.skybooker.admin.service.AdminOrderService;
 import com.skybooker.admin.service.AdminService;
 import com.skybooker.admin.vo.AdminOrderDetailVO;
+import com.skybooker.admin.vo.ConnectingFlightPairVO;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
@@ -61,6 +63,12 @@ public class AdminController {
     @PostMapping("/flights")
     public ApiResponse<FlightVO> createFlight(@Valid @RequestBody FlightFormDTO dto) {
         return ApiResponse.success(adminFlightService.createFlight(dto));
+    }
+
+    @PostMapping("/flights/connecting-pair")
+    public ApiResponse<ConnectingFlightPairVO> createConnectingFlights(
+            @Valid @RequestBody AdminCreateConnectingFlightsDTO dto) {
+        return ApiResponse.success(adminFlightService.createConnectingFlights(dto));
     }
 
     @PutMapping("/flights/{id}")

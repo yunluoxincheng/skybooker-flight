@@ -72,7 +72,11 @@ public class RefundService {
 
         int cas = orderMapper.updateOrderStatusCAS(orderId, order.getStatus(), TicketOrder.STATUS_REFUNDED);
         if (cas == 0) {
-            return refundMapper.findByOrderId(orderId);
+            RefundVO existing = refundMapper.findByOrderId(orderId);
+            if (existing != null) {
+                return existing;
+            }
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
 
         RefundRecord record = new RefundRecord();

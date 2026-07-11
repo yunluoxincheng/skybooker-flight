@@ -1,9 +1,11 @@
 package com.skybooker.admin.service;
 
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
+import com.skybooker.admin.vo.ConnectingFlightPairVO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -71,10 +74,30 @@ public class AdminFlightService {
     @Transactional
     public FlightVO createFlight(FlightFormDTO dto) {
         validateFlightForm(dto);
-        Flight flight = toEntity(dto);
-        flight.setRemainingSeats(0);
-        flightMapper.insertFlight(flight);
+        Flight flight = insertFlight(dto);
         return flightMapper.findFlightByIdAnyStatus(flight.getId());
+    }
+
+    @Transactional
+    public ConnectingFlightPairVO createConnectingFlights(AdminCreateConnectingFlightsDTO dto) {
+        FlightFormDTO first = dto.getFirstSegment();
+        FlightFormDTO second = dto.getSecondSegment();
+        validateFlightForm(first);
+        validateFlightForm(second);
+        if (!first.getArrivalAirportId().equals(second.getDepartureAirportId())) {
+            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+        long transferMinutes = Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
+        if (transferMinutes < 90 || transferMinutes > 360) {
+            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+
+        Flight firstFlight = insertFlight(first);
+        Flight secondFlight = insertFlight(second);
+        return new ConnectingFlightPairVO(
+                flightMapper.findFlightByIdAnyStatus(firstFlight.getId()),
+                flightMapper.findFlightByIdAnyStatus(secondFlight.getId()),
+                transferMinutes);
     }
 
     @Transactional
@@ -271,6 +294,11 @@ public class AdminFlightService {
     }
 
     private void validateFlightForm(FlightFormDTO dto) {
+        // A flight row is one independently sellable nonstop segment.  A connecting
+        // itinerary is represented by two such rows and composed dynamically.
+        if (Boolean.FALSE.equals(dto.getDirectFlag())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
         if (!flightMapper.existsAirlineById(dto.getAirlineId())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
@@ -318,9 +346,16 @@ public class AdminFlightService {
         f.setTotalSeats(dto.getTotalSeats());
         f.setStatus(dto.getStatus() != null ? dto.getStatus() : "ON_TIME");
         f.setPublishStatus(dto.getPublishStatus() != null ? dto.getPublishStatus() : "DRAFT");
-        f.setDirectFlag(dto.getDirectFlag() != null ? dto.getDirectFlag() : true);
+        f.setDirectFlag(true);
         f.setBaggageAllowance(dto.getBaggageAllowance());
         f.setPunctualityRate(dto.getPunctualityRate());
         return f;
+    }
+
+    private Flight insertFlight(FlightFormDTO dto) {
+        Flight flight = toEntity(dto);
+        flight.setRemainingSeats(0);
+        flightMapper.insertFlight(flight);
+        return flight;
     }
 }

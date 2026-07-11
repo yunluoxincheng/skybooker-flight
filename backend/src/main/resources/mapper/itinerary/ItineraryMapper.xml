@@ -15,6 +15,7 @@
           AND f2.departure_time &gt;= f1.arrival_time + INTERVAL 90 MINUTE
           AND f2.departure_time &lt;= f1.arrival_time + INTERVAL 6 HOUR
           AND f1.publish_status = 'PUBLISHED' AND f2.publish_status = 'PUBLISHED'
+          AND f1.direct_flag = 1 AND f2.direct_flag = 1
           AND f1.status IN ('ON_TIME', 'DELAYED') AND f2.status IN ('ON_TIME', 'DELAYED')
           AND f1.remaining_seats &gt;= #{passengerCount} AND f2.remaining_seats &gt;= #{passengerCount}
           <if test="cabinClass != null and cabinClass != ''">

@@ -1,3 +1,5 @@
+import type { FlightVO } from "@/types/flight"
+
 /** 仪表盘汇总 */
 export interface DashboardSummaryVO {
   totalUsers: number
@@ -118,6 +120,17 @@ export interface FlightFormDTO {
   totalSeats: number
   baggageAllowance: string
   directFlag: boolean
+}
+
+export interface CreateConnectingFlightsDTO {
+  firstSegment: FlightFormDTO
+  secondSegment: FlightFormDTO
+}
+
+export interface ConnectingFlightPairVO {
+  firstSegment: FlightVO
+  secondSegment: FlightVO
+  transferMinutes: number
 }
 
 /** 销售趋势 — 匹配后端 SalesTrendVO */

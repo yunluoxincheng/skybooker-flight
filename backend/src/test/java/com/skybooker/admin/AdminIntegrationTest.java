@@ -342,6 +342,123 @@ class AdminIntegrationTest {
     }
 
     @Test
+    void createFlight_rejectsLegacyNonDirectFlag() throws Exception {
+        FlightFormDTO dto = buildValidFlightForm();
+        dto.setDirectFlag(false);
+
+        mockMvc.perform(post("/api/admin/flights")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10003));
+    }
+
+    @Test
+    void createConnectingFlights_createsTwoIndependentDirectSegments() throws Exception {
+        FlightFormDTO first = buildValidFlightForm();
+        first.setDepartureAirportId(3L);
+        first.setArrivalAirportId(1L);
+        first.setPublishStatus("PUBLISHED");
+        FlightFormDTO second = buildValidFlightForm();
+        second.setDepartureAirportId(1L);
+        second.setArrivalAirportId(5L);
+        second.setPublishStatus("PUBLISHED");
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(90));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+
+        MvcResult result = mockMvc.perform(post("/api/admin/flights/connecting-pair")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "firstSegment", first, "secondSegment", second))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.transferMinutes").value(90))
+                .andExpect(jsonPath("$.data.firstSegment.flightNo").value(first.getFlightNo()))
+                .andExpect(jsonPath("$.data.secondSegment.flightNo").value(second.getFlightNo()))
+                .andReturn();
+
+        var data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        long firstId = data.path("firstSegment").path("id").asLong();
+        long secondId = data.path("secondSegment").path("id").asLong();
+        assertThat(firstId).isNotEqualTo(secondId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM flight WHERE id IN (?, ?) AND direct_flag = 1",
+                Integer.class, firstId, secondId)).isEqualTo(2);
+
+        mockMvc.perform(post("/api/admin/flights/{id}/generate-seats", firstId)
+                        .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/flights/{id}/generate-seats", secondId)
+                        .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/itineraries/search")
+                        .param("departureCity", "北京")
+                        .param("arrivalCity", "广州")
+                        .param("departureDate", first.getDepartureTime().toLocalDate().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[?(@.journeyType == 'CONNECTING' && @.segments[0].id == "
+                        + firstId + " && @.segments[1].id == " + secondId + ")]").isNotEmpty());
+    }
+
+    @Test
+    void createConnectingFlights_rejectsInvalidConnectionAndRollsBackSecondFailure() throws Exception {
+        FlightFormDTO first = buildValidFlightForm();
+        first.setDepartureAirportId(3L);
+        first.setArrivalAirportId(1L);
+        FlightFormDTO second = buildValidFlightForm();
+        second.setDepartureAirportId(5L);
+        second.setArrivalAirportId(3L);
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(90));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        mockMvc.perform(post("/api/admin/flights/connecting-pair")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "firstSegment", first, "secondSegment", second))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(30005));
+
+        second.setDepartureAirportId(1L);
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(89));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        mockMvc.perform(post("/api/admin/flights/connecting-pair")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "firstSegment", first, "secondSegment", second))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(30005));
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(361));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        mockMvc.perform(post("/api/admin/flights/connecting-pair")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "firstSegment", first, "secondSegment", second))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(30005));
+
+        second.setDepartureTime(first.getArrivalTime().plusMinutes(90));
+        second.setArrivalTime(second.getDepartureTime().plusHours(2));
+        String failingFlightNo = second.getFlightNo();
+        jdbcTemplate.execute("DROP TRIGGER IF EXISTS test_fail_connecting_pair_second_insert");
+        jdbcTemplate.execute("CREATE TRIGGER test_fail_connecting_pair_second_insert BEFORE INSERT ON flight FOR EACH ROW " +
+                "BEGIN IF NEW.flight_no='" + failingFlightNo + "' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='test failure'; END IF; END");
+        try {
+            mockMvc.perform(post("/api/admin/flights/connecting-pair")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                    "firstSegment", first, "secondSegment", second))))
+                    .andExpect(status().is5xxServerError());
+        } finally {
+            jdbcTemplate.execute("DROP TRIGGER IF EXISTS test_fail_connecting_pair_second_insert");
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM flight WHERE flight_no IN (?, ?)", Integer.class,
+                first.getFlightNo(), second.getFlightNo())).isZero();
+    }
+
+    @Test
     void createFlight_rejectsSameAirport() throws Exception {
         FlightFormDTO dto = buildValidFlightForm();
         dto.setArrivalAirportId(dto.getDepartureAirportId());

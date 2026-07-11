@@ -54,6 +54,12 @@ class ItineraryServiceTest {
         assertThrows(BusinessException.class, () -> service.validate(pair(120), 11));
     }
 
+    @Test void rejectsLegacyNonDirectFlightsAsItinerarySegments() {
+        List<FlightVO> flights = pair(120);
+        flights.getFirst().setDirectFlag(0);
+        assertThrows(BusinessException.class, () -> service.validate(flights, 1));
+    }
+
     private List<FlightVO> pair(int transferMinutes) {
         FlightVO first = flight(1L, 1L, 2L, now.plusDays(1), now.plusDays(1).plusHours(2));
         FlightVO second = flight(2L, 2L, 3L, first.getArrivalTime().plusMinutes(transferMinutes), first.getArrivalTime().plusMinutes(transferMinutes + 120));
@@ -63,6 +69,6 @@ class ItineraryServiceTest {
     private FlightVO flight(Long id, Long departureAirport, Long arrivalAirport, LocalDateTime departure, LocalDateTime arrival) {
         FlightVO f = new FlightVO(); f.setId(id); f.setDepartureAirportId(departureAirport); f.setArrivalAirportId(arrivalAirport);
         f.setDepartureTime(departure); f.setArrivalTime(arrival); f.setPublishStatus("PUBLISHED"); f.setStatus("ON_TIME");
-        f.setRemainingSeats(10); f.setBasePrice(new BigDecimal("500.00")); return f;
+        f.setRemainingSeats(10); f.setBasePrice(new BigDecimal("500.00")); f.setDirectFlag(1); return f;
     }
 }

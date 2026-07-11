@@ -20,6 +20,8 @@ import type {
   LlmConfigDTO,
   CreateUserAdminDTO,
   DeleteUserBlockInfoVO,
+  CreateConnectingFlightsDTO,
+  ConnectingFlightPairVO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
@@ -80,6 +82,10 @@ export function getFlights(params?: Record<string, string | number | boolean | u
 
 export function createFlight(data: FlightFormDTO) {
   return post<FlightVO>("/admin/flights", data, { auth: "admin" })
+}
+
+export function createConnectingFlights(data: CreateConnectingFlightsDTO) {
+  return post<ConnectingFlightPairVO>("/admin/flights/connecting-pair", data, { auth: "admin" })
 }
 
 export function updateFlight(id: number, data: FlightFormDTO) {

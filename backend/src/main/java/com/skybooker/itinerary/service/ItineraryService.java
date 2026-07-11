@@ -90,6 +90,7 @@ public class ItineraryService {
         for (FlightVO f : flights) {
             if (!"PUBLISHED".equals(f.getPublishStatus()) || !f.getDepartureTime().isAfter(LocalDateTime.now(businessClock))
                     || !("ON_TIME".equals(f.getStatus()) || "DELAYED".equals(f.getStatus()))
+                    || !Integer.valueOf(1).equals(f.getDirectFlag())
                     || f.getRemainingSeats() < passengerCount) throw new BusinessException(ErrorCode.ITINERARY_INVALID);
         }
         if (flights.size() == 2) {
@@ -147,7 +148,7 @@ public class ItineraryService {
         d.setDepartureDate(source.getDepartureDate()); d.setDepartureDateStart(source.getDepartureDateStart()); d.setDepartureDateEnd(source.getDepartureDateEnd());
         d.setAirlineId(source.getAirlineId()); d.setMinPrice(source.getMinPrice()); d.setMaxPrice(source.getMaxPrice());
         d.setDepartureTimeStart(source.getDepartureTimeStart()); d.setDepartureTimeEnd(source.getDepartureTimeEnd());
-        d.setMaxDurationMinutes(source.getMaxDurationMinutes()); d.setDirectOnly(source.getDirectOnly()); d.setStatus(source.getStatus());
+        d.setMaxDurationMinutes(source.getMaxDurationMinutes()); d.setDirectOnly(true); d.setStatus(source.getStatus());
         d.setSort(source.getSort()); d.setPassengerCount(source.getPassengerCount()); d.setCabinClass(source.getCabinClass()); d.setIncludeSoldOut(false);
         return d;
     }

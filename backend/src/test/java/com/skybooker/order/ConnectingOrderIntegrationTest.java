@@ -19,6 +19,11 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +47,7 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
 
     @AfterEach void cleanupFeatureData() {
         jdbc.execute("DROP TRIGGER IF EXISTS test_fail_connecting_second_leg");
+        jdbc.execute("DROP TRIGGER IF EXISTS test_slow_connecting_change_status");
         jdbc.update("DELETE cs FROM connecting_change_segment cs JOIN connecting_change_record cr ON cr.id=cs.change_record_id WHERE cr.user_id=2");
         jdbc.update("DELETE FROM connecting_change_record WHERE user_id=2");
         jdbc.update("DELETE p FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id JOIN ticket_order o ON o.id=s.order_id WHERE o.client_request_id IS NOT NULL");
@@ -77,6 +83,31 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
         mvc.perform(post("/api/itineraries/quote").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"segmentFlightIds\":["+pair.firstFlight+","+pair.secondFlight+"],\"passengerIds\":[1]}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test void legacyNonDirectFlightsAreExcludedFromDirectAndConnectingItineraries() throws Exception {
+        Pair pair=createPair(120);
+        jdbc.update("UPDATE flight SET direct_flag=0 WHERE id=?",pair.firstFlight);
+        var result=mvc.perform(get("/api/itineraries/search").param("departureCity","北京").param("arrivalCity","广州")
+                        .param("departureDate",pair.departure.toLocalDate().toString()).param("passengerCount","1"))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode records=json.readTree(result.getResponse().getContentAsString()).path("data").path("records");
+        for(JsonNode itinerary:records){
+            for(JsonNode segment:itinerary.path("segments")){
+                assertEquals(false,segment.path("id").asLong()==pair.firstFlight,
+                        "direct_flag=0 flight must not appear in an itinerary");
+            }
+        }
+        var directResult=mvc.perform(get("/api/itineraries/search").param("departureCity","北京").param("arrivalCity","武汉")
+                        .param("departureDate",pair.departure.toLocalDate().toString()).param("passengerCount","1"))
+                .andExpect(status().isOk()).andReturn();
+        JsonNode directRecords=json.readTree(directResult.getResponse().getContentAsString()).path("data").path("records");
+        for(JsonNode itinerary:directRecords){
+            for(JsonNode segment:itinerary.path("segments")){
+                assertEquals(false,segment.path("id").asLong()==pair.firstFlight,
+                        "direct_flag=0 flight must not appear as a direct itinerary");
+            }
+        }
     }
 
     @Test void rejectsMixedPassengerSets() throws Exception {
@@ -261,6 +292,78 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
                         .param("endDate",pair.departure.toLocalDate().plusDays(5).toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.segments[0].id == "+replacement+")]").isNotEmpty());
+    }
+
+    @Test void concurrentWholeItineraryChangeAndRefund_onlyOneSucceedsWithoutNullResponse() throws Exception {
+        Pair pair=createPair(120); long orderId=createOrder(pair);
+        mvc.perform(post("/api/orders/"+orderId+"/pay").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+        long replacement=flight("DIR"+System.nanoTime(),3,5,pair.departure.plusHours(5),pair.departure.plusHours(8));
+        long replacementSeat=seat(replacement);
+        String changeBody=json.writeValueAsString(java.util.Map.of("clientRequestId",UUID.randomUUID().toString(),"reason","并发整段改签",
+                "segments",java.util.List.of(java.util.Map.of("flightId",replacement,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",replacementSeat))))));
+
+        jdbc.execute("DROP TRIGGER IF EXISTS test_slow_connecting_change_status");
+        jdbc.execute("CREATE TRIGGER test_slow_connecting_change_status BEFORE UPDATE ON ticket_order FOR EACH ROW " +
+                "BEGIN IF OLD.id="+orderId+" AND NEW.status='CHANGED' THEN DO SLEEP(1); END IF; END");
+        CountDownLatch start=new CountDownLatch(1),done=new CountDownLatch(2);
+        AtomicReference<Integer> changeStatus=new AtomicReference<>(),refundStatus=new AtomicReference<>();
+        AtomicReference<String> changeResponse=new AtomicReference<>(),refundResponse=new AtomicReference<>();
+        AtomicReference<Throwable> failure=new AtomicReference<>();
+        ExecutorService executor=Executors.newFixedThreadPool(2);
+        executor.submit(()->{
+            try { start.await(); var response=mvc.perform(post("/api/orders/"+orderId+"/connecting-change")
+                    .header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(changeBody)).andReturn().getResponse();
+                changeStatus.set(response.getStatus()); changeResponse.set(response.getContentAsString());
+            } catch(Throwable throwable){ failure.compareAndSet(null,throwable); } finally { done.countDown(); }
+        });
+        executor.submit(()->{
+            try { start.await(); var response=mvc.perform(post("/api/admin/orders/"+orderId+"/refund")
+                    .header("Authorization","Bearer "+adminToken).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"reason\":\"并发退款\",\"force\":false}"))
+                    .andReturn().getResponse();
+                refundStatus.set(response.getStatus()); refundResponse.set(response.getContentAsString());
+            } catch(Throwable throwable){ failure.compareAndSet(null,throwable); } finally { done.countDown(); }
+        });
+        try {
+            start.countDown();
+            assertEquals(true,done.await(15,TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            jdbc.execute("DROP TRIGGER IF EXISTS test_slow_connecting_change_status");
+        }
+        if(failure.get()!=null) throw new AssertionError(failure.get());
+        assertEquals(java.util.List.of(200,400),java.util.stream.Stream.of(changeStatus.get(),refundStatus.get()).sorted().toList());
+        String successfulResponse=changeStatus.get()==200?changeResponse.get():refundResponse.get();
+        String rejectedResponse=changeStatus.get()==400?changeResponse.get():refundResponse.get();
+        assertEquals(false,successfulResponse.contains("\"data\":null"));
+        assertEquals(40001,json.readTree(rejectedResponse).path("code").asInt());
+
+        String finalStatus=jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,orderId);
+        assertEquals(true,"CHANGED".equals(finalStatus)||"REFUNDED".equals(finalStatus));
+        int refunds=jdbc.queryForObject("SELECT COUNT(*) FROM refund_record WHERE order_id=?",Integer.class,orderId);
+        int changes=jdbc.queryForObject("SELECT COUNT(*) FROM connecting_change_record WHERE order_id=?",Integer.class,orderId);
+        assertEquals(1,refunds+changes);
+        assertEquals("AVAILABLE",jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,pair.firstSeat));
+        assertEquals("AVAILABLE",jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,pair.secondSeat));
+        assertEquals("CHANGED".equals(finalStatus)?"SOLD":"AVAILABLE",
+                jdbc.queryForObject("SELECT status FROM flight_seat WHERE id=?",String.class,replacementSeat));
+        java.util.List<Long> segmentFlights=jdbc.queryForList(
+                "SELECT flight_id FROM ticket_order_segment WHERE order_id=? ORDER BY segment_no",Long.class,orderId);
+        if("CHANGED".equals(finalStatus)){
+            assertEquals(0,refunds); assertEquals(1,changes);
+            assertEquals(java.util.List.of(replacement),segmentFlights);
+            assertEquals(4,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,pair.firstFlight));
+            assertEquals(4,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,pair.secondFlight));
+            assertEquals(3,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,replacement));
+        }else{
+            assertEquals(1,refunds); assertEquals(0,changes);
+            assertEquals(java.util.List.of(pair.firstFlight,pair.secondFlight),segmentFlights);
+            assertEquals(4,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,pair.firstFlight));
+            assertEquals(4,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,pair.secondFlight));
+            assertEquals(4,jdbc.queryForObject("SELECT remaining_seats FROM flight WHERE id=?",Integer.class,replacement));
+        }
+        int refundAudits=jdbc.queryForObject("SELECT COUNT(*) FROM admin_operation_log WHERE target_type='ORDER' AND target_id=? AND action IN ('REFUND','REFUND_FORCE')",Integer.class,orderId);
+        assertEquals(refundStatus.get()==200?1:0,refundAudits);
     }
 
     private JsonNode response(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,String body)throws Exception{return json.readTree(mvc.perform(request.header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());}
