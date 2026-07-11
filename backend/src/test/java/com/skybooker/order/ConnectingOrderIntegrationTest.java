@@ -15,7 +15,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -370,7 +369,7 @@ class ConnectingOrderIntegrationTest extends AbstractIntegrationTest {
     private long createOrder(Pair pair)throws Exception{return response(post("/api/orders/connecting"),connectingRequest(pair,UUID.randomUUID())).path("data").path("id").asLong();}
     private String connectingRequest(Pair p,UUID request)throws Exception{return json.writeValueAsString(java.util.Map.of("clientRequestId",request.toString(),"segments",java.util.List.of(java.util.Map.of("flightId",p.firstFlight,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",p.firstSeat))),java.util.Map.of("flightId",p.secondFlight,"items",java.util.List.of(java.util.Map.of("passengerId",1,"seatId",p.secondSeat))))));}
     private Pair createPair(int transfer){LocalDateTime dep=LocalDateTime.now(clock).plusDays(9).withSecond(0).withNano(0);long first=flight("CNX"+System.nanoTime(),3,1,dep,dep.plusHours(2));long second=flight("CNX"+System.nanoTime(),1,5,dep.plusHours(2).plusMinutes(transfer),dep.plusHours(4).plusMinutes(transfer));return new Pair(first,second,seat(first),seat(second),dep);}
-    private long flight(String no,long from,long to,LocalDateTime dep,LocalDateTime arr){KeyHolder k=new GeneratedKeyHolder();jdbc.update(c->{PreparedStatement p=c.prepareStatement("INSERT INTO flight(flight_no,airline_id,departure_airport_id,arrival_airport_id,departure_time,arrival_time,duration_minutes,base_price,remaining_seats,total_seats,status,publish_status,direct_flag) VALUES(?,1,?,?,?,?,120,500,4,4,'ON_TIME','PUBLISHED',1)",Statement.RETURN_GENERATED_KEYS);p.setString(1,no);p.setLong(2,from);p.setLong(3,to);p.setTimestamp(4,Timestamp.valueOf(dep));p.setTimestamp(5,Timestamp.valueOf(arr));return p;},k);return k.getKey().longValue();}
+    private long flight(String no,long from,long to,LocalDateTime dep,LocalDateTime arr){KeyHolder k=new GeneratedKeyHolder();jdbc.update(c->{PreparedStatement p=c.prepareStatement("INSERT INTO flight(flight_no,airline_id,departure_airport_id,arrival_airport_id,departure_time,arrival_time,duration_minutes,base_price,remaining_seats,total_seats,status,publish_status,direct_flag) VALUES(?,1,?,?,?,?,120,500,4,4,'ON_TIME','PUBLISHED',1)",Statement.RETURN_GENERATED_KEYS);p.setString(1,no);p.setLong(2,from);p.setLong(3,to);p.setObject(4,dep);p.setObject(5,arr);return p;},k);return k.getKey().longValue();}
     private long seat(long flight){KeyHolder k=new GeneratedKeyHolder();jdbc.update(c->{PreparedStatement p=c.prepareStatement("INSERT INTO flight_seat(flight_id,seat_no,cabin_class,seat_type,price,status) VALUES(?,'1A','ECONOMY','WINDOW',500,'AVAILABLE')",Statement.RETURN_GENERATED_KEYS);p.setLong(1,flight);return p;},k);return k.getKey().longValue();}
     record Pair(long firstFlight,long secondFlight,long firstSeat,long secondSeat,LocalDateTime departure){}
 }
