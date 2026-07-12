@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -210,6 +211,7 @@ class CabinPriceFilterIntegrationTest {
 
         ParsedCondition condition = ParsedCondition.builder()
                 .departureCity("上海").arrivalCity("北京")
+                .departureDate(LocalDate.now().plusDays(7))
                 .cabinClass("BUSINESS").sort("PRICE_ASC")
                 .minPrice(new BigDecimal("830")).maxPrice(new BigDecimal("900"))
                 .build();
@@ -218,7 +220,9 @@ class CabinPriceFilterIntegrationTest {
 
         int idxLo = -1, idxHi = -1;
         for (int i = 0; i < cards.size(); i++) {
-            String no = String.valueOf(cards.get(i).get("flightNo"));
+            List<com.skybooker.flight.vo.FlightVO> segments =
+                    (List<com.skybooker.flight.vo.FlightVO>) cards.get(i).get("segments");
+            String no = segments.getFirst().getFlightNo();
             if ("RECLO".equals(no)) idxLo = i;
             if ("RECHI".equals(no)) idxHi = i;
         }

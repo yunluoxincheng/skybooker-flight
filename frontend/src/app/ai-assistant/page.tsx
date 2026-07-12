@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { UserLayout } from "@/components/layout/UserLayout"
-import { AiFlightCard } from "@/components/common/AiFlightCard"
+import { JourneyCard } from "@/components/journey/JourneyCard"
 import { useAiChat } from "@/features/ai/hooks/useAiChat"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -352,11 +352,7 @@ export default function AiAssistantPage() {
                       {showFlights && (
                         <div className="space-y-2 border-l border-cyan-200 pl-3">
                           {msg.flights?.map((f) => (
-                            <AiFlightCard
-                              key={f.flightId}
-                              flight={f}
-                              className="border-slate-200 bg-white shadow-sm"
-                            />
+                            <JourneyCard key={`${f.journeyType}-${f.id}`} journey={f} />
                           ))}
                         </div>
                       )}

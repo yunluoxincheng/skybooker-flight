@@ -1,9 +1,11 @@
 package com.skybooker.ai.service;
 
 import com.skybooker.ai.parser.ParsedCondition;
-import com.skybooker.flight.enums.FlightSort;
-import com.skybooker.flight.mapper.FlightMapper;
+import com.skybooker.common.response.PageResponse;
+import com.skybooker.flight.dto.FlightSearchDTO;
 import com.skybooker.flight.vo.FlightVO;
+import com.skybooker.itinerary.service.ItineraryService;
+import com.skybooker.itinerary.vo.ItineraryVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -18,33 +20,13 @@ public class FlightRecommendationService {
 
     private static final int DEFAULT_LIMIT = 3;
 
-    private final FlightMapper flightMapper;
+    private final ItineraryService itineraryService;
 
     public List<Map<String, Object>> recommend(ParsedCondition condition, Long resolvedAirlineId) {
-        String orderBy = resolveOrderBy(condition.getSort(), condition.getCabinClass());
-
-        List<FlightVO> flights = flightMapper.searchRecommendationFlights(
-                condition.getDepartureCity(),
-                condition.getArrivalCity(),
-                condition.getDepartureDate(),
-                condition.getDepartureDateStart(),
-                condition.getDepartureDateEnd(),
-                resolvedAirlineId,
-                condition.getMinPrice(),
-                condition.getMaxPrice(),
-                condition.getDepartureTimeStart(),
-                condition.getDepartureTimeEnd(),
-                condition.getMaxDurationMinutes(),
-                condition.getDirectOnly(),
-                condition.getPassengerCount(),
-                condition.getCabinClass(),
-                condition.getIncludeSoldOut(),
-                orderBy,
-                DEFAULT_LIMIT
-        );
-
-        return flights.stream()
-                .map(f -> toCard(f, condition.getCabinClass()))
+        FlightSearchDTO query = toSearchQuery(condition, resolvedAirlineId);
+        PageResponse<ItineraryVO> journeys = itineraryService.search(query);
+        return journeys.getRecords().stream()
+                .map(this::toCard)
                 .toList();
     }
 
@@ -77,37 +59,49 @@ public class FlightRecommendationService {
         return builder.build().encode().toUriString();
     }
 
-    public String buildDetailUrl(Long flightId) {
-        return "/flights/" + flightId;
-    }
-
-    public String buildBookingUrl(Long flightId) {
-        return "/booking/" + flightId;
-    }
-
-    private Map<String, Object> toCard(FlightVO flight, String cabinClass) {
+    private Map<String, Object> toCard(ItineraryVO journey) {
+        FlightVO first = journey.getSegments().getFirst();
         Map<String, Object> card = new LinkedHashMap<>();
-        card.put("flightId", flight.getId());
-        card.put("flightNo", flight.getFlightNo());
-        card.put("airlineName", flight.getAirlineName());
-        card.put("departureCity", flight.getDepartureCity());
-        card.put("arrivalCity", flight.getArrivalCity());
-        card.put("departureTime", flight.getDepartureTime());
-        card.put("arrivalTime", flight.getArrivalTime());
-        card.put("durationMinutes", flight.getDurationMinutes());
-        card.put("price", flight.getBasePrice());
-        card.put("remainingSeats", flight.getRemainingSeats());
-        card.put("status", flight.getStatus());
-        if (cabinClass != null && !cabinClass.isBlank()) {
-            int available = flightMapper.countAvailableSeatsByFlightAndCabin(flight.getId(), cabinClass);
-            card.put("cabinAvailability", Map.of(
-                    "cabinClass", cabinClass,
-                    "availableSeats", available
-            ));
-        }
-        card.put("detailUrl", buildDetailUrl(flight.getId()));
-        card.put("bookingUrl", buildBookingUrl(flight.getId()));
+        card.put("id", journey.getId());
+        card.put("journeyType", journey.getJourneyType());
+        card.put("segments", journey.getSegments());
+        card.put("originCity", journey.getOriginCity());
+        card.put("destinationCity", journey.getDestinationCity());
+        card.put("connectionAirportCode", journey.getConnectionAirportCode());
+        card.put("connectionAirportName", journey.getConnectionAirportName());
+        card.put("connectionDurationMinutes", journey.getConnectionDurationMinutes());
+        card.put("totalDurationMinutes", journey.getTotalDurationMinutes());
+        card.put("estimatedAmount", journey.getEstimatedAmount());
+        card.put("availableSeats", journey.getAvailableSeats());
+        card.put("sellable", journey.getSellable());
+        card.put("unavailableReason", journey.getUnavailableReason());
+        card.put("detailUrl", "CONNECTING".equals(journey.getJourneyType())
+                ? "/itineraries/connecting/" + journey.getId() : "/flights/" + first.getId());
         return card;
+    }
+
+    private FlightSearchDTO toSearchQuery(ParsedCondition condition, Long resolvedAirlineId) {
+        FlightSearchDTO query = new FlightSearchDTO();
+        query.setDepartureCity(condition.getDepartureCity());
+        query.setArrivalCity(condition.getArrivalCity());
+        query.setDepartureDate(condition.getDepartureDate() != null
+                ? condition.getDepartureDate() : condition.getDepartureDateStart());
+        query.setDepartureDateStart(condition.getDepartureDateStart());
+        query.setDepartureDateEnd(condition.getDepartureDateEnd());
+        query.setAirlineId(resolvedAirlineId);
+        query.setMinPrice(condition.getMinPrice());
+        query.setMaxPrice(condition.getMaxPrice());
+        query.setDepartureTimeStart(condition.getDepartureTimeStart());
+        query.setDepartureTimeEnd(condition.getDepartureTimeEnd());
+        query.setMaxDurationMinutes(condition.getMaxDurationMinutes());
+        query.setDirectOnly(condition.getDirectOnly());
+        query.setSort(condition.getSort());
+        query.setPassengerCount(condition.getPassengerCount());
+        query.setCabinClass(condition.getCabinClass());
+        query.setIncludeSoldOut(condition.getIncludeSoldOut());
+        query.setPage(1);
+        query.setSize(DEFAULT_LIMIT);
+        return query;
     }
 
     private void addQueryParam(UriComponentsBuilder builder, String name, Object value) {
@@ -118,13 +112,6 @@ public class FlightRecommendationService {
             return;
         }
         builder.queryParam(name, value.toString());
-    }
-
-    private String resolveOrderBy(String sort, String cabinClass) {
-        FlightSort flightSort = FlightSort.fromParam(sort);
-        if (flightSort == null) flightSort = FlightSort.DEFAULT;
-        // 排序 SQL 由 FlightSort.orderBy 统一生成(cabinClass 拼入前经 isValidCabin 校验)
-        return flightSort.orderBy(cabinClass);
     }
 
 }

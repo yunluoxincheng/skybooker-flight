@@ -625,12 +625,9 @@ class AiIntegrationTest extends AbstractIntegrationTest {
             assertThat(flights).isNotEmpty();
             assertThat(flights.size()).isLessThanOrEqualTo(3);
             Map<String, Object> firstFlight = flights.get(0);
-            assertThat(firstFlight).containsKey("flightId");
-            assertThat(firstFlight).containsKey("flightNo");
-            assertThat(firstFlight).containsKey("airlineName");
-            assertThat(firstFlight).containsKey("departureCity");
-            assertThat(firstFlight).containsKey("arrivalCity");
-            assertThat(firstFlight).containsKey("price");
+            assertThat(firstFlight).containsKeys("id", "journeyType", "segments", "originCity",
+                    "destinationCity", "totalDurationMinutes", "estimatedAmount", "availableSeats",
+                    "sellable");
             assertThat(firstFlight).containsKey("detailUrl");
         }
     }

@@ -100,9 +100,9 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         Map<String, Object> data = (Map<String, Object>) response.getData();
         List<Map<String, Object>> flights = (List<Map<String, Object>>) data.get("flights");
         assertThat(flights).isNotEmpty();
-        assertThat(flights.get(0).get("flightNo")).isNotEqualTo("FAKE-001");
+        assertThat(((List<Map<String, Object>>) flights.get(0).get("segments")).getFirst().get("flightNo"))
+                .isNotEqualTo("FAKE-001");
         assertThat(flights.get(0).get("detailUrl")).asString().doesNotContain("fake");
-        assertThat(flights.get(0).get("bookingUrl")).asString().doesNotContain("fake");
     }
 
     @Test
@@ -242,11 +242,11 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
         List<Map<String, Object>> flights = (List<Map<String, Object>>) data.get("flights");
         assertThat(flights).isNotEmpty();
         assertThat(flights)
-                .extracting(flight -> flight.get("flightNo"))
+                .extracting(flight -> ((List<Map<String, Object>>) flight.get("segments")).getFirst().get("flightNo"))
                 .doesNotContain("FAKE-002");
         assertThat(flights)
-                .extracting(flight -> ((Number) flight.get("remainingSeats")).intValue())
-                .allMatch(remainingSeats -> remainingSeats > 0);
+                .extracting(flight -> ((Number) flight.get("availableSeats")).intValue())
+                .allMatch(availableSeats -> availableSeats > 0);
 
         String sessionId = (String) data.get("sessionId");
         String parsedJson = jdbcTemplate.queryForObject(
