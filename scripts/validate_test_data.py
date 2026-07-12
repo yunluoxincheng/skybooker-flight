@@ -118,12 +118,13 @@ def validate(sql: str) -> tuple[dict, list[str]]:
     ):
         errors.append("summary sourceRef must be null or a 40-character commit SHA")
 
-    for scenario in sorted(scenarios):
-        missing = SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set()) - components
-        if missing:
-            errors.append(
-                f"scenario {scenario} requires components: {', '.join(sorted(missing))}"
-            )
+    if summary.get("scenariosExplicit", True):
+        for scenario in sorted(scenarios):
+            missing = SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set()) - components
+            if missing:
+                errors.append(
+                    f"scenario {scenario} requires components: {', '.join(sorted(missing))}"
+                )
 
     for table in sorted(selected_tables(summary)):
         if f"INSERT INTO {table}" not in sql:
@@ -179,17 +180,17 @@ def validate(sql: str) -> tuple[dict, list[str]]:
 
     if "orders" in components:
         required_order_statuses = set()
-        if "connecting" in scenarios:
+        if "connecting" in scenarios and summary.get("connectingOrders", 0) > 0:
             required_order_statuses.update({"PENDING_PAYMENT", "ISSUED", "CANCELLED", "REFUNDED", "CHANGED"})
-        if "direct" in scenarios or "sold-out" in scenarios or "waitlist" in scenarios:
+        if summary.get("orders", 0) > 0 and scenarios.intersection({"direct", "sold-out", "waitlist"}):
             required_order_statuses.add("ISSUED")
-        if "payment" in scenarios:
+        if summary.get("orders", 0) > 0 and "payment" in scenarios:
             required_order_statuses.add("PENDING_PAYMENT")
-        if "cancel" in scenarios:
+        if summary.get("orders", 0) > 0 and "cancel" in scenarios:
             required_order_statuses.add("CANCELLED")
-        if "refund" in scenarios:
+        if summary.get("orders", 0) > 0 and "refunds" in components and "refund" in scenarios:
             required_order_statuses.add("REFUNDED")
-        if "change" in scenarios:
+        if summary.get("orders", 0) > 0 and "changes" in components and "change" in scenarios:
             required_order_statuses.update({"CHANGE_PENDING", "CHANGED"})
         for status in sorted(required_order_statuses):
             if count_literal(sql, status) == 0:

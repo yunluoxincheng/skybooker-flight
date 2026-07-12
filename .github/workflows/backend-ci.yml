@@ -60,6 +60,16 @@ jobs:
               --components "$components" --scenarios "$scenarios" --output "$output"
             python3 scripts/validate_test_data.py --file "$output"
           done
+          for spec in \
+            "flights,orders default-flights-orders" \
+            "users default-users"; do
+            read -r components output_name <<< "$spec"
+            output="$tmp_dir/${output_name}.sql"
+            python3 scripts/generate_test_data.py \
+              --profile dev --seed 20260707 --base-date 2026-07-07 \
+              --components "$components" --output "$output"
+            python3 scripts/validate_test_data.py --file "$output"
+          done
 
       - name: Set up Java
         uses: actions/setup-java@v4

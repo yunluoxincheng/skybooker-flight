@@ -36,7 +36,7 @@ bash /tmp/skybooker-test-data.sh status \
   --ref <commit-sha>
 ```
 
-公共参数包括 `--dir`、`--repo`、`--ref`、`--source-dir`、`--profile`、`--components`、`--scenarios` 和 `--yes`。组件为 `reference,users,flights,orders,refunds,changes,waitlists,ai,all`；场景为 `direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all`。默认自动补齐组件和场景依赖，例如 `refund` 自动包含 `orders,refunds`；使用 `--no-auto-dependencies` 可改为缺依赖即报错。
+公共参数包括 `--dir`、`--repo`、`--ref`、`--source-dir`、`--profile`、`--components`、`--scenarios` 和 `--yes`。组件为 `reference,users,flights,orders,refunds,changes,waitlists,ai,all`；场景为 `direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all`。未显式传 `--scenarios` 时默认生成所选组件范围内适用的全部场景，不会反向扩大组件；显式传入场景后才会自动补齐依赖，例如 `refund` 自动包含 `orders,refunds`；使用 `--no-auto-dependencies` 可改为缺依赖即报错。
 
 `doctor` 检查 Python、可选的 Docker Compose、连接和 Flyway V18+；没有 Docker 时只要宿主机 MySQL 可连接即可通过。`generate` 不访问数据库；`validate` 支持静态和数据库级一致性校验；`seed` 是生成、校验、导入的一键流程；`clean` 只删除 ownership 批次中的行，不按自增 ID 区间猜测归属。`seed`、`import` 和 `clean` 默认需要确认；检测到 `APP_ENV/ENVIRONMENT/SPRING_PROFILES_ACTIVE/DEPLOY_ENV` 为 production/prod 时，还必须显式传 `--allow-production --confirm-production --yes`。入口不会执行 `docker compose down -v`、`TRUNCATE` 或关闭外键检查。
 

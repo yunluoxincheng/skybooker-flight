@@ -17,6 +17,7 @@ SEED="20260707"
 BASE_DATE=""
 COMPONENTS="all"
 SCENARIOS="all"
+SCENARIOS_EXPLICIT="false"
 OUTPUT=""
 FILE=""
 SUMMARY_FILE=""
@@ -61,6 +62,7 @@ Common options:
   --base-date YYYY-MM-DD       Flight date base
   --components LIST            reference,users,flights,orders,refunds,changes,waitlists,ai,all
   --scenarios LIST             direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all
+                               (omitted: all applicable scenarios within selected components)
   --no-auto-dependencies       Fail when components or scenarios omit dependencies
   --output FILE                Generated SQL destination
   --file FILE                  Existing SQL file for validate/import
@@ -267,7 +269,8 @@ generate_sql() {
   mkdir -p "$(dirname "$summary")"
   local generator
   generator="$(python_script generate_test_data.py)"
-  local args=("$generator" --profile "$PROFILE" --seed "$SEED" --components "$COMPONENTS" --scenarios "$SCENARIOS" --output "$output" --summary-file "$summary")
+  local args=("$generator" --profile "$PROFILE" --seed "$SEED" --components "$COMPONENTS" --output "$output" --summary-file "$summary")
+  [[ "$SCENARIOS_EXPLICIT" == "true" ]] && args+=(--scenarios "$SCENARIOS")
   [[ -n "$RESOLVED_SHA" ]] && args+=(--source-ref "$RESOLVED_SHA")
   [[ -n "$BASE_DATE" ]] && args+=(--base-date "$BASE_DATE")
   [[ "$NO_AUTO_DEPENDENCIES" == "true" ]] && args+=(--no-auto-dependencies)
@@ -454,7 +457,7 @@ parse_args() {
       --seed) SEED="$2"; shift 2 ;;
       --base-date) BASE_DATE="$2"; shift 2 ;;
       --components) COMPONENTS="$2"; shift 2 ;;
-      --scenarios) SCENARIOS="$2"; shift 2 ;;
+      --scenarios) SCENARIOS="$2"; SCENARIOS_EXPLICIT="true"; shift 2 ;;
       --no-auto-dependencies) NO_AUTO_DEPENDENCIES="true"; shift ;;
       --output) OUTPUT="$2"; shift 2 ;;
       --file) FILE="$2"; shift 2 ;;

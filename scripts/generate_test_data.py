@@ -1759,10 +1759,13 @@ def resolve_components(
     invalid = requested - set(COMPONENT_NAMES)
     if invalid:
         raise ValueError(f"unknown components: {', '.join(sorted(invalid))}")
+    missing_component_dependencies = {
+        dependency
+        for component in requested
+        for dependency in COMPONENT_DEPENDENCIES[component]
+        if dependency not in requested
+    }
     if not auto_dependencies:
-        missing = {dependency for component in requested for dependency in COMPONENT_DEPENDENCIES[component] if dependency not in requested}
-        if missing:
-            raise ValueError(f"components require dependencies: {', '.join(sorted(missing))}; remove --no-auto-dependencies or add them explicitly")
         resolved = set(requested)
     else:
         resolved = set(requested)
@@ -1780,12 +1783,19 @@ def resolve_components(
             for dependency in SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set())
             if dependency not in resolved
         }
-        if missing_scenario_components and not auto_dependencies:
-            raise ValueError(
-                "scenarios require components: "
-                + ", ".join(sorted(missing_scenario_components))
-                + "; remove --no-auto-dependencies or add them explicitly"
-            )
+        if not auto_dependencies and (missing_component_dependencies or missing_scenario_components):
+            messages = []
+            if missing_component_dependencies:
+                messages.append(
+                    "components require dependencies: "
+                    + ", ".join(sorted(missing_component_dependencies))
+                )
+            if missing_scenario_components:
+                messages.append(
+                    "scenarios require components: "
+                    + ", ".join(sorted(missing_scenario_components))
+                )
+            raise ValueError("; ".join(messages) + "; remove --no-auto-dependencies or add them explicitly")
         if missing_scenario_components and auto_dependencies:
             resolved.update(missing_scenario_components)
             changed = True
@@ -1795,6 +1805,12 @@ def resolve_components(
                     before = len(resolved)
                     resolved.update(COMPONENT_DEPENDENCIES[component])
                     changed = changed or len(resolved) != before
+    elif not auto_dependencies and missing_component_dependencies:
+        raise ValueError(
+            "components require dependencies: "
+            + ", ".join(sorted(missing_component_dependencies))
+            + "; remove --no-auto-dependencies or add them explicitly"
+        )
     return resolved
 
 
@@ -1816,8 +1832,8 @@ def build_dataset(
     scenarios: set[str] | None = None,
 ) -> dict[str, Any]:
     cfg = PROFILES[profile]
-    selected_components = components or resolve_components(None)
-    selected_scenarios = scenarios or resolve_scenarios(None)
+    selected_components = components if components is not None else resolve_components(None)
+    selected_scenarios = scenarios if scenarios is not None else resolve_scenarios(None)
     rng = random.Random(seed)
     ids = Ids(cfg.id_base, cfg.id_range)
     airports = selected_airports(cfg)
@@ -2439,6 +2455,7 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "sourceRef": source_ref,
         "components": sorted(components),
         "scenarios": sorted(dataset["scenarios"]),
+        "scenariosExplicit": dataset.get("scenarios_explicit", True),
         "seedIdRange": f"{start_id}-{end_id}",
         "generatedIdMin": generated_id_min,
         "generatedIdMax": generated_id_max,
@@ -2496,8 +2513,8 @@ def main() -> None:
         help="Comma-separated modules: reference,users,flights,orders,refunds,changes,waitlists,ai,all.",
     )
     parser.add_argument(
-        "--scenarios", default="all",
-        help="Comma-separated scenarios: direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all.",
+        "--scenarios",
+        help="Comma-separated scenarios: direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all. Omit to use all applicable scenarios without expanding explicit components.",
     )
     parser.add_argument(
         "--no-auto-dependencies", action="store_true",
@@ -2516,9 +2533,10 @@ def main() -> None:
     components = resolve_components(
         args.components,
         auto_dependencies=not args.no_auto_dependencies,
-        scenarios=scenarios,
+        scenarios=scenarios if args.scenarios is not None else None,
     )
     dataset = build_dataset(args.profile, args.seed, base_date, components, scenarios)
+    dataset["scenarios_explicit"] = args.scenarios is not None
     dataset["source_ref"] = args.source_ref
     sql = render_sql(dataset)
     output = Path(args.output) if args.output else Path("backend/src/main/resources/db/seed") / f"seed-{args.profile}.sql"

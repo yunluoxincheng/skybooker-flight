@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -26,6 +27,28 @@ cleaner = load_module("skybooker_clean_test_data", ROOT / "scripts/clean_test_da
 
 
 class TestDataToolTest(unittest.TestCase):
+    def generate_cli_summary(self, arguments):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "seed.sql"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/generate_test_data.py"),
+                    "--profile", "dev",
+                    "--seed", "20260707",
+                    *arguments,
+                    "--output", str(output),
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertIn("Generated", result.stdout)
+            sql = output.read_text(encoding="utf-8")
+            summary, errors = validator.validate(sql)
+            self.assertEqual(errors, [])
+            return summary
+
     def test_component_dependency_resolution(self):
         self.assertEqual(generator.resolve_components("orders"), {"reference", "users", "flights", "orders"})
         with self.assertRaises(ValueError):
@@ -41,6 +64,47 @@ class TestDataToolTest(unittest.TestCase):
                 auto_dependencies=False,
                 scenarios=generator.resolve_scenarios("refund"),
             )
+
+    def test_cli_default_scenarios_do_not_expand_selected_components(self):
+        flights_orders = self.generate_cli_summary(["--components", "flights,orders"])
+        self.assertEqual(
+            set(flights_orders["components"]),
+            {"reference", "users", "flights", "orders"},
+        )
+        self.assertFalse(flights_orders["scenariosExplicit"])
+        self.assertEqual(flights_orders["refunds"], 0)
+        self.assertEqual(flights_orders["changes"], 0)
+        self.assertEqual(flights_orders["waitlists"], 0)
+
+        users = self.generate_cli_summary(["--components", "users"])
+        self.assertEqual(set(users["components"]), {"reference", "users"})
+        self.assertEqual(users["flights"], 0)
+        self.assertEqual(users["orders"], 0)
+
+        explicit_refund = self.generate_cli_summary([
+            "--components", "flights,orders", "--scenarios", "refund",
+        ])
+        self.assertTrue(explicit_refund["scenariosExplicit"])
+        self.assertIn("refunds", explicit_refund["components"])
+        self.assertGreater(explicit_refund["refunds"], 0)
+
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/generate_test_data.py"),
+                    "--profile", "dev",
+                    "--seed", "20260707",
+                    "--components", "flights,orders",
+                    "--scenarios", "refund",
+                    "--no-auto-dependencies",
+                    "--output", str(Path(directory) / "seed.sql"),
+                ],
+                text=True,
+                capture_output=True,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("components require dependencies", result.stderr)
 
     def test_connecting_dataset_is_deterministic_and_complete(self):
         components = generator.resolve_components("all")
