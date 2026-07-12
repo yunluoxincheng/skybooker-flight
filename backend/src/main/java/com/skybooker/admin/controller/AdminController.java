@@ -113,6 +113,12 @@ public class AdminController {
         return ApiResponse.success(adminFlightService.setConnectingItineraryPublished(id, false));
     }
 
+    @DeleteMapping("/connecting-itineraries/{id}")
+    public ApiResponse<Void> deleteConnectingItinerary(@PathVariable Long id) {
+        adminFlightService.deleteConnectingItinerary(id);
+        return ApiResponse.success();
+    }
+
     @PutMapping("/flights/{id}")
     public ApiResponse<FlightVO> updateFlight(@PathVariable Long id, @Valid @RequestBody FlightFormDTO dto) {
         return ApiResponse.success(adminFlightService.updateFlight(id, dto));

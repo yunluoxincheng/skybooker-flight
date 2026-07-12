@@ -27,6 +27,7 @@ public interface ItineraryMapper {
     int updateManagedFlights(@Param("id") Long id, @Param("firstFlightId") Long firstFlightId,
                              @Param("secondFlightId") Long secondFlightId);
     int updateManagedStatus(@Param("id") Long id, @Param("publishStatus") String publishStatus);
+    int deleteManaged(@Param("id") Long id);
     List<FlightVO> findFlightCandidates(@Param("keyword") String keyword,
                                         @Param("startDate") LocalDate startDate,
                                         @Param("endDate") LocalDate endDate,

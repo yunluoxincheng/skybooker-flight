@@ -119,6 +119,10 @@ export function unpublishConnectingItinerary(id: number) {
   return post<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}/unpublish`, undefined, { auth: "admin" })
 }
 
+export function deleteConnectingItinerary(id: number) {
+  return del<null>(`/admin/connecting-itineraries/${id}`, { auth: "admin" })
+}
+
 export function updateFlight(id: number, data: FlightFormDTO) {
   return put<FlightVO>(`/admin/flights/${id}`, data, { auth: "admin" })
 }

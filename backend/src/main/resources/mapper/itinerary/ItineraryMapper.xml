@@ -99,6 +99,9 @@
     <update id="updateManagedStatus">
         UPDATE connecting_itinerary SET publish_status=#{publishStatus} WHERE id=#{id}
     </update>
+    <delete id="deleteManaged">
+        DELETE FROM connecting_itinerary WHERE id=#{id} AND publish_status='DRAFT'
+    </delete>
 
     <sql id="candidateWhere">
         WHERE f.direct_flag=1

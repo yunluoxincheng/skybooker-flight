@@ -220,6 +220,17 @@ public class AdminFlightService {
     }
 
     @Transactional
+    public void deleteConnectingItinerary(Long id) {
+        ConnectingItinerary itinerary = requireManaged(id);
+        if (!"DRAFT".equals(itinerary.getPublishStatus())) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
+        if (itineraryMapper.deleteManaged(id) != 1) {
+            throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
+        }
+    }
+
+    @Transactional
     public void publishFlight(Long id) {
         Flight flight = flightMapper.findById(id);
         if (flight == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
