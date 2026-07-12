@@ -54,6 +54,9 @@ import {
 import {
   applyItineraryListSearch,
   clearItineraryListSearch,
+  isSegmentScope,
+  SEGMENT_SCOPE_LABELS,
+  type SegmentScope,
 } from "./connectingItineraryListSearch";
 
 const PAGE_SIZE = 10;
@@ -92,7 +95,7 @@ export function ConnectingItineraryManagerDialog({
   const [schemeTotal, setSchemeTotal] = useState(0);
   const [schemeKeyword, setSchemeKeyword] = useState("");
   const [appliedSchemeKeyword, setAppliedSchemeKeyword] = useState("");
-  const [segmentScope, setSegmentScope] = useState("ALL");
+  const [segmentScope, setSegmentScope] = useState<SegmentScope>("ALL");
   const [firstOptions, setFirstOptions] = useState<FlightVO[]>([]);
   const [secondOptions, setSecondOptions] = useState<FlightVO[]>([]);
   const [firstSelected, setFirstSelected] = useState<FlightVO | null>(null);
@@ -534,11 +537,13 @@ export function ConnectingItineraryManagerDialog({
             value={segmentScope}
             onValueChange={(value) => {
               setSchemePage(1);
-              setSegmentScope(value ?? "ALL");
+              setSegmentScope(
+                value && isSegmentScope(value) ? value : "ALL",
+              );
             }}
           >
             <SelectTrigger className="sm:w-40">
-              <SelectValue />
+              <SelectValue>{SEGMENT_SCOPE_LABELS[segmentScope]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">全部航段</SelectItem>
