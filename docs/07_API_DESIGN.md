@@ -778,7 +778,7 @@ POST /api/admin/users/{id}/enable
 
 普通用户管理接口只面向普通用户账号。`GET /api/admin/users` 默认只返回 `role = USER` 且非 `DELETED` 的普通用户；`keyword` 模糊匹配邮箱或昵称，`email` 与 `nickname` 分别模糊匹配对应字段。`status` 仅允许 `NORMAL`、`DISABLED`、`DELETED`，指定后按该状态筛选（可查询 `DELETED` 用户）；非法值返回 `10003`。多个查询条件取交集。后台不能通过该接口删除、禁用或启用 `role = ADMIN` 的管理员账号。
 
-`POST /api/admin/users` 创建普通用户，请求体为 `email`、`password`、`nickname`，可选 `phone`、`realName`。服务端固定写入 `role = USER`、`status = NORMAL`、`email_verified = 0`，使用 BCrypt 存储密码，不发送验证码或验证邮件；请求体中的未知 `role` 字段会被忽略，不能创建管理员账号。
+`POST /api/admin/users` 创建普通用户，请求体为 `email`、`password`、`nickname`，可选 `phone`。服务端固定写入 `role = USER`、`status = NORMAL`、`email_verified = 0`，使用 BCrypt 存储密码，不发送验证码或验证邮件；普通用户账户展示名称使用 `nickname`，不保存账户真实姓名字段；请求体中的未知 `role` 字段会被忽略，不能创建管理员账号。
 
 `DELETE /api/admin/users/{id}` 为逻辑删除，成功后把 `users.status` 置为 `DELETED`，不物理删除历史订单、乘机人或候补数据。删除和禁用前都必须校验目标用户没有 `PENDING_PAYMENT`、`ISSUED`、`CHANGED`、`CHANGE_PENDING` 订单，没有 `WAITING` 候补，没有处理中退票或改签；否则分别返回 `USER_HAS_ACTIVE_ORDERS`、`USER_HAS_PENDING_WAITLIST`、`USER_HAS_PROCESSING_REFUND_OR_CHANGE`。
 

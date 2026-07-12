@@ -70,7 +70,6 @@ public class AdminService {
         user.setPhone(dto.getPhone());
         user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setNickname(dto.getNickname());
-        user.setRealName(dto.getRealName());
         user.setRole("USER");
         user.setStatus("NORMAL");
         user.setEmailVerified(false);
@@ -233,7 +232,6 @@ public class AdminService {
                 user.getEmail(),
                 user.getPhone(),
                 user.getNickname(),
-                user.getRealName(),
                 user.getAvatarUrl(),
                 user.getRole(),
                 user.getStatus(),

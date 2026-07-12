@@ -139,7 +139,7 @@ DELETE /api/auth/account
 注销成功后采用逻辑注销和身份匿名化策略：
 
 - `users.status` 从 `NORMAL` 变为 `DELETED`；
-- `email` 改写为包含用户 ID 和随机后缀的不可路由 tombstone 邮箱，`phone`、`real_name`、`avatar_url` 清空，`nickname` 改为通用注销昵称；
+- `email` 改写为包含用户 ID 和随机后缀的不可路由 tombstone 邮箱，`phone`、`avatar_url` 清空，`nickname` 改为通用注销昵称；
 - 密码哈希替换为不可用于原密码登录的新哈希；
 - 历史订单、乘机人、候补、退票、改签、AI 会话和推荐记录保留，以维持业务追溯和外键完整性；
 - 原邮箱和手机号不再被注销账号占用，可按正常注册规则重新使用；

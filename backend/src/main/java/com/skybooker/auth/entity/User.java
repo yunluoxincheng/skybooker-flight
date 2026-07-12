@@ -11,7 +11,6 @@ public class User {
     private String phone;
     private String passwordHash;
     private String nickname;
-    private String realName;
     private String avatarUrl;
     private String role;
     private String status;

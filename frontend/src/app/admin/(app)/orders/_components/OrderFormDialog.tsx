@@ -73,12 +73,9 @@ function formatFlightLabel(flight: FlightVO) {
 }
 
 function buildSelectedUserFromOrder(order: OrderVO): UserAdminVO {
-  const fallbackName = order.userNickname || order.userEmail || `用户 ${order.userId}`
-
   return {
     id: order.userId,
     email: order.userEmail,
-    realName: fallbackName,
     nickname: order.userNickname || undefined,
     role: "USER",
     status: "NORMAL",
@@ -477,7 +474,7 @@ export function OrderFormDialog({
                   searchPlaceholder="搜索昵称/邮箱..."
                   emptyMessage={userSearch.trim() ? "暂无匹配用户" : "请输入关键词搜索用户"}
                   getDisplayValue={(user) => `${getDisplayName(user)} · ${user.email}`}
-                  getSearchFields={(user) => [user.email, user.nickname ?? "", user.realName]}
+                  getSearchFields={(user) => [user.email, user.nickname ?? ""]}
                   loading={isUsersLoading}
                 />
                 {errors.userId && <p className="text-xs text-destructive">{errors.userId}</p>}

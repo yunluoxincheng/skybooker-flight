@@ -1385,8 +1385,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     private String obtainSecondUserToken() throws Exception {
         // Register a second user for cross-user testing
         jdbcTemplate.update(
-                "INSERT IGNORE INTO users(email, password_hash, nickname, real_name, role, email_verified) " +
-                        "VALUES('user2@test.com', '$2b$12$mxGK3588bVIlwCYgjrqa1.1esZ8vbAKALvroPmpAvJfGt3VO781oy', '测试用户2', '测试', 'USER', 1)");
+                "INSERT IGNORE INTO users(email, password_hash, nickname, role, email_verified) " +
+                        "VALUES('user2@test.com', '$2b$12$mxGK3588bVIlwCYgjrqa1.1esZ8vbAKALvroPmpAvJfGt3VO781oy', '测试用户2', 'USER', 1)");
 
         com.skybooker.auth.dto.UserLoginDTO dto = new com.skybooker.auth.dto.UserLoginDTO();
         dto.setEmail("user2@test.com");

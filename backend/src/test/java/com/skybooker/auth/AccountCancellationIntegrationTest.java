@@ -220,7 +220,7 @@ class AccountCancellationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value(200));
 
         Map<String, Object> user = jdbcTemplate.queryForMap("""
-                SELECT email, phone, nickname, real_name, avatar_url, status, email_verified, phone_verified
+                SELECT email, phone, nickname, avatar_url, status, email_verified, phone_verified
                 FROM users WHERE id = ?
                 """, userId);
         assertThat(user.get("status")).isEqualTo("DELETED");
@@ -229,7 +229,6 @@ class AccountCancellationIntegrationTest extends AbstractIntegrationTest {
                 .endsWith("@deleted.skybooker.invalid");
         assertThat(user.get("phone")).isNull();
         assertThat(user.get("nickname")).isEqualTo("Cancelled User");
-        assertThat(user.get("real_name")).isNull();
         assertThat(user.get("avatar_url")).isNull();
         assertThat(flagValue(user.get("email_verified"))).isZero();
         assertThat(flagValue(user.get("phone_verified"))).isZero();

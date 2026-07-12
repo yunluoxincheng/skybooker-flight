@@ -771,7 +771,6 @@ def generate_users_and_passengers(ids: Ids, profile: str, cfg: ProfileConfig) ->
                 "phone": f"139{cfg.id_base // 1000:03d}{index:05d}"[-11:],
                 "password_hash": USER_PASSWORD_HASH,
                 "nickname": f"测试用户{index:04d}",
-                "real_name": f"{surnames[index % len(surnames)]}{first_names[index % len(first_names)]}{first_names[(index + 3) % len(first_names)]}",
                 "role": "USER",
                 "status": "NORMAL",
                 "email_verified": 1,
@@ -1325,7 +1324,7 @@ def build_dataset(profile: str, seed: int, base_date: date) -> dict[str, Any]:
 def rows_for_users(users: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
     return [
         (
-            user["id"], user["email"], user["phone"], user["password_hash"], user["nickname"], user["real_name"],
+            user["id"], user["email"], user["phone"], user["password_hash"], user["nickname"],
             user["role"], user["status"], user["email_verified"], user["phone_verified"], user["last_login_at"],
         )
         for user in users
@@ -1394,7 +1393,7 @@ def render_sql(dataset: dict[str, Any]) -> str:
         insert_statement(
             "users",
             [
-                "id", "email", "phone", "password_hash", "nickname", "real_name", "role", "status",
+                "id", "email", "phone", "password_hash", "nickname", "role", "status",
                 "email_verified", "phone_verified", "last_login_at",
             ],
             rows_for_users(dataset["users"]),

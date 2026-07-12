@@ -215,7 +215,6 @@
             <if test="query.userKeyword != null and query.userKeyword != ''">
                 AND (u.email LIKE CONCAT('%', #{query.userKeyword}, '%')
                   OR u.nickname LIKE CONCAT('%', #{query.userKeyword}, '%')
-                  OR u.real_name LIKE CONCAT('%', #{query.userKeyword}, '%')
                   OR u.phone LIKE CONCAT('%', #{query.userKeyword}, '%'))
             </if>
             <if test="query.flightNo != null and query.flightNo != ''">

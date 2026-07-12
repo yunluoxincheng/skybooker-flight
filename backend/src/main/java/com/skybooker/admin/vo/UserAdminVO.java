@@ -14,7 +14,6 @@ public class UserAdminVO {
     private String email;
     private String phone;
     private String nickname;
-    private String realName;
     private String avatarUrl;
     private String role;
     private String status;

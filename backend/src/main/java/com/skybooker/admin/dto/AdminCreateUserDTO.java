@@ -24,7 +24,4 @@ public class AdminCreateUserDTO {
 
     @Size(max = 20, message = "手机号不超过 20 字")
     private String phone;
-
-    @Size(max = 50, message = "真实姓名不超过 50 字")
-    private String realName;
 }
