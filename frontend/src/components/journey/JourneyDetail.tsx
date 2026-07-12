@@ -7,6 +7,7 @@ import { FlightPriceTag } from "@/components/common/FlightPriceTag";
 import { FlightStatusBadge } from "@/components/common/FlightStatusBadge";
 import { formatDateFull, formatTime } from "@/lib/date-utils";
 import type { ItineraryVO } from "@/types/flight";
+import { waitlistUrl } from "./journeyActions";
 
 const duration = (minutes: number) =>
   `${Math.floor(minutes / 60)}时${minutes % 60 ? `${minutes % 60}分` : ""}`;
@@ -108,25 +109,48 @@ export function JourneyDetail({ journey }: { journey: ItineraryVO }) {
                   <span>余 {segment.remainingSeats} 座</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {segment.cabins?.map((cabin) => (
-                    <div
-                      key={cabin.cabinClass}
-                      className="rounded-lg border p-3"
-                    >
-                      <p className="text-sm font-medium">
-                        {cabin.cabinClass === "ECONOMY"
-                          ? "经济舱"
-                          : cabin.cabinClass === "BUSINESS"
-                            ? "公务舱"
-                            : "头等舱"}
-                      </p>
-                      <FlightPriceTag price={cabin.price} />
-                      <p className="text-xs text-muted-foreground">
-                        余 {cabin.availableSeats ?? cabin.remainingSeats ?? 0}{" "}
-                        座
-                      </p>
-                    </div>
-                  ))}
+                  {segment.cabins?.map((cabin) => {
+                    const available =
+                      cabin.availableSeats ?? cabin.remainingSeats ?? 0;
+                    return (
+                      <div
+                        key={cabin.cabinClass}
+                        className="rounded-lg border p-3"
+                      >
+                        <p className="text-sm font-medium">
+                          {cabin.cabinClass === "ECONOMY"
+                            ? "经济舱"
+                            : cabin.cabinClass === "BUSINESS"
+                              ? "公务舱"
+                              : "头等舱"}
+                        </p>
+                        <FlightPriceTag price={cabin.price} />
+                        {available > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            余 {available} 座
+                          </p>
+                        ) : !connecting ? (
+                          <Button
+                            className="mt-2"
+                            size="sm"
+                            variant="outline"
+                            render={
+                              <Link
+                                href={waitlistUrl(journey, cabin.cabinClass)!}
+                              >
+                                加入候补
+                              </Link>
+                            }
+                            nativeButton={false}
+                          />
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            已售罄
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -161,6 +185,18 @@ export function JourneyDetail({ journey }: { journey: ItineraryVO }) {
                 ? `共享余票 ${journey.availableSeats} 座，最终价格以选座结果为准`
                 : journey.unavailableReason || "该行程当前不可预订"}
             </p>
+            {!connecting &&
+              !journey.sellable &&
+              journey.availableSeats <= 0 && (
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  render={
+                    <Link href={waitlistUrl(journey)!}>加入候补队列</Link>
+                  }
+                  nativeButton={false}
+                />
+              )}
           </CardContent>
         </Card>
       </div>

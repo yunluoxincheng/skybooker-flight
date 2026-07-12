@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cabinClassSearchParam,
   hasCompleteSearchCriteria,
   LatestRequestGuard,
 } from "./flightSearchState";
@@ -19,5 +20,10 @@ describe("flight search state", () => {
     const second = guard.next();
     expect(guard.isLatest(first)).toBe(false);
     expect(guard.isLatest(second)).toBe(true);
+  });
+
+  it("forwards only supported cabin classes", () => {
+    expect(cabinClassSearchParam("BUSINESS")).toBe("BUSINESS");
+    expect(cabinClassSearchParam("PREMIUM")).toBeUndefined();
   });
 });

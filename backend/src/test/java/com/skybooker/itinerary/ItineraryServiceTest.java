@@ -30,6 +30,7 @@ class ItineraryServiceTest {
     private ItineraryService service;
     private ItineraryMapper itineraryMapper;
     private FlightService flightService;
+    private FlightMapper flightMapper;
     private final LocalDateTime now = LocalDateTime.of(2026, 7, 11, 10, 0);
 
     @BeforeEach
@@ -40,7 +41,8 @@ class ItineraryServiceTest {
         published.setPublishStatus("PUBLISHED");
         when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(published);
         flightService = mock(FlightService.class);
-        service = new ItineraryService(itineraryMapper, mock(FlightMapper.class),
+        flightMapper = mock(FlightMapper.class);
+        service = new ItineraryService(itineraryMapper, flightMapper,
                 flightService, mock(PassengerMapper.class), clock);
     }
 
@@ -96,6 +98,38 @@ class ItineraryServiceTest {
         PageResponse<com.skybooker.itinerary.vo.ItineraryVO> result = service.search(query);
         org.junit.jupiter.api.Assertions.assertEquals(101, result.getTotal());
         org.junit.jupiter.api.Assertions.assertEquals(101L, result.getRecords().getFirst().getId());
+    }
+
+    @Test void defaultSearchPassesOnePassengerAndCabinAvailabilityControlsSeats() {
+        FlightVO direct = flight(1L, 1L, 3L, now.plusDays(1), now.plusDays(1).plusHours(1));
+        com.skybooker.flight.vo.FlightCabinVO business = new com.skybooker.flight.vo.FlightCabinVO();
+        business.setCabinClass("BUSINESS"); business.setPrice(new BigDecimal("888.00"));
+        direct.setCabins(List.of(business));
+        when(flightService.searchFlights(any(FlightSearchDTO.class)))
+                .thenReturn(new PageResponse<>(List.of(direct), 1, 1, 100));
+        when(flightMapper.countAvailableSeatsByFlightAndCabin(1L, "BUSINESS")).thenReturn(2);
+        when(itineraryMapper.findConnectingPairs("上海", "北京", now.toLocalDate().plusDays(1), 1, "BUSINESS"))
+                .thenReturn(List.of());
+        FlightSearchDTO query = new FlightSearchDTO(); query.setDepartureCity("上海"); query.setArrivalCity("北京");
+        query.setDepartureDate(now.toLocalDate().plusDays(1)); query.setCabinClass("BUSINESS");
+        var result = service.search(query);
+        org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal("888.00"), result.getRecords().getFirst().getEstimatedAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.getRecords().getFirst().getAvailableSeats());
+        org.mockito.ArgumentCaptor<FlightSearchDTO> captor = org.mockito.ArgumentCaptor.forClass(FlightSearchDTO.class);
+        org.mockito.Mockito.verify(flightService).searchFlights(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(1, captor.getValue().getPassengerCount());
+    }
+
+    @Test void publishedConnectingDetailReturnsSoldOutReasonInsteadOfFailing() {
+        ConnectingItinerary managed = new ConnectingItinerary(); managed.setId(9L); managed.setPublishStatus("PUBLISHED");
+        managed.setFirstFlightId(1L); managed.setSecondFlightId(2L);
+        when(itineraryMapper.findManagedById(9L)).thenReturn(managed);
+        List<FlightVO> pair = pair(120); pair.getLast().setRemainingSeats(0);
+        when(flightMapper.findPublishedFlightById(1L)).thenReturn(pair.getFirst());
+        when(flightMapper.findPublishedFlightById(2L)).thenReturn(pair.getLast());
+        var detail = service.connectingDetail(9L);
+        org.junit.jupiter.api.Assertions.assertFalse(detail.getSellable());
+        org.junit.jupiter.api.Assertions.assertEquals("该联程行程已售罄", detail.getUnavailableReason());
     }
 
     private List<FlightVO> pair(int transferMinutes) {

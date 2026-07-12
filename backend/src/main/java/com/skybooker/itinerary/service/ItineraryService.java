@@ -45,6 +45,7 @@ public class ItineraryService {
         List<ItineraryVO> all = new ArrayList<>();
 
         FlightSearchDTO directQuery = copyForDirect(dto);
+        directQuery.setPassengerCount(passengerCount);
         directQuery.setSize(100);
         int directPage = 1;
         long directTotal;
@@ -115,8 +116,29 @@ public class ItineraryService {
         }
         List<FlightVO> flights = List.of(flightMapper.findPublishedFlightById(managed.getFirstFlightId()),
                 flightMapper.findPublishedFlightById(managed.getSecondFlightId()));
-        validate(flights, 1);
-        return build(id, flights, null);
+        if (flights.stream().anyMatch(java.util.Objects::isNull)) {
+            throw new BusinessException(ErrorCode.ITINERARY_INVALID);
+        }
+        FlightVO first = flights.getFirst(), second = flights.getLast();
+        long transfer = Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
+        if (!Integer.valueOf(1).equals(first.getDirectFlag()) || !Integer.valueOf(1).equals(second.getDirectFlag())
+                || !first.getArrivalAirportId().equals(second.getDepartureAirportId()) || transfer < 90 || transfer > 360) {
+            throw new BusinessException(ErrorCode.ITINERARY_INVALID);
+        }
+        ItineraryVO detail = build(id, flights, null);
+        String reason = unavailableReason(flights);
+        detail.setSellable(reason == null);
+        detail.setUnavailableReason(reason);
+        return detail;
+    }
+
+    private String unavailableReason(List<FlightVO> flights) {
+        if (flights.stream().anyMatch(f -> !"PUBLISHED".equals(f.getPublishStatus()))) return "部分航段已下架";
+        if (flights.stream().anyMatch(f -> "CANCELLED".equals(f.getStatus()))) return "部分航段已取消";
+        if (flights.stream().anyMatch(f -> !("ON_TIME".equals(f.getStatus()) || "DELAYED".equals(f.getStatus())))) return "部分航段当前不可售";
+        if (flights.stream().anyMatch(f -> !f.getDepartureTime().isAfter(LocalDateTime.now(businessClock)))) return "行程已经起飞或过期";
+        if (flights.stream().anyMatch(f -> f.getRemainingSeats() < 1)) return "该联程行程已售罄";
+        return null;
     }
 
     public void validate(List<FlightVO> flights, int passengerCount) {
@@ -155,7 +177,7 @@ public class ItineraryService {
         return new ItineraryVO(id, flights.size() == 2 ? "CONNECTING" : "DIRECT", flights, first.getDepartureCity(),
                 last.getArrivalCity(), flights.size() == 2 ? first.getArrivalAirportCode() : null,
                 flights.size() == 2 ? first.getArrivalAirportName() : null, flights.size() == 2 ? connection : null,
-                duration, price, seats, seats > 0, null);
+                duration, price, seats, seats > 0, null, null);
     }
 
     private BigDecimal cabinPrice(FlightVO flight, String cabinClass) {

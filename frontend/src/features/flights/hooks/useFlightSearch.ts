@@ -6,6 +6,7 @@ import * as flightApi from "@/services/flightApi";
 import type { ItineraryVO } from "@/types/flight";
 import type { ApiError } from "@/lib/request";
 import {
+  cabinClassSearchParam,
   hasCompleteSearchCriteria,
   LatestRequestGuard,
 } from "../flightSearchState";
@@ -52,6 +53,7 @@ export function useFlightSearch(): UseFlightSearchReturn {
       const directOnly = searchParams.get("directOnly");
       const departureTimeRange = searchParams.get("departureTimeRange");
       const sortBy = searchParams.get("sortBy");
+      const cabinClass = searchParams.get("cabinClass");
 
       if (
         !hasCompleteSearchCriteria(departureCity, arrivalCity, departureDate)
@@ -74,6 +76,7 @@ export function useFlightSearch(): UseFlightSearchReturn {
       if (minPrice) params.minPrice = Number(minPrice);
       if (maxPrice) params.maxPrice = Number(maxPrice);
       if (directOnly === "true") params.directOnly = true;
+      params.cabinClass = cabinClassSearchParam(cabinClass);
       if (departureTimeRange) {
         const parts = departureTimeRange.split("-");
         if (parts.length === 2) {

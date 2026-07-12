@@ -20,7 +20,6 @@ import { UserLayout } from "@/components/layout/UserLayout";
 import { FlightSearchCard } from "@/components/common/FlightSearchCard";
 import { ItineraryCard } from "@/components/common/ItineraryCard";
 import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch";
-import { isCabinClass } from "@/types/flight";
 import { DateFareStrip } from "@/features/flights/components/DateFareStrip";
 
 function FlightsContent() {
@@ -52,10 +51,6 @@ function FlightsContent() {
   const currentSortBy = searchParams.get("sortBy") || "";
   const currentDirectOnly = searchParams.get("directOnly") === "true";
   const currentTimeRange = searchParams.get("departureTimeRange") || "";
-  const cabinClassParam = searchParams.get("cabinClass");
-  const currentCabinClass = isCabinClass(cabinClassParam)
-    ? cabinClassParam
-    : undefined;
   const origin = searchParams.get("departureCity")?.trim() || "";
   const destination = searchParams.get("arrivalCity")?.trim() || "";
   const selectedDate = searchParams.get("departureDate") || "";
@@ -253,7 +248,6 @@ function FlightsContent() {
                   <ItineraryCard
                     key={itinerary.segments.map((s) => s.id).join("-")}
                     itinerary={itinerary}
-                    cabinClass={currentCabinClass}
                   />
                 ))}
               </div>

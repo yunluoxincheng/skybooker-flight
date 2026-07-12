@@ -25,6 +25,7 @@ public class ItineraryVO {
     private BigDecimal estimatedAmount;
     private Integer availableSeats;
     private Boolean sellable;
+    private String unavailableReason;
     private List<SegmentAvailabilityVO> segmentAvailability;
 
     @Data

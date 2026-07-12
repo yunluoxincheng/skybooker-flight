@@ -47,6 +47,7 @@ import * as flightApi from "@/services/flightApi";
 import * as passengerApi from "@/services/passengerApi";
 import * as orderApi from "@/services/orderApi";
 import type { ApiError } from "@/lib/request";
+import { validatePassengerForm } from "@/features/booking/passengerValidation";
 
 const STEPS = [
   { label: "确认行程", icon: Plane },
@@ -77,6 +78,8 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
     passengerType: "ADULT" as PassengerType,
   });
   const requestId = useRef(crypto.randomUUID());
+  const formErrors = validatePassengerForm(form);
+  const passengerFormValid = Object.values(formErrors).every((value) => !value);
 
   const loadPassengers = () =>
     passengerApi
@@ -165,6 +168,7 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
       return { ...all, [flightId]: { ...current, seatIds: ids } };
     });
   const addPassenger = async () => {
+    if (!passengerFormValid) return;
     setSubmitting(true);
     try {
       await passengerApi.createPassenger(form);
@@ -359,6 +363,15 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
                   className={`rounded-lg border p-3 text-left ${current?.cabin === cabin ? "border-primary bg-primary/5" : ""}`}
                 >
                   <b>{CABIN_CLASS_LABEL[cabin]}</b>
+                  <p className="text-sm font-medium text-rose-600">
+                    ¥
+                    {(
+                      seats.find((seat) => seat.cabinClass === cabin)?.price ??
+                      segment.cabins?.find((item) => item.cabinClass === cabin)
+                        ?.price ??
+                      0
+                    ).toLocaleString()}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     可选{" "}
                     {
@@ -476,6 +489,9 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
                 }
               />
             </Label>
+            {formErrors.name && (
+              <p className="text-xs text-destructive">{formErrors.name}</p>
+            )}
             <Label>
               身份证号
               <Input
@@ -485,6 +501,9 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
                 }
               />
             </Label>
+            {formErrors.idCardNo && (
+              <p className="text-xs text-destructive">{formErrors.idCardNo}</p>
+            )}
             <Label>
               手机号
               <Input
@@ -494,6 +513,9 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
                 }
               />
             </Label>
+            {formErrors.phone && (
+              <p className="text-xs text-destructive">{formErrors.phone}</p>
+            )}
             <Label>
               乘机人类型
               <Select
@@ -515,9 +537,7 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
             <Button
               className="w-full"
               onClick={addPassenger}
-              disabled={
-                submitting || !form.name || !form.idCardNo || !form.phone
-              }
+              disabled={submitting || !passengerFormValid}
             >
               确认添加
             </Button>
