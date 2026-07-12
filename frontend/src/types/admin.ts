@@ -36,8 +36,6 @@ export interface OrderStatusDistributionVO {
 export interface UserAdminVO {
   id: number
   email: string
-  /** 旧数据兼容字段；新建用户不再填写或提交。 */
-  realName: string
   nickname?: string
   phone?: string
   avatarUrl?: string
