@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Clock, Plane } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { FlightStatusBadge } from "@/components/common/FlightStatusBadge"
 import { formatDate, formatTime, getCrossDayLabel } from "@/lib/date-utils"
 import type { AiFlightCardVO } from "@/types/ai"
 
@@ -19,15 +19,6 @@ export function AiFlightCard({ flight, className }: AiFlightCardProps) {
   }
 
   const crossDayLabel = getCrossDayLabel(flight.departureTime, flight.arrivalTime)
-
-  // 推荐理由/状态标签
-  const statusLabel = (() => {
-    switch (flight.status) {
-      case "AVAILABLE": return "可选"
-      case "FEW_SEATS": return "余座紧张"
-      default: return flight.status
-    }
-  })()
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${className || ""}`}>
@@ -79,7 +70,7 @@ export function AiFlightCard({ flight, className }: AiFlightCardProps) {
           <div className="flex items-center gap-3 sm:w-[180px] shrink-0 justify-end">
             <div className="text-right">
               <div className="flex items-center gap-1.5 justify-end">
-                <Badge variant="secondary" className="text-xs">{statusLabel}</Badge>
+                <FlightStatusBadge status={flight.status} className="text-xs" />
                 {flight.remainingSeats > 0 && (
                   <span className="text-xs text-muted-foreground">余 {flight.remainingSeats} 座</span>
                 )}

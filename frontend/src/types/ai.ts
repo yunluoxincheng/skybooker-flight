@@ -1,3 +1,5 @@
+import type { FlightStatus } from "@/types/flight"
+
 /** AI 回复类型 */
 export type AiReplyType =
   | "TRAVEL_CHAT"
@@ -25,7 +27,7 @@ export interface AiFlightCardVO {
   durationMinutes: number
   price: number
   remainingSeats: number
-  status: string
+  status: FlightStatus
   detailUrl?: string
   bookingUrl?: string
 }
