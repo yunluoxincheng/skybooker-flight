@@ -129,6 +129,7 @@ class Ids:
             self.passenger = base + 1_000
             self.flight = base + 10_000
             self.seat = base + 20_000
+            self.cabin = base + 30_000
             self.order = base + 50_000
             self.order_passenger = base + 60_000
             self.refund = base + 70_000
@@ -148,6 +149,7 @@ class Ids:
             self.passenger = base + 1_000
             self.flight = base + 10_000
             self.seat = base + 100_000
+            self.cabin = base + 300_000
             self.order = base + 500_000
             self.order_passenger = base + 700_000
             self.refund = base + 800_000
@@ -181,6 +183,11 @@ class Ids:
     def next_seat(self) -> int:
         value = self.seat
         self.seat += 1
+        return value
+
+    def next_cabin(self) -> int:
+        value = self.cabin
+        self.cabin += 1
         return value
 
     def next_order(self) -> int:
@@ -687,7 +694,15 @@ def add_seats(flight: Flight, ids: Ids, rng: random.Random) -> None:
                     disabled_budget -= 1
                 flight.seats.append(seat)
                 created += 1
-        flight.cabins.append({"flight_id": flight.id, "cabin_class": cabin, "price": price, "total_seats": total})
+        flight.cabins.append(
+            {
+                "id": ids.next_cabin(),
+                "flight_id": flight.id,
+                "cabin_class": cabin,
+                "price": price,
+                "total_seats": total,
+            }
+        )
 
 
 def make_flight(
@@ -746,25 +761,28 @@ def generate_flights(
     base_date: date,
     airports: list[Airport],
     airlines: list[Airline],
+    scenarios: set[str],
 ) -> list[Flight]:
     airports_by_code = {airport.code: airport for airport in airports}
     flights: list[Flight] = []
 
     special_specs = [
-        ("CAN", "PVG", 1, time(7, 10), "popular", "cheap_morning", "ON_TIME", 1, "cheap"),
-        ("CAN", "SHA", 1, time(9, 20), "popular", "morning", "ON_TIME", 1, None),
-        ("CAN", "PVG", 1, time(14, 30), "popular", "delayed", "DELAYED", 1, None),
-        ("CAN", "SHA", 1, time(23, 40), "popular", "cross_day", "ON_TIME", 1, None),
-        ("CAN", "PVG", 1, time(11, 0), "popular", "cancelled", "CANCELLED", 1, None),
-        ("CAN", "PVG", 0, time(10, 30), "popular", "soon", "ON_TIME", 1, None),
-        ("SHA", "PEK", 2, time(8, 0), "popular", "economy_sold_business_available", "ON_TIME", 1, "sold_out"),
-        ("PVG", "PKX", 2, time(12, 10), "popular", "all_sold_out", "ON_TIME", 1, "sold_out"),
-        ("SZX", "HGH", 3, time(18, 35), "medium", "last_seat", "ON_TIME", 1, "last_one"),
-        ("PEK", "SHA", 4, time(16, 50), "popular", "multi_locked", "ON_TIME", 1, None),
-        ("HKG", "SIN", 5, time(22, 30), "medium", "non_direct", "ON_TIME", 0, None),
-        ("CAN", "PVG", 2, time(20, 5), "popular", "waitlist_target", "ON_TIME", 1, "sold_out"),
+        ("direct", "CAN", "PVG", 1, time(7, 10), "popular", "cheap_morning", "ON_TIME", 1, "cheap"),
+        ("direct", "CAN", "SHA", 1, time(9, 20), "popular", "morning", "ON_TIME", 1, None),
+        ("delayed", "CAN", "PVG", 1, time(14, 30), "popular", "delayed", "DELAYED", 1, None),
+        ("direct", "CAN", "SHA", 1, time(23, 40), "popular", "cross_day", "ON_TIME", 1, None),
+        ("cancel", "CAN", "PVG", 1, time(11, 0), "popular", "cancelled", "CANCELLED", 1, None),
+        ("near-departure", "CAN", "PVG", 0, time(10, 30), "popular", "soon", "ON_TIME", 1, None),
+        ("sold-out", "SHA", "PEK", 2, time(8, 0), "popular", "economy_sold_business_available", "ON_TIME", 1, "sold_out"),
+        ("sold-out", "PVG", "PKX", 2, time(12, 10), "popular", "all_sold_out", "ON_TIME", 1, "sold_out"),
+        ("sold-out", "SZX", "HGH", 3, time(18, 35), "medium", "last_seat", "ON_TIME", 1, "last_one"),
+        ("payment", "PEK", "SHA", 4, time(16, 50), "popular", "multi_locked", "ON_TIME", 1, None),
+        ("direct", "HKG", "SIN", 5, time(22, 30), "medium", "non_direct", "ON_TIME", 0, None),
+        ("waitlist", "CAN", "PVG", 2, time(20, 5), "popular", "waitlist_target", "ON_TIME", 1, "sold_out"),
     ]
-    for dep, arr, day, depart_time, tier, tag, status, direct, scarcity in special_specs:
+    for scenario, dep, arr, day, depart_time, tier, tag, status, direct, scarcity in special_specs:
+        if scenario not in scenarios:
+            continue
         if dep in airports_by_code and arr in airports_by_code:
             flights.append(
                 make_flight(
@@ -783,6 +801,9 @@ def generate_flights(
                 )
             )
 
+    if not scenarios.intersection({"direct", "payment", "cancel", "refund", "change", "waitlist", "sold-out", "delayed", "near-departure"}):
+        return flights
+
     routes = build_routes(airports, cfg, rng)
     popular_slots = [time(6, 50), time(9, 25), time(13, 40), time(18, 15), time(22, 20)]
     medium_slots = [time(8, 35), time(16, 5)]
@@ -800,7 +821,19 @@ def generate_flights(
             for slot in slots:
                 minute_jitter = rng.choice([-10, -5, 0, 5, 10])
                 depart_at = datetime.combine(base_date + timedelta(days=day), slot) + timedelta(minutes=minute_jitter)
-                flights.append(make_flight(ids, rng, airports_by_code, airlines, dep, arr, depart_at, tier))
+                flights.append(
+                    make_flight(
+                        ids,
+                        rng,
+                        airports_by_code,
+                        airlines,
+                        dep,
+                        arr,
+                        depart_at,
+                        tier,
+                        status=None if "delayed" in scenarios else "ON_TIME",
+                    )
+                )
 
     flights.sort(key=lambda item: (item.departure_time, item.flight_no, item.id))
     return flights
@@ -1029,6 +1062,10 @@ def build_orders(
     base_dt: datetime,
     flights: list[Flight],
     passengers: list[dict[str, Any]],
+    scenarios: set[str],
+    include_refunds: bool = True,
+    include_changes: bool = True,
+    include_waitlists: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     passengers_by_user = passenger_pool_by_user(passengers)
     orders: list[dict[str, Any]] = []
@@ -1078,26 +1115,26 @@ def build_orders(
 
     by_tag = {flight.tag: flight for flight in flights if flight.tag}
 
-    economy_sold = by_tag.get("economy_sold_business_available")
+    economy_sold = by_tag.get("economy_sold_business_available") if "sold-out" in scenarios else None
     if economy_sold:
         sell_many(economy_sold, available_seats(economy_sold, "ECONOMY"), "economy-sold")
 
-    all_sold = by_tag.get("all_sold_out")
+    all_sold = by_tag.get("all_sold_out") if "sold-out" in scenarios else None
     if all_sold:
         sell_many(all_sold, available_seats(all_sold), "all-sold")
 
-    last_seat = by_tag.get("last_seat")
+    last_seat = by_tag.get("last_seat") if "sold-out" in scenarios else None
     if last_seat:
         seats = available_seats(last_seat)
         sell_many(last_seat, seats[:-1], "last-seat")
 
-    multi_locked = by_tag.get("multi_locked")
+    multi_locked = by_tag.get("multi_locked") if "payment" in scenarios else None
     if multi_locked:
         seats = available_seats(multi_locked, "ECONOMY")[:2]
         created = base_dt - timedelta(minutes=5)
         append_order(multi_locked, seats, "PENDING_PAYMENT", created, None, base_dt + timedelta(minutes=10))
 
-    waitlist_target = by_tag.get("waitlist_target")
+    waitlist_target = by_tag.get("waitlist_target") if "waitlist" in scenarios and include_waitlists else None
     if waitlist_target:
         economy = available_seats(waitlist_target, "ECONOMY")
         success_seat = economy[0:1]
@@ -1167,10 +1204,17 @@ def build_orders(
                     }
                 )
 
-    status_cycle = [
-        "ISSUED", "ISSUED", "ISSUED", "PENDING_PAYMENT", "CANCELLED",
-        "REFUNDED", "CHANGE_PENDING", "CHANGED",
-    ]
+    status_cycle: list[str] = []
+    if "direct" in scenarios:
+        status_cycle.extend(["ISSUED", "ISSUED", "ISSUED"])
+    if "payment" in scenarios:
+        status_cycle.append("PENDING_PAYMENT")
+    if "cancel" in scenarios:
+        status_cycle.append("CANCELLED")
+    if "refund" in scenarios and include_refunds:
+        status_cycle.append("REFUNDED")
+    if "change" in scenarios and include_changes:
+        status_cycle.extend(["CHANGE_PENDING", "CHANGED"])
     protected_tags = {"all_sold_out", "last_seat", "economy_sold_business_available", "waitlist_target", "multi_locked"}
     sellable_flights = [
         flight
@@ -1183,6 +1227,9 @@ def build_orders(
     for flight in sellable_flights:
         same_route.setdefault((flight.departure_airport_id, flight.arrival_airport_id), []).append(flight)
 
+    if not status_cycle or not sellable_flights:
+        return orders, order_passengers, refunds, changes, waitlists, waitlist_passengers
+
     attempts = 0
     while len(orders) < cfg.order_count and attempts < cfg.order_count * 20:
         attempts += 1
@@ -1191,7 +1238,7 @@ def build_orders(
         if rng.random() < 0.04:
             count = 3
         flight = rng.choice(sellable_flights)
-        if status == "CHANGED":
+        if status == "CHANGED" and include_changes:
             candidates = [item for item in same_route[(flight.departure_airport_id, flight.arrival_airport_id)] if item.id != flight.id]
             if not candidates:
                 status = "ISSUED"
@@ -1236,7 +1283,7 @@ def build_orders(
         else:
             pay_time = created + timedelta(minutes=6)
             order = append_order(flight, seats, status, created, pay_time, created + timedelta(minutes=15))
-            if status == "REFUNDED":
+            if status == "REFUNDED" and include_refunds:
                 fee = money(order["total_amount"] * Decimal("0.10"))
                 refunds.append(
                     {
@@ -1658,6 +1705,7 @@ def generated_id_values(dataset: dict[str, Any]) -> list[int]:
     ids.extend(user["id"] for user in dataset["users"])
     ids.extend(passenger["id"] for passenger in dataset["passengers"] if passenger["id"] >= cfg.id_base)
     ids.extend(flight.id for flight in dataset["flights"])
+    ids.extend(cabin["id"] for flight in dataset["flights"] for cabin in flight.cabins)
     ids.extend(seat.id for flight in dataset["flights"] for seat in flight.seats)
     ids.extend(order["id"] for order in dataset["orders"])
     ids.extend(order_passenger["id"] for order_passenger in dataset["order_passengers"])
@@ -1734,17 +1782,50 @@ def build_dataset(
     ids = Ids(cfg.id_base, cfg.id_range)
     airports = selected_airports(cfg)
     airlines = selected_airlines(cfg)
-    users, passengers = generate_users_and_passengers(ids, profile, cfg)
-    flights = generate_flights(ids, rng, cfg, base_date, airports, airlines)
+    users: list[dict[str, Any]] = []
+    passengers: list[dict[str, Any]] = []
+    if "users" in selected_components:
+        users, passengers = generate_users_and_passengers(ids, profile, cfg)
+
+    direct_scenario_names = {
+        "direct", "payment", "cancel", "refund", "change", "waitlist", "sold-out",
+        "delayed", "near-departure",
+    }
+    should_generate_flights = "flights" in selected_components and bool(selected_scenarios & (direct_scenario_names | {"connecting"}))
+    flights = generate_flights(ids, rng, cfg, base_date, airports, airlines, selected_scenarios) if should_generate_flights else []
     connecting_flights: list[Flight] = []
     connecting_itineraries: list[dict[str, Any]] = []
-    if "connecting" in selected_scenarios:
+    if "connecting" in selected_scenarios and "flights" in selected_components:
         connecting_flights, connecting_itineraries = generate_connecting_itineraries(ids, rng, base_date, airports, airlines)
         flights.extend(connecting_flights)
     base_dt = datetime.combine(base_date, time(9, 0))
-    orders, order_passengers, refunds, changes, waitlists, waitlist_passengers = build_orders(
-        ids, rng, profile, cfg, base_dt, flights, passengers
-    )
+    orders: list[dict[str, Any]] = []
+    order_passengers: list[dict[str, Any]] = []
+    refunds: list[dict[str, Any]] = []
+    changes: list[dict[str, Any]] = []
+    waitlists: list[dict[str, Any]] = []
+    waitlist_passengers: list[dict[str, Any]] = []
+    if "orders" in selected_components and selected_scenarios & direct_scenario_names:
+        (
+            orders,
+            order_passengers,
+            refunds,
+            changes,
+            waitlists,
+            waitlist_passengers,
+        ) = build_orders(
+            ids,
+            rng,
+            profile,
+            cfg,
+            base_dt,
+            flights,
+            passengers,
+            selected_scenarios,
+            include_refunds="refunds" in selected_components,
+            include_changes="changes" in selected_components,
+            include_waitlists="waitlists" in selected_components,
+        )
     connecting_orders: list[dict[str, Any]] = []
     order_segments: list[dict[str, Any]] = []
     segment_passengers: list[dict[str, Any]] = []
@@ -1759,9 +1840,17 @@ def build_dataset(
             connecting_changes,
             connecting_change_segments,
         ) = build_connecting_orders(ids, profile, base_dt, connecting_itineraries, flights, passengers)
-        refunds.extend(connecting_refunds)
+        if "refunds" in selected_components:
+            refunds.extend(connecting_refunds)
+        if "changes" not in selected_components:
+            connecting_changes = []
+            connecting_change_segments = []
         orders.extend(connecting_orders)
-    ai_sessions, ai_messages, ai_recommendations = build_ai_records(ids, profile, base_dt, flights)
+    ai_sessions: list[dict[str, Any]] = []
+    ai_messages: list[dict[str, Any]] = []
+    ai_recommendations: list[dict[str, Any]] = []
+    if "ai" in selected_components:
+        ai_sessions, ai_messages, ai_recommendations = build_ai_records(ids, profile, base_dt, flights)
     dataset = {
         "profile": profile,
         "seed": seed,
@@ -1820,11 +1909,71 @@ def rows_for_passengers(passengers: list[dict[str, Any]], seed_base: int) -> lis
     ]
 
 
+OWNED_TABLE_DELETE_ORDER = (
+    "ai_recommendation_record",
+    "ai_chat_message",
+    "ai_chat_session",
+    "waitlist_passenger",
+    "waitlist_order",
+    "connecting_change_segment",
+    "connecting_change_record",
+    "change_record",
+    "refund_record",
+    "order_segment_passenger",
+    "ticket_order_segment",
+    "order_passenger",
+    "ticket_order",
+    "connecting_itinerary",
+    "flight_seat",
+    "flight_cabin",
+    "flight",
+    "passenger",
+    "users",
+)
+
+
+def owned_row_ids(dataset: dict[str, Any]) -> list[tuple[str, int]]:
+    components: set[str] = dataset["components"]
+    rows: list[tuple[str, int]] = []
+
+    def add(table: str, values: list[int]) -> None:
+        rows.extend((table, value) for value in values)
+
+    if "users" in components:
+        add("users", [item["id"] for item in dataset["users"]])
+        add("passenger", [item["id"] for item in dataset["passengers"] if item["id"] >= dataset["cfg"].id_base])
+    if "flights" in components:
+        add("flight", [item.id for item in dataset["flights"]])
+        add("flight_cabin", [cabin["id"] for flight in dataset["flights"] for cabin in flight.cabins])
+        add("flight_seat", [seat.id for flight in dataset["flights"] for seat in flight.seats])
+        add("connecting_itinerary", [item["id"] for item in dataset["connecting_itineraries"]])
+    if "orders" in components:
+        add("ticket_order", [item["id"] for item in dataset["orders"]])
+        add("order_passenger", [item["id"] for item in dataset["order_passengers"]])
+        add("ticket_order_segment", [item["id"] for item in dataset["order_segments"]])
+        add("order_segment_passenger", [item["id"] for item in dataset["segment_passengers"]])
+    if "refunds" in components:
+        add("refund_record", [item["id"] for item in dataset["refunds"]])
+    if "changes" in components:
+        add("change_record", [item["id"] for item in dataset["changes"]])
+        add("connecting_change_record", [item["id"] for item in dataset["connecting_changes"]])
+        add("connecting_change_segment", [item["id"] for item in dataset["connecting_change_segments"]])
+    if "waitlists" in components:
+        add("waitlist_order", [item["id"] for item in dataset["waitlists"]])
+        add("waitlist_passenger", [item["id"] for item in dataset["waitlist_passengers"]])
+    if "ai" in components:
+        add("ai_chat_session", [item["id"] for item in dataset["ai_sessions"]])
+        add("ai_chat_message", [item["id"] for item in dataset["ai_messages"]])
+        add("ai_recommendation_record", [item["id"] for item in dataset["ai_recommendations"]])
+    return rows
+
+
 def render_sql(dataset: dict[str, Any]) -> str:
     profile = dataset["profile"]
     seed = dataset["seed"]
     base_date = dataset["base_date"]
     cfg: ProfileConfig = dataset["cfg"]
+    source_ref = dataset.get("source_ref")
     components: set[str] = dataset["components"]
     include = lambda component: component in components
     start_id = cfg.id_base
@@ -1832,6 +1981,8 @@ def render_sql(dataset: dict[str, Any]) -> str:
     generated_ids = generated_id_values(dataset)
     generated_id_min = min(generated_ids) if generated_ids else None
     generated_id_max = max(generated_ids) if generated_ids else None
+    batch_key = f"skybooker:{profile}"
+    ownership = owned_row_ids(dataset)
     statements: list[str] = [
         f"-- SkyBooker reproducible seed data",
         f"-- profile: {profile}",
@@ -1842,48 +1993,50 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "SET time_zone = '+08:00';",
         "START TRANSACTION;",
         "",
-        "-- Reset only rows owned by this seed profile.",
+        "-- Ownership is checked before replacing the profile batch. A row with the same ID",
+        "-- is rejected unless it already belongs to this batch.",
+        "CREATE TEMPORARY TABLE tmp_skybooker_seed_rows (",
+        "    table_name VARCHAR(64) NOT NULL,",
+        "    row_id BIGINT NOT NULL,",
+        "    PRIMARY KEY (table_name, row_id)",
+        ");",
     ]
-
-    if include("ai"):
-        statements.extend([
-            f"DELETE FROM ai_recommendation_record WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM ai_chat_message WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM ai_chat_session WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    if include("waitlists"):
-        statements.extend([
-            f"DELETE FROM waitlist_passenger WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM waitlist_order WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    if include("changes"):
-        statements.extend([
-            f"DELETE FROM connecting_change_segment WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM connecting_change_record WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM change_record WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    if include("refunds"):
-        statements.append(f"DELETE FROM refund_record WHERE id BETWEEN {start_id} AND {end_id};")
-    if include("orders"):
-        statements.extend([
-            f"DELETE FROM order_segment_passenger WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM ticket_order_segment WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM order_passenger WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM ticket_order WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    if include("flights"):
-        statements.extend([
-            f"DELETE FROM connecting_itinerary WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM flight_seat WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM flight_cabin WHERE flight_id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM flight WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    if include("users"):
-        statements.extend([
-            f"DELETE FROM passenger WHERE id BETWEEN {start_id} AND {end_id};",
-            f"DELETE FROM users WHERE id BETWEEN {start_id} AND {end_id};",
-        ])
-    statements.append("")
+    ownership_rows = [(table, row_id) for table, row_id in ownership]
+    statements.extend(insert_statement("tmp_skybooker_seed_rows", ["table_name", "row_id"], ownership_rows))
+    collision_statements = ["SET @skybooker_ownership_conflicts = 0;"]
+    for table in OWNED_TABLE_DELETE_ORDER:
+        collision_statements.extend(
+            [
+                "SELECT COUNT(*) INTO @skybooker_collision_rows FROM tmp_skybooker_seed_rows r "
+                "JOIN " + table + " existing_row ON existing_row.id = r.row_id "
+                "LEFT JOIN test_data_ownership o ON o.batch_key = " + sql_string(batch_key) +
+                " AND o.table_name = r.table_name AND o.row_id = r.row_id "
+                f"WHERE r.table_name = {sql_string(table)} AND o.row_id IS NULL;",
+                "SET @skybooker_ownership_conflicts = @skybooker_ownership_conflicts + @skybooker_collision_rows;",
+            ]
+        )
+    collision_statements.extend([
+        "SET @skybooker_collision_sql = IF(@skybooker_ownership_conflicts = 0,",
+        "    'DO 0',",
+        "    'SELECT * FROM skybooker_ownership_conflict_abort');",
+        "PREPARE skybooker_collision_stmt FROM @skybooker_collision_sql;",
+        "EXECUTE skybooker_collision_stmt;",
+        "DEALLOCATE PREPARE skybooker_collision_stmt;",
+        "",
+        "-- Replace the complete previous batch, independent of the new component subset.",
+    ])
+    statements.extend(collision_statements)
+    for table in OWNED_TABLE_DELETE_ORDER:
+        statements.append(
+            f"DELETE target FROM {table} target JOIN test_data_ownership owner "
+            f"ON owner.batch_key = {sql_string(batch_key)} AND owner.table_name = {sql_string(table)} "
+            "AND owner.row_id = target.id;"
+        )
+    statements.extend([
+        f"DELETE FROM test_data_ownership WHERE batch_key = {sql_string(batch_key)};",
+        f"DELETE FROM test_data_batch WHERE batch_key = {sql_string(batch_key)};",
+        "",
+    ])
 
     airport_rows = [(a.id, a.code, a.name, a.city, a.province, "ENABLED") for a in dataset["airports"]]
     airline_rows = [(a.id, a.code, a.name, None, "ENABLED") for a in dataset["airlines"]]
@@ -1937,12 +2090,12 @@ def render_sql(dataset: dict[str, Any]) -> str:
             )
         )
     cabin_rows = [
-        (cabin["flight_id"], cabin["cabin_class"], cabin["price"], cabin["total_seats"])
+        (cabin["id"], cabin["flight_id"], cabin["cabin_class"], cabin["price"], cabin["total_seats"])
         for flight in dataset["flights"]
         for cabin in flight.cabins
     ]
     if include("flights"):
-        statements.extend(insert_statement("flight_cabin", ["flight_id", "cabin_class", "price", "total_seats"], cabin_rows))
+        statements.extend(insert_statement("flight_cabin", ["id", "flight_id", "cabin_class", "price", "total_seats"], cabin_rows))
         connecting_itinerary_rows = [
             (
                 item["id"], item["first_flight_id"], item["second_flight_id"], item["publish_status"],
@@ -2220,10 +2373,30 @@ def render_sql(dataset: dict[str, Any]) -> str:
             )
         )
 
+    statements.extend(
+        [
+            "",
+            "INSERT INTO test_data_batch(batch_key, profile, seed, source_ref) VALUES ("
+            + ", ".join([sql_string(batch_key), sql_string(profile), str(seed), sql_string(source_ref)])
+            + ") ON DUPLICATE KEY UPDATE profile=VALUES(profile), seed=VALUES(seed), source_ref=VALUES(source_ref);",
+        ]
+    )
+    ownership_insert_rows = [(batch_key, table, row_id) for table, row_id in ownership]
+    statements.extend(
+        insert_statement(
+            "test_data_ownership",
+            ["batch_key", "table_name", "row_id"],
+            ownership_insert_rows,
+        )
+    )
+    statements.extend(["DROP TEMPORARY TABLE tmp_skybooker_seed_rows;", ""])
+
     summary = {
         "profile": profile,
         "seed": seed,
         "baseDate": base_date.isoformat(),
+        "batchKey": batch_key,
+        "sourceRef": source_ref,
         "components": sorted(components),
         "scenarios": sorted(dataset["scenarios"]),
         "seedIdRange": f"{start_id}-{end_id}",
@@ -2295,12 +2468,14 @@ def main() -> None:
         help="Output SQL path. Defaults to backend/src/main/resources/db/seed/seed-<profile>.sql.",
     )
     parser.add_argument("--summary-file", help="Write the machine-readable summary JSON to this path.")
+    parser.add_argument("--source-ref", help="Resolved helper commit SHA recorded with the ownership batch.")
     args = parser.parse_args()
 
     base_date = parse_base_date(args.seed, args.base_date)
     components = resolve_components(args.components, auto_dependencies=not args.no_auto_dependencies)
     scenarios = resolve_scenarios(args.scenarios)
     dataset = build_dataset(args.profile, args.seed, base_date, components, scenarios)
+    dataset["source_ref"] = args.source_ref
     sql = render_sql(dataset)
     output = Path(args.output) if args.output else Path("backend/src/main/resources/db/seed") / f"seed-{args.profile}.sql"
     output.parent.mkdir(parents=True, exist_ok=True)

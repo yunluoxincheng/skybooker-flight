@@ -53,15 +53,55 @@ class TestDataToolTest(unittest.TestCase):
         self.assertIn("INSERT INTO connecting_itinerary", generator.render_sql(dataset))
         self.assertNotIn("INSERT INTO ticket_order", generator.render_sql(dataset))
 
+    def test_flights_component_never_references_unrendered_orders(self):
+        components = generator.resolve_components("flights")
+        dataset = generator.build_dataset(
+            "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("all")
+        )
+        self.assertEqual(dataset["orders"], [])
+        self.assertTrue(all(seat.locked_by_order_id is None for flight in dataset["flights"] for seat in flight.seats))
+        sql = generator.render_sql(dataset)
+        self.assertNotIn("INSERT INTO ticket_order", sql)
+        self.assertNotIn("locked_by_order_id=", sql)
+
+    def test_scenarios_are_scoped(self):
+        components = generator.resolve_components("all")
+        delayed = generator.build_dataset(
+            "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("delayed")
+        )
+        self.assertTrue(any(flight.tag == "delayed" for flight in delayed["flights"]))
+        self.assertEqual(delayed["orders"], [])
+        direct = generator.build_dataset(
+            "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("direct")
+        )
+        self.assertEqual(len(direct["waitlists"]), 0)
+        self.assertEqual(len(direct["connecting_itineraries"]), 0)
+        self.assertTrue(all(flight.status != "DELAYED" for flight in direct["flights"]))
+
+    def test_ownership_render_is_batch_scoped(self):
+        components = generator.resolve_components("users")
+        dataset = generator.build_dataset(
+            "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("direct")
+        )
+        sql = generator.render_sql(dataset)
+        self.assertIn("INSERT INTO test_data_batch", sql)
+        self.assertIn("INSERT INTO test_data_ownership", sql)
+        self.assertIn("skybooker:dev", sql)
+        self.assertNotIn("DELETE FROM users WHERE id BETWEEN", sql)
+
     def test_cleanup_is_profile_scoped_and_respects_foreign_keys(self):
         sql = cleaner.render("dev", "all")
         self.assertNotIn("TRUNCATE", sql.upper())
         self.assertNotIn("FOREIGN_KEY_CHECKS", sql.upper())
         self.assertLess(sql.index("connecting_change_segment"), sql.index("ticket_order"))
         self.assertLess(sql.index("ticket_order"), sql.index("flight_seat"))
-        self.assertLess(sql.index("flight_seat"), sql.index("flight WHERE"))
+        self.assertLess(sql.index("flight_seat"), sql.index("DELETE target FROM flight "))
         self.assertNotIn("DELETE FROM airline", sql)
         self.assertNotIn("DELETE FROM airport", sql)
+        users_sql = cleaner.render("dev", "users")
+        self.assertIn("ticket_order", users_sql)
+        self.assertIn("refund_record", users_sql)
+        self.assertIn("connecting_change_record", users_sql)
 
     def test_shell_help_and_syntax(self):
         shell = ROOT / "scripts/test-data.sh"

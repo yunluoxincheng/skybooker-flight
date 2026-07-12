@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a safe, profile-scoped cleanup transaction for generated test data."""
+"""Render ownership-based cleanup SQL for generated test data."""
 
 from __future__ import annotations
 
@@ -7,82 +7,118 @@ import argparse
 from pathlib import Path
 
 
-RANGES = {
-    "dev": (100_000, 199_999),
-    "test": (200_000, 1_199_999),
-    "perf": (2_000_000, 11_999_999),
-}
+COMPONENT_NAMES = {"reference", "users", "flights", "orders", "refunds", "changes", "waitlists", "ai"}
+ALL_OWNED_TABLES = (
+    "ai_recommendation_record",
+    "ai_chat_message",
+    "ai_chat_session",
+    "waitlist_passenger",
+    "waitlist_order",
+    "connecting_change_segment",
+    "connecting_change_record",
+    "change_record",
+    "refund_record",
+    "order_segment_passenger",
+    "ticket_order_segment",
+    "order_passenger",
+    "ticket_order",
+    "connecting_itinerary",
+    "flight_seat",
+    "flight_cabin",
+    "flight",
+    "passenger",
+    "users",
+)
 
 
 def selected_components(raw: str) -> set[str]:
     names = {item.strip().lower() for item in raw.split(",") if item.strip()}
     if "all" in names:
-        return {"users", "flights", "orders", "refunds", "changes", "waitlists", "ai"}
-    unknown = names - {"reference", "users", "flights", "orders", "refunds", "changes", "waitlists", "ai"}
+        return set(ALL_OWNED_TABLES)
+    unknown = names - COMPONENT_NAMES
     if unknown:
         raise ValueError(f"unknown components: {', '.join(sorted(unknown))}")
-    # Deleting a parent must also remove every generated child that can hold an FK.
+
+    tables: set[str] = set()
+    if "users" in names:
+        # User-owned data includes every generated child. Removing only the
+        # account would violate several FKs and leave stale seat counters.
+        tables.update(ALL_OWNED_TABLES)
     if "flights" in names:
-        names.update({"orders", "refunds", "changes", "waitlists"})
+        tables.update({
+            "ai_recommendation_record", "ai_chat_message", "ai_chat_session",
+            "waitlist_passenger", "waitlist_order", "connecting_change_segment",
+            "connecting_change_record", "change_record", "refund_record",
+            "order_segment_passenger", "ticket_order_segment", "order_passenger",
+            "ticket_order", "connecting_itinerary", "flight_seat", "flight_cabin", "flight",
+        })
     if "orders" in names:
-        names.update({"refunds", "changes", "waitlists"})
-    return names
+        tables.update({
+            "waitlist_passenger", "waitlist_order", "connecting_change_segment",
+            "connecting_change_record", "change_record", "refund_record",
+            "order_segment_passenger", "ticket_order_segment", "order_passenger", "ticket_order",
+        })
+    if "refunds" in names:
+        tables.add("refund_record")
+    if "changes" in names:
+        tables.update({"connecting_change_segment", "connecting_change_record", "change_record"})
+    if "waitlists" in names:
+        tables.update({"waitlist_passenger", "waitlist_order"})
+    if "ai" in names:
+        tables.update({"ai_recommendation_record", "ai_chat_message", "ai_chat_session"})
+    return tables
 
 
 def render(profile: str, components: str) -> str:
-    start, end = RANGES[profile]
-    selected = selected_components(components)
+    batch_key = f"skybooker:{profile}"
+    tables = selected_components(components)
     statements = [
         "SET NAMES utf8mb4;",
         "SET time_zone = '+08:00';",
         "START TRANSACTION;",
-        f"-- Clean only generated rows in profile range {start}-{end}; reference rows are retained.",
+        f"-- Remove only rows registered to ownership batch '{batch_key}'.",
     ]
-    if "ai" in selected:
+    for table in ALL_OWNED_TABLES:
+        if table in tables:
+            statements.append(
+                f"DELETE target FROM {table} target JOIN test_data_ownership owner "
+                f"ON owner.batch_key = '{batch_key}' AND owner.table_name = '{table}' "
+                "AND owner.row_id = target.id;"
+            )
+
+    # Deleting orders can turn generated seats back into ordinary available
+    # seats. Never touch a seat still referenced by any remaining order.
+    if tables.intersection({"ticket_order", "order_passenger", "ticket_order_segment", "order_segment_passenger"}):
         statements.extend([
-            f"DELETE FROM ai_recommendation_record WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM ai_chat_message WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM ai_chat_session WHERE id BETWEEN {start} AND {end};",
+            "UPDATE flight_seat s",
+            "JOIN test_data_ownership owner ON owner.batch_key = '" + batch_key + "'",
+            "    AND owner.table_name = 'flight_seat' AND owner.row_id = s.id",
+            "SET s.status = 'AVAILABLE', s.locked_by_order_id = NULL, s.lock_expire_time = NULL",
+            "WHERE NOT EXISTS (SELECT 1 FROM order_passenger op WHERE op.seat_id = s.id)",
+            "  AND NOT EXISTS (SELECT 1 FROM order_segment_passenger osp WHERE osp.seat_id = s.id);",
+            "UPDATE flight f",
+            "JOIN test_data_ownership owner ON owner.batch_key = '" + batch_key + "'",
+            "    AND owner.table_name = 'flight' AND owner.row_id = f.id",
+            "SET f.remaining_seats = (SELECT COUNT(*) FROM flight_seat s WHERE s.flight_id = f.id AND s.status = 'AVAILABLE');",
         ])
-    if "waitlists" in selected:
-        statements.extend([
-            f"DELETE FROM waitlist_passenger WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM waitlist_order WHERE id BETWEEN {start} AND {end};",
-        ])
-    if "changes" in selected:
-        statements.extend([
-            f"DELETE FROM connecting_change_segment WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM connecting_change_record WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM change_record WHERE id BETWEEN {start} AND {end};",
-        ])
-    if "refunds" in selected:
-        statements.append(f"DELETE FROM refund_record WHERE id BETWEEN {start} AND {end};")
-    if "orders" in selected:
-        statements.extend([
-            f"DELETE FROM order_segment_passenger WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM ticket_order_segment WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM order_passenger WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM ticket_order WHERE id BETWEEN {start} AND {end};",
-        ])
-    if "flights" in selected:
-        statements.extend([
-            f"DELETE FROM connecting_itinerary WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM flight_seat WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM flight_cabin WHERE flight_id BETWEEN {start} AND {end};",
-            f"DELETE FROM flight WHERE id BETWEEN {start} AND {end};",
-        ])
-    if "users" in selected:
-        statements.extend([
-            f"DELETE FROM passenger WHERE id BETWEEN {start} AND {end};",
-            f"DELETE FROM users WHERE id BETWEEN {start} AND {end};",
-        ])
-    statements.extend(["COMMIT;", ""])
+
+    if tables:
+        quoted_tables = ", ".join("'" + table + "'" for table in sorted(tables))
+        statements.append(
+            f"DELETE FROM test_data_ownership WHERE batch_key = '{batch_key}' AND table_name IN ({quoted_tables});"
+        )
+    statements.extend([
+        f"DELETE FROM test_data_batch WHERE batch_key = '{batch_key}' "
+        "AND NOT EXISTS (SELECT 1 FROM test_data_ownership WHERE batch_key = '" + batch_key + "');",
+        "COMMIT;",
+        "",
+    ])
     return "\n".join(statements)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Render profile-scoped cleanup SQL.")
-    parser.add_argument("--profile", choices=sorted(RANGES), required=True)
+    parser = argparse.ArgumentParser(description="Render ownership-scoped cleanup SQL.")
+    parser.add_argument("--profile", choices=("dev", "test", "perf"), required=True)
     parser.add_argument("--components", default="all")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()

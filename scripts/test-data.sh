@@ -5,6 +5,7 @@ APP_NAME="skybooker-test-data"
 DEFAULT_REPO="yunluoxincheng/skybooker-flight"
 DEFAULT_REF="main"
 DEFAULT_DIR="${SKYBOOKER_DEPLOY_DIR:-/opt/skybooker}"
+MIN_FLYWAY_VERSION=18
 
 COMMAND="status"
 DEPLOY_DIR="$DEFAULT_DIR"
@@ -20,6 +21,8 @@ OUTPUT=""
 FILE=""
 SUMMARY_FILE=""
 YES="false"
+ALLOW_PRODUCTION="false"
+CONFIRM_PRODUCTION="false"
 NO_AUTO_DEPENDENCIES="false"
 DATABASE="false"
 HOST="${MYSQL_HOST:-127.0.0.1}"
@@ -28,6 +31,7 @@ DB_USER="${MYSQL_USER:-root}"
 DB_NAME="${MYSQL_DB:-flight_booking}"
 DB_PASSWORD="${MYSQL_PASSWORD:-}"
 MYSQL_BIN="mysql"
+RESOLVED_SHA=""
 HOST_EXPLICIT="false"
 PORT_EXPLICIT="false"
 USER_EXPLICIT="false"
@@ -39,13 +43,13 @@ Usage:
   test-data.sh <doctor|generate|validate|import|seed|clean|status> [options]
 
 Commands:
-  doctor       Check Python, Docker/Compose, MySQL connectivity and Flyway.
+  doctor       Check Python, optional Docker/Compose, MySQL connectivity and Flyway.
   generate     Generate SQL only; never connects to the database.
   validate     Run static validation, or database consistency checks with --database.
   import       Import an existing SQL file after confirmation.
   seed         Generate, validate and import one profile in a single operation.
-  clean        Remove only the selected profile ID range after confirmation.
-  status       Show profile-sized records and connecting-itinerary coverage.
+  clean        Remove only ownership-registered rows after confirmation.
+  status       Show ownership-registered records and connecting-itinerary coverage.
 
 Common options:
   --dir DIR                    Deployment/config directory (default: /opt/skybooker)
@@ -61,6 +65,8 @@ Common options:
   --output FILE                Generated SQL destination
   --file FILE                  Existing SQL file for validate/import
   --yes                        Skip destructive-operation confirmation
+  --allow-production           Permit writes in a production-marked environment
+  --confirm-production         Required second confirmation for production writes
   --database                   Validate against MySQL as well as a seed file
   -h, --help                  Show this help
 
@@ -94,6 +100,40 @@ env_file_value() {
   awk -v key="$key" '$0 ~ "^[[:space:]]*" key "=" { sub("^[[:space:]]*" key "=", ""); print; exit }' "$DEPLOY_DIR/.env"
 }
 
+normalized_env_value() {
+  local value="$1"
+  value="${value%%#*}"
+  value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  value="${value#\"}"; value="${value%\"}"
+  value="${value#\'}"; value="${value%\'}"
+  printf '%s' "${value,,}"
+}
+
+is_production_environment() {
+  local key value
+  for key in APP_ENV ENVIRONMENT SPRING_PROFILES_ACTIVE DEPLOY_ENV NODE_ENV; do
+    value="${!key:-}"
+    if [[ -z "$value" ]]; then
+      value="$(env_file_value "$key" || true)"
+    fi
+    value="$(normalized_env_value "$value")"
+    case ",$value," in
+      *,prod,*|*,production,*|*,live,*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+guard_write_environment() {
+  if is_production_environment; then
+    [[ "$ALLOW_PRODUCTION" == "true" && "$CONFIRM_PRODUCTION" == "true" ]] ||
+      fail "Refusing seed/import/clean in a production environment; use --allow-production --confirm-production only for an intentional operation."
+    [[ "$YES" == "true" ]] ||
+      fail "Production writes also require --yes after the explicit production override."
+    log "WARNING: production override accepted; only ownership-registered rows will be changed."
+  fi
+}
+
 load_database_config() {
   local value
   value="$(env_file_value MYSQL_HOST || true)"; [[ -n "$value" && "$HOST_EXPLICIT" != "true" && -z "${MYSQL_HOST:-}" ]] && HOST="$value"
@@ -119,6 +159,22 @@ local_source_dir() {
 }
 
 SOURCE_CACHE=""
+resolve_remote_ref() {
+  [[ -n "$RESOLVED_SHA" ]] && return
+  [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "Invalid GitHub repository '$REPO'."
+  [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "Invalid Git ref '$REF'."
+  require_command curl
+  require_command python3
+  local payload
+  payload="$(curl -fsSL -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/commits/$REF")" ||
+    fail "Could not resolve Git ref '$REF' in '$REPO'."
+  RESOLVED_SHA="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sha", ""))')"
+  [[ "$RESOLVED_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || fail "Git ref '$REF' did not resolve to a commit SHA."
+  RESOLVED_SHA="${RESOLVED_SHA,,}"
+  SOURCE_CACHE="$DEPLOY_DIR/.skybooker-test-data/${REPO//\//_}/${REF//\//_}/$RESOLVED_SHA"
+  log "Resolved helper ref '$REF' to $RESOLVED_SHA" >&2
+}
+
 source_file() {
   local relative="$1"
   local local_root
@@ -127,12 +183,12 @@ source_file() {
     printf '%s\n' "$local_root/$relative"
     return
   fi
-  [[ -n "$SOURCE_CACHE" ]] || SOURCE_CACHE="$DEPLOY_DIR/.skybooker-test-data/${REF//\//_}"
+  resolve_remote_ref
   local destination="$SOURCE_CACHE/$(basename "$relative")"
   if [[ ! -f "$destination" ]]; then
     require_command curl
     mkdir -p "$SOURCE_CACHE"
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/$REF/$relative" -o "$destination"
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/$RESOLVED_SHA/$relative" -o "$destination"
   fi
   printf '%s\n' "$destination"
 }
@@ -181,6 +237,18 @@ run_mysql() {
   MYSQL_PWD="$DB_PASSWORD" "$MYSQL_BIN" --protocol=tcp -h "$HOST" -P "$PORT" -u "$DB_USER" -D "$DB_NAME" --default-character-set=utf8mb4 --batch --skip-column-names --raw
 }
 
+require_flyway_schema() {
+  local schema
+  schema="$(run_mysql <<'SQL'
+SELECT COALESCE(MAX(CAST(version AS UNSIGNED)), 0) FROM flyway_schema_history WHERE success=1;
+SQL
+)" || fail "Could not read Flyway schema version. Run the backend migrations first."
+  schema="$(printf '%s' "$schema" | tr -d '[:space:]')"
+  [[ "$schema" =~ ^[0-9]+$ && "$schema" -ge "$MIN_FLYWAY_VERSION" ]] ||
+    fail "Flyway schema V$schema is incompatible; test-data ownership requires V$MIN_FLYWAY_VERSION or newer."
+  log "Flyway schema: $schema (minimum: $MIN_FLYWAY_VERSION)"
+}
+
 confirm_destructive() {
   [[ "$YES" == "true" ]] && return
   [[ -t 0 ]] || fail "This operation rewrites or deletes seed data; rerun with --yes in a non-interactive environment."
@@ -200,6 +268,7 @@ generate_sql() {
   local generator
   generator="$(python_script generate_test_data.py)"
   local args=("$generator" --profile "$PROFILE" --seed "$SEED" --components "$COMPONENTS" --scenarios "$SCENARIOS" --output "$output" --summary-file "$summary")
+  [[ -n "$RESOLVED_SHA" ]] && args+=(--source-ref "$RESOLVED_SHA")
   [[ -n "$BASE_DATE" ]] && args+=(--base-date "$BASE_DATE")
   [[ "$NO_AUTO_DEPENDENCIES" == "true" ]] && args+=(--no-auto-dependencies)
   python3 "${args[@]}"
@@ -216,15 +285,26 @@ static_validate() {
 database_validate() {
   local file="$1"
   local output
+  local batch_key
+  batch_key="$(python3 - "$file" <<'PY'
+import re
+import sys
+text = open(sys.argv[1], encoding="utf-8").read()
+match = re.search(r'"batchKey":\s*"(skybooker:(?:dev|test|perf))"', text)
+if not match:
+    raise SystemExit(1)
+print(match.group(1))
+PY
+)" || fail "Could not read ownership batchKey from $file."
   output="$(run_mysql <<SQL
-SELECT 'flight_remaining_matches_available_seats', COUNT(*) FROM flight f WHERE f.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND f.remaining_seats <> (SELECT COUNT(*) FROM flight_seat s WHERE s.flight_id=f.id AND s.status='AVAILABLE');
-SELECT 'flight_cabin_totals_match', COUNT(*) FROM flight f WHERE f.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND f.total_seats <> (SELECT COALESCE(SUM(c.total_seats),0) FROM flight_cabin c WHERE c.flight_id=f.id);
-SELECT 'seat_prices_match_cabin', COUNT(*) FROM flight_seat s JOIN flight_cabin c ON c.flight_id=s.flight_id AND c.cabin_class=s.cabin_class WHERE s.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND s.price <> c.price;
-SELECT 'sold_seats_have_snapshot', COUNT(*) FROM flight_seat s LEFT JOIN order_passenger op ON op.seat_id=s.id LEFT JOIN order_segment_passenger osp ON osp.seat_id=s.id WHERE s.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND s.status='SOLD' AND op.id IS NULL AND osp.id IS NULL;
-SELECT 'locked_seats_have_order_and_expiry', COUNT(*) FROM flight_seat s WHERE s.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND s.status='LOCKED' AND (s.locked_by_order_id IS NULL OR s.lock_expire_time IS NULL);
-SELECT 'connecting_orders_have_two_segments', COUNT(*) FROM ticket_order o WHERE o.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND o.journey_type='CONNECTING' AND (SELECT COUNT(*) FROM ticket_order_segment s WHERE s.order_id=o.id) <> 2;
-SELECT 'connecting_passengers_match', COUNT(*) FROM ticket_order o WHERE o.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND o.journey_type='CONNECTING' AND (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=1) <> (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=2);
-SELECT 'connecting_change_snapshots_complete', COUNT(*) FROM connecting_change_record c WHERE c.id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND (SELECT COUNT(*) FROM connecting_change_segment s WHERE s.change_record_id=c.id) <> 4;
+SELECT 'flight_remaining_matches_available_seats', COUNT(*) FROM flight f WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight' AND o.row_id=f.id) AND f.remaining_seats <> (SELECT COUNT(*) FROM flight_seat s WHERE s.flight_id=f.id AND s.status='AVAILABLE');
+SELECT 'flight_cabin_totals_match', COUNT(*) FROM flight f WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight' AND o.row_id=f.id) AND f.total_seats <> (SELECT COALESCE(SUM(c.total_seats),0) FROM flight_cabin c WHERE c.flight_id=f.id);
+SELECT 'seat_prices_match_cabin', COUNT(*) FROM flight_seat s JOIN flight_cabin c ON c.flight_id=s.flight_id AND c.cabin_class=s.cabin_class WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight_seat' AND o.row_id=s.id) AND s.price <> c.price;
+SELECT 'sold_seats_have_snapshot', COUNT(*) FROM flight_seat s LEFT JOIN order_passenger op ON op.seat_id=s.id LEFT JOIN order_segment_passenger osp ON osp.seat_id=s.id WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight_seat' AND o.row_id=s.id) AND s.status='SOLD' AND op.id IS NULL AND osp.id IS NULL;
+SELECT 'locked_seats_have_order_and_expiry', COUNT(*) FROM flight_seat s WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight_seat' AND o.row_id=s.id) AND s.status='LOCKED' AND (s.locked_by_order_id IS NULL OR s.lock_expire_time IS NULL);
+SELECT 'connecting_orders_have_two_segments', COUNT(*) FROM ticket_order o WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='ticket_order' AND own.row_id=o.id) AND o.journey_type='CONNECTING' AND (SELECT COUNT(*) FROM ticket_order_segment s WHERE s.order_id=o.id) <> 2;
+SELECT 'connecting_passengers_match', COUNT(*) FROM ticket_order o WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='ticket_order' AND own.row_id=o.id) AND o.journey_type='CONNECTING' AND (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=1) <> (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=2);
+SELECT 'connecting_change_snapshots_complete', COUNT(*) FROM connecting_change_record c WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='connecting_change_record' AND own.row_id=c.id) AND (SELECT COUNT(*) FROM connecting_change_segment s WHERE s.change_record_id=c.id) <> 4;
 SQL
 )"
   local failed="false"
@@ -246,19 +326,28 @@ doctor() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     log "Docker Compose: available"
   else
-    log "Docker Compose: missing"
-    failed="true"
+    log "Docker Compose: unavailable (host MySQL fallback will be used)"
   fi
   prepare_database_access
   if container="$(mysql_container || true)"; then
-    if [[ -n "$container" ]]; then log "MySQL container: $container"; else log "MySQL container: not running"; failed="true"; fi
+    if [[ -n "$container" ]]; then
+      log "MySQL container: $container"
+    else
+      log "MySQL container: not running (host MySQL fallback will be used)"
+    fi
   fi
   if schema="$(run_mysql <<'SQL'
 SELECT COALESCE(MAX(CAST(version AS UNSIGNED)), 0) FROM flyway_schema_history WHERE success=1;
 SQL
 )"; then
     log "MySQL: connected"
-    log "Flyway schema: $schema"
+    schema="$(printf '%s' "$schema" | tr -d '[:space:]')"
+    if [[ "$schema" =~ ^[0-9]+$ && "$schema" -ge "$MIN_FLYWAY_VERSION" ]]; then
+      log "Flyway schema: $schema (minimum: $MIN_FLYWAY_VERSION)"
+    else
+      log "Flyway schema: $schema (requires V$MIN_FLYWAY_VERSION or newer)"
+      failed="true"
+    fi
   else
     log "MySQL: connection failed"
     failed="true"
@@ -271,7 +360,10 @@ import_sql() {
   local file="$FILE"
   [[ -n "$file" ]] || file="$OUTPUT"
   [[ -n "$file" && -f "$file" ]] || fail "SQL file not found; use --file FILE."
+  static_validate "$file"
   prepare_database_access
+  guard_write_environment
+  require_flyway_schema
   if [[ "$require_confirmation" == "true" ]]; then
     confirm_destructive
   fi
@@ -283,12 +375,16 @@ seed() {
   generate_sql
   static_validate "$OUTPUT"
   prepare_database_access
+  guard_write_environment
+  require_flyway_schema
   confirm_destructive
   import_sql false
 }
 
 clean() {
   prepare_database_access
+  guard_write_environment
+  require_flyway_schema
   confirm_destructive
   local cleaner
   cleaner="$(python_script clean_test_data.py)"
@@ -303,25 +399,16 @@ clean() {
 }
 
 status() {
-  PROFILE_START="$(python3 - "$PROFILE" <<'PY'
-import sys
-print({'dev': 100000, 'test': 200000, 'perf': 2000000}[sys.argv[1]])
-PY
-)"
-  PROFILE_END="$(python3 - "$PROFILE" <<'PY'
-import sys
-print({'dev': 199999, 'test': 1199999, 'perf': 11999999}[sys.argv[1]])
-PY
-)"
+  local batch_key="skybooker:$PROFILE"
   run_mysql <<SQL
-SELECT 'users', COUNT(*) FROM users WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'passengers', COUNT(*) FROM passenger WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'flights', COUNT(*) FROM flight WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'seats', COUNT(*) FROM flight_seat WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'orders', COUNT(*) FROM ticket_order WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'connecting_itineraries', COUNT(*) FROM connecting_itinerary WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
-SELECT 'connecting_orders', COUNT(*) FROM ticket_order WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END} AND journey_type='CONNECTING';
-SELECT 'connecting_changes', COUNT(*) FROM connecting_change_record WHERE id BETWEEN ${PROFILE_START} AND ${PROFILE_END};
+SELECT 'users', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='users';
+SELECT 'passengers', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='passenger';
+SELECT 'flights', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='flight';
+SELECT 'seats', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='flight_seat';
+SELECT 'orders', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='ticket_order';
+SELECT 'connecting_itineraries', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='connecting_itinerary';
+SELECT 'connecting_orders', COUNT(*) FROM test_data_ownership o JOIN ticket_order t ON t.id=o.row_id WHERE o.batch_key='${batch_key}' AND o.table_name='ticket_order' AND t.journey_type='CONNECTING';
+SELECT 'connecting_changes', COUNT(*) FROM test_data_ownership WHERE batch_key='${batch_key}' AND table_name='connecting_change_record';
 SQL
 }
 
@@ -346,6 +433,8 @@ parse_args() {
       --file) FILE="$2"; shift 2 ;;
       --summary-file) SUMMARY_FILE="$2"; shift 2 ;;
       --yes) YES="true"; shift ;;
+      --allow-production) ALLOW_PRODUCTION="true"; shift ;;
+      --confirm-production) CONFIRM_PRODUCTION="true"; shift ;;
       --database) DATABASE="true"; shift ;;
       --host) HOST="$2"; HOST_EXPLICIT="true"; shift 2 ;;
       --port) PORT="$2"; PORT_EXPLICIT="true"; shift 2 ;;
@@ -362,6 +451,15 @@ main() {
   parse_args "$@"
   case "$PROFILE" in dev|test|perf) ;; *) fail "Unknown profile '$PROFILE'." ;; esac
   case "$COMMAND" in
+    generate|validate|seed|clean)
+      local helper_root
+      helper_root="$(local_source_dir || true)"
+      if [[ -z "$helper_root" || ! -f "$helper_root/scripts/generate_test_data.py" ]]; then
+        resolve_remote_ref
+      fi
+      ;;
+  esac
+  case "$COMMAND" in
     doctor) doctor ;;
     generate) generate_sql ;;
     validate)
@@ -371,9 +469,6 @@ main() {
       [[ -f "$file" ]] || fail "SQL file not found: $file"
       static_validate "$file"
       if [[ "$DATABASE" == "true" ]]; then
-        PROFILE_START="$(sed -n 's/^-- seed_id_range: \([0-9][0-9]*\)-[0-9][0-9]*$/\1/p' "$file")"
-        PROFILE_END="$(sed -n 's/^-- seed_id_range: [0-9][0-9]*-\([0-9][0-9]*\)$/\1/p' "$file")"
-        [[ -n "$PROFILE_START" && -n "$PROFILE_END" ]] || fail "Could not read seed_id_range from $file."
         database_validate "$file"
       fi
       ;;

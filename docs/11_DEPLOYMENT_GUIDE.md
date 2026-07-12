@@ -527,11 +527,11 @@ curl -fsSL \
 bash /tmp/skybooker-test-data.sh seed \
   --dir /opt/skybooker \
   --repo yunluoxincheng/skybooker-flight \
-  --ref main \
+  --ref <commit-sha> \
   --profile dev --scenarios all --yes
 ```
 
-`doctor` 会检查 Compose MySQL、连接和 Flyway schema 版本；`status` 输出 profile 规模与联程覆盖；`clean --profile dev --yes` 只删除 dev 固定 ID 区间，保留默认账号、航司机场、手工数据和其他 profile。`seed`、`import`、`clean` 默认要求确认，部署自动化必须显式使用 `--yes`。
+`doctor` 会检查可选的 Compose、MySQL 连接和 Flyway V18+；没有 Docker 时可以使用宿主机 MySQL。`status` 输出 ownership 批次规模与联程覆盖；`clean --profile dev --yes` 只删除 dev ownership 批次，保留默认账号、航司机场、未登记手工数据和其他 profile。`seed`、`import`、`clean` 默认要求确认；生产标记环境还必须显式使用 `--allow-production --confirm-production --yes`。
 
 ## 10. 备份、升级和回滚安全
 

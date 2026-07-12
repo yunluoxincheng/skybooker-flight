@@ -61,10 +61,10 @@ curl -fsSL \
 bash /tmp/skybooker-test-data.sh status \
   --dir /opt/skybooker \
   --repo yunluoxincheng/skybooker-flight \
-  --ref main
+  --ref <commit-sha>
 ```
 
-入口会优先读取部署目录 `.env` 和 Compose MySQL 容器；宿主机 MySQL 可通过 `--host --port --user --db` 或同名环境变量连接。密码只通过环境变量/容器环境传递，不写入日志。`seed`、`import` 和 `clean` 默认要求确认，CI 使用 `--yes`。
+入口会优先读取部署目录 `.env` 和 Compose MySQL 容器；宿主机 MySQL 可通过 `--host --port --user --db` 或同名环境变量连接，Docker 不存在时不影响宿主机回退。密码只通过环境变量/容器环境传递，不写入日志。所有写入要求 Flyway V18+；生产标记环境还需要 `--allow-production --confirm-production --yes`。`seed`、`import` 和 `clean` 默认要求确认，CI 使用 `--yes`。
 
 ## 兼容的底层脚本
 

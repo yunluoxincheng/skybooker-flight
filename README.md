@@ -272,7 +272,7 @@ backend/src/main/resources/db/migration/
 Flyway 只初始化 schema、默认管理员、默认普通用户和默认乘机人。航司、机场、航班、座位、订单、退票、改签、候补和 AI 演示数据使用可复现 seed 脚本按需生成：
 
 ```bash
-# 统一生成、校验并导入开发数据（按 profile ID 范围幂等刷新）
+# 统一生成、校验并导入开发数据（按 ownership 批次幂等刷新）
 ./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" --profile dev --scenarios all --yes
 ./scripts/test-data.sh validate --dir "$PWD" --source-dir "$PWD" --file test-data/seed-dev.sql --database
 ./scripts/test-data.sh status --dir "$PWD" --source-dir "$PWD"
@@ -304,7 +304,7 @@ curl -fsSL \
 bash /tmp/skybooker-test-data.sh status \
   --dir /opt/skybooker \
   --repo yunluoxincheng/skybooker-flight \
-  --ref main
+  --ref <commit-sha>
 ```
 
 完整说明见 `docs/17_TEST_DATA_GUIDE.md`。

@@ -32,6 +32,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Run test-data tool tests
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: Run test-data generation matrix
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          for spec in \
+            "flights connecting" \
+            "flights direct" \
+            "orders direct" \
+            "refunds refund" \
+            "changes change" \
+            "waitlists waitlist" \
+            "ai direct"; do
+            read -r components scenarios <<< "$spec"
+            output="$tmp_dir/${components}-${scenarios}.sql"
+            python3 scripts/generate_test_data.py \
+              --profile dev --seed 20260707 --base-date 2026-07-07 \
+              --components "$components" --scenarios "$scenarios" --output "$output"
+            python3 scripts/validate_test_data.py --file "$output"
+          done
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -49,3 +73,27 @@ jobs:
           MYSQL_TEST_DB: flight_booking_test
           JWT_SECRET: test-secret-key-at-least-256-bits-long-for-hmac-sha-algorithm-usage
         run: mvn test
+
+      - name: Run ownership-backed MySQL smoke matrix
+        env:
+          MYSQL_PASSWORD: 123456
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          ./scripts/test-data.sh seed \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components flights --scenarios direct \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test --yes
+          ./scripts/test-data.sh seed \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components orders --scenarios direct \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test --yes
+          ./scripts/test-data.sh validate \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --file "$GITHUB_WORKSPACE/test-data/seed-dev.sql" --database \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test
+          ./scripts/test-data.sh clean \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components users --host 127.0.0.1 --port 3306 \
+            --user root --db flight_booking_test --yes
