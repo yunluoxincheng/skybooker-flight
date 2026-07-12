@@ -91,6 +91,8 @@ def validate(sql: str) -> tuple[dict, list[str]]:
         errors.append("seed SQL must wrap changes in START TRANSACTION/COMMIT")
     if "None" in sql or "'None'" in sql:
         errors.append("seed SQL contains Python None text")
+    if re.search(r"\breal_name\b", sql, re.IGNORECASE):
+        errors.append("seed SQL must not contain the removed users.real_name field")
     if "INSERT INTO flight(" not in sql or "INSERT INTO flight_seat(" not in sql:
         errors.append("flight and flight_seat inserts are required")
 

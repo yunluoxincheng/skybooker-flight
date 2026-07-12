@@ -4,7 +4,7 @@
 <mapper namespace="com.skybooker.auth.mapper.AuthMapper">
 
     <select id="findByEmail" resultType="com.skybooker.auth.entity.User">
-        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+        SELECT id, email, phone, password_hash, nickname, avatar_url,
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
         FROM users
@@ -12,7 +12,7 @@
     </select>
 
     <select id="findById" resultType="com.skybooker.auth.entity.User">
-        SELECT id, email, phone, password_hash, nickname, real_name, avatar_url,
+        SELECT id, email, phone, password_hash, nickname, avatar_url,
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
         FROM users
@@ -25,8 +25,8 @@
     </insert>
 
     <insert id="insertByAdmin" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO users(email, phone, password_hash, nickname, real_name, role, status, email_verified, phone_verified)
-        VALUES(#{email}, #{phone}, #{passwordHash}, #{nickname}, #{realName}, 'USER', 'NORMAL', 0, 0)
+        INSERT INTO users(email, phone, password_hash, nickname, role, status, email_verified, phone_verified)
+        VALUES(#{email}, #{phone}, #{passwordHash}, #{nickname}, 'USER', 'NORMAL', 0, 0)
     </insert>
 
     <update id="updatePassword">
@@ -39,7 +39,7 @@
     </insert>
 
     <select id="findUsersByRole" resultType="com.skybooker.admin.vo.UserAdminVO">
-        SELECT id, email, phone, nickname, real_name, avatar_url,
+        SELECT id, email, phone, nickname, avatar_url,
                role, status, email_verified, phone_verified, last_login_at,
                created_at, updated_at
         FROM users
@@ -104,7 +104,6 @@
             phone = NULL,
             password_hash = #{passwordHash},
             nickname = #{nickname},
-            real_name = NULL,
             avatar_url = NULL,
             status = 'DELETED',
             email_verified = 0,

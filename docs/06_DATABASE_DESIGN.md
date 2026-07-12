@@ -250,6 +250,18 @@ EXPIRED         支付超时
 
 `V13__add_user_account_cancellation_log.sql` 新增 `user_account_cancellation_log` 表。用户本人注销成功后写入一条审计元数据，并通过 `users.status = DELETED` 与账号字段匿名化表达注销结果；历史业务表不做硬删除。
 
+## 7.3 V17 移除普通用户账户遗留姓名字段迁移
+
+`V17__remove_user_real_name.sql` 删除 `users.real_name` 遗留列。该字段的历史值不迁移到 `passenger.name`，因为一个账户可能管理多个乘机人，账户持有人也不一定是乘机人。管理员姓名仍保留在 `admin_user.real_name`。
+
+上线前应在目标数据库检查并确认待丢弃的遗留数据量：
+
+```sql
+SELECT COUNT(*)
+FROM users
+WHERE real_name IS NOT NULL;
+```
+
 ## 8. ER 关系概览
 
 ```mermaid
@@ -323,6 +335,8 @@ CREATE INDEX idx_waitlist_status_expire ON waitlist_order(status, expire_time);
 - `email_verified`：邮箱是否已验证；
 - `phone_verified`：手机号是否已验证；
 - `last_login_at`：最近登录时间。
+
+普通用户账户只保存 `nickname` 作为账户展示名称，不保存 `real_name`。乘机人的证件姓名由 `passenger.name` 保存；订单和候补流程使用各自的乘机人姓名快照。管理员姓名仍由 `admin_user.real_name` 保存。
 
 管理员账号同样存储在 `users` 表中，使用 `role = ADMIN` 区分，不使用独立管理员密码表。用户端登录只允许 `role = USER`，管理端登录只允许 `role = ADMIN`。
 
