@@ -45,10 +45,15 @@ public class ItineraryService {
         List<ItineraryVO> all = new ArrayList<>();
 
         FlightSearchDTO directQuery = copyForDirect(dto);
-        directQuery.setPage(1);
         directQuery.setSize(100);
-        flightService.searchFlights(directQuery).getRecords().stream()
-                .map(f -> build(List.of(f), dto.getCabinClass())).forEach(all::add);
+        int directPage = 1;
+        long directTotal;
+        do {
+            directQuery.setPage(directPage++);
+            PageResponse<FlightVO> directResult = flightService.searchFlights(directQuery);
+            directResult.getRecords().stream().map(f -> build(List.of(f), dto.getCabinClass())).forEach(all::add);
+            directTotal = directResult.getTotal();
+        } while (all.size() < directTotal);
 
         if (!Boolean.TRUE.equals(dto.getDirectOnly()) && dto.getDepartureCity() != null
                 && dto.getArrivalCity() != null && dto.getDepartureDate() != null) {
@@ -144,7 +149,9 @@ public class ItineraryService {
         int connection = flights.size() == 2 ? (int) Duration.between(first.getArrivalTime(), last.getDepartureTime()).toMinutes() : 0;
         int duration = (int) Duration.between(first.getDepartureTime(), last.getArrivalTime()).toMinutes();
         BigDecimal price = flights.stream().map(f -> cabinPrice(f, cabinClass)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        int seats = flights.stream().mapToInt(FlightVO::getRemainingSeats).min().orElse(0);
+        int seats = cabinClass == null
+                ? flights.stream().mapToInt(FlightVO::getRemainingSeats).min().orElse(0)
+                : flights.stream().mapToInt(f -> flightMapper.countAvailableSeatsByFlightAndCabin(f.getId(), cabinClass)).min().orElse(0);
         return new ItineraryVO(id, flights.size() == 2 ? "CONNECTING" : "DIRECT", flights, first.getDepartureCity(),
                 last.getArrivalCity(), flights.size() == 2 ? first.getArrivalAirportCode() : null,
                 flights.size() == 2 ? first.getArrivalAirportName() : null, flights.size() == 2 ? connection : null,

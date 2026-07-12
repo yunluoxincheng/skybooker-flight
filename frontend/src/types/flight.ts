@@ -105,6 +105,7 @@ export interface ItineraryVO {
   estimatedAmount: number
   availableSeats: number
   sellable: boolean
+  unavailableReason?: string
   segmentAvailability?: { flightId: number; seats: FlightSeatVO[] }[]
 }
 

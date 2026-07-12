@@ -483,12 +483,25 @@ class AdminIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(40001));
+        mockMvc.perform(delete("/api/admin/connecting-itineraries/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(40001));
         mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/unpublish", id)
                         .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.publishStatus").value("DRAFT"));
         mockMvc.perform(put("/api/admin/connecting-itineraries/{id}", id)
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isOk());
+        int firstSeatCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM flight_seat WHERE flight_id=?", Integer.class, firstId);
+        mockMvc.perform(delete("/api/admin/connecting-itineraries/{id}", id)
+                        .header("Authorization", "Bearer " + adminToken)).andExpect(status().isOk());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM connecting_itinerary WHERE id=?", Integer.class, id)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM flight WHERE id IN (?,?)", Integer.class, firstId, secondId)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM flight_seat WHERE flight_id=?", Integer.class, firstId)).isEqualTo(firstSeatCount);
+        mockMvc.perform(post("/api/admin/connecting-itineraries")
+                        .header("Authorization", "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/connecting-itineraries")
@@ -610,7 +623,8 @@ class AdminIntegrationTest {
         var matcher = jsonPath("$.data.records[?(@.journeyType == 'CONNECTING' && @.segments[0].id == "
                 + firstId + " && @.segments[1].id == " + secondId + ")]");
         var action = mockMvc.perform(get("/api/itineraries/search").param("departureCity", origin)
-                .param("arrivalCity", destination).param("departureDate", date.toString())).andExpect(status().isOk());
+                .param("arrivalCity", destination).param("departureDate", date.toString()).param("size", "100"))
+                .andExpect(status().isOk());
         if (expected) action.andExpect(matcher.isNotEmpty()); else action.andExpect(matcher.isEmpty());
     }
 

@@ -1,18 +1,18 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Search, ArrowRightLeft, Calendar } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Search, ArrowRightLeft, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface FlightSearchCardProps {
-  defaultDepartureCity?: string
-  defaultArrivalCity?: string
-  defaultDepartureDate?: string
-  compact?: boolean
-  onSearch?: () => void
+  defaultDepartureCity?: string;
+  defaultArrivalCity?: string;
+  defaultDepartureDate?: string;
+  compact?: boolean;
+  onSearch?: () => void;
 }
 
 export function FlightSearchCard({
@@ -22,34 +22,44 @@ export function FlightSearchCard({
   compact = false,
   onSearch,
 }: FlightSearchCardProps) {
-  const router = useRouter()
-  const [departureCity, setDepartureCity] = useState(defaultDepartureCity)
-  const [arrivalCity, setArrivalCity] = useState(defaultArrivalCity)
-  const [departureDate, setDepartureDate] = useState(defaultDepartureDate)
-  const [validationError, setValidationError] = useState("")
+  const router = useRouter();
+  const [departureCity, setDepartureCity] = useState(defaultDepartureCity);
+  const [arrivalCity, setArrivalCity] = useState(defaultArrivalCity);
+  const [departureDate, setDepartureDate] = useState(defaultDepartureDate);
+  const [validationError, setValidationError] = useState("");
+
+  useEffect(
+    () => setDepartureCity(defaultDepartureCity),
+    [defaultDepartureCity],
+  );
+  useEffect(() => setArrivalCity(defaultArrivalCity), [defaultArrivalCity]);
+  useEffect(
+    () => setDepartureDate(defaultDepartureDate),
+    [defaultDepartureDate],
+  );
 
   const handleSearch = () => {
-    const origin = departureCity.trim()
-    const destination = arrivalCity.trim()
+    const origin = departureCity.trim();
+    const destination = arrivalCity.trim();
     if (!origin || !destination || !departureDate) {
-      setValidationError("请选择出发城市、到达城市和出发日期")
-      return
+      setValidationError("请选择出发城市、到达城市和出发日期");
+      return;
     }
-    setValidationError("")
-    const params = new URLSearchParams()
-    params.set("departureCity", origin)
-    params.set("arrivalCity", destination)
-    params.set("departureDate", departureDate)
-    onSearch?.()
-    router.push(`/flights?${params.toString()}`)
-  }
+    setValidationError("");
+    const params = new URLSearchParams();
+    params.set("departureCity", origin);
+    params.set("arrivalCity", destination);
+    params.set("departureDate", departureDate);
+    onSearch?.();
+    router.push(`/flights?${params.toString()}`);
+  };
 
   const swapCities = () => {
-    setDepartureCity(arrivalCity)
-    setArrivalCity(departureCity)
-  }
+    setDepartureCity(arrivalCity);
+    setArrivalCity(departureCity);
+  };
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = new Date().toISOString().split("T")[0];
 
   return (
     <div
@@ -57,7 +67,9 @@ export function FlightSearchCard({
         compact ? "p-4" : "p-6"
       }`}
     >
-      <div className={`grid gap-4 ${compact ? "grid-cols-1 sm:grid-cols-3" : "md:grid-cols-[1fr_auto_1fr_1fr_auto]"} items-end`}>
+      <div
+        className={`grid gap-4 ${compact ? "grid-cols-1 sm:grid-cols-3" : "md:grid-cols-[1fr_auto_1fr_1fr_auto]"} items-end`}
+      >
         {/* 出发城市 */}
         <div className="space-y-1.5">
           <Label htmlFor="depCity" className="text-xs text-muted-foreground">
@@ -119,12 +131,20 @@ export function FlightSearchCard({
         </div>
 
         {/* 搜索按钮 */}
-        <Button onClick={handleSearch} size={compact ? "default" : "lg"} className="gap-2">
+        <Button
+          onClick={handleSearch}
+          size={compact ? "default" : "lg"}
+          className="gap-2"
+        >
           <Search className="h-4 w-4" />
           搜索航班
         </Button>
       </div>
-      {validationError && <p role="alert" className="mt-3 text-sm text-destructive">{validationError}</p>}
+      {validationError && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {validationError}
+        </p>
+      )}
     </div>
-  )
+  );
 }

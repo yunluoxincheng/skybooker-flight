@@ -1,62 +1,74 @@
-"use client"
+"use client";
 
-import { Suspense, useState } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
-import { SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
-import { Skeleton } from "@/components/ui/skeleton"
-import { UserLayout } from "@/components/layout/UserLayout"
-import { FlightSearchCard } from "@/components/common/FlightSearchCard"
-import { ItineraryCard } from "@/components/common/ItineraryCard"
-import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch"
-import { isCabinClass } from "@/types/flight"
-import { DateFareStrip } from "@/features/flights/components/DateFareStrip"
+import { Suspense, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { Skeleton } from "@/components/ui/skeleton";
+import { UserLayout } from "@/components/layout/UserLayout";
+import { FlightSearchCard } from "@/components/common/FlightSearchCard";
+import { ItineraryCard } from "@/components/common/ItineraryCard";
+import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch";
+import { isCabinClass } from "@/types/flight";
+import { DateFareStrip } from "@/features/flights/components/DateFareStrip";
 
 function FlightsContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { itineraries, total, page, size, isLoading, error } = useFlightSearch()
-  const [filterOpen, setFilterOpen] = useState(false)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { itineraries, total, page, size, isLoading, error } =
+    useFlightSearch();
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const updateParam = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams.toString());
     if (value) {
-      params.set(key, value)
+      params.set(key, value);
     } else {
-      params.delete(key)
+      params.delete(key);
     }
-    params.delete("page") // 重置页码
-    router.push(`/flights?${params.toString()}`)
-  }
+    params.delete("page"); // 重置页码
+    router.push(`/flights?${params.toString()}`);
+  };
 
   const goToPage = (newPage: number) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set("page", String(newPage))
-    router.push(`/flights?${params.toString()}`)
-  }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(newPage));
+    router.push(`/flights?${params.toString()}`);
+  };
 
-  const totalPages = Math.max(1, Math.ceil(total / size))
+  const totalPages = Math.max(1, Math.ceil(total / size));
 
-  const currentSortBy = searchParams.get("sortBy") || ""
-  const currentDirectOnly = searchParams.get("directOnly") === "true"
-  const currentTimeRange = searchParams.get("departureTimeRange") || ""
-  const cabinClassParam = searchParams.get("cabinClass")
-  const currentCabinClass = isCabinClass(cabinClassParam) ? cabinClassParam : undefined
-  const origin = searchParams.get("departureCity")?.trim() || ""
-  const destination = searchParams.get("arrivalCity")?.trim() || ""
-  const selectedDate = searchParams.get("departureDate") || ""
+  const currentSortBy = searchParams.get("sortBy") || "";
+  const currentDirectOnly = searchParams.get("directOnly") === "true";
+  const currentTimeRange = searchParams.get("departureTimeRange") || "";
+  const cabinClassParam = searchParams.get("cabinClass");
+  const currentCabinClass = isCabinClass(cabinClassParam)
+    ? cabinClassParam
+    : undefined;
+  const origin = searchParams.get("departureCity")?.trim() || "";
+  const destination = searchParams.get("arrivalCity")?.trim() || "";
+  const selectedDate = searchParams.get("departureDate") || "";
+  const hasCompleteSearchCriteria = Boolean(
+    origin && destination && selectedDate,
+  );
 
   const TIME_RANGES = [
     { value: "00:00-06:00", label: "凌晨 00:00-06:00" },
     { value: "06:00-12:00", label: "上午 06:00-12:00" },
     { value: "12:00-18:00", label: "下午 12:00-18:00" },
     { value: "18:00-23:59", label: "晚间 18:00-23:59" },
-  ]
+  ];
 
   const SORT_OPTIONS = [
     { value: "", label: "综合推荐" },
@@ -64,7 +76,7 @@ function FlightsContent() {
     { value: "duration", label: "飞行时间短" },
     { value: "departure", label: "起飞最早" },
     { value: "seats", label: "余票最多" },
-  ]
+  ];
 
   const renderFilters = () => (
     <div className="space-y-5">
@@ -92,7 +104,9 @@ function FlightsContent() {
         <Checkbox
           id="directOnly"
           checked={currentDirectOnly}
-          onCheckedChange={(checked) => updateParam("directOnly", checked ? "true" : "")}
+          onCheckedChange={(checked) =>
+            updateParam("directOnly", checked ? "true" : "")
+          }
         />
         <Label htmlFor="directOnly" className="text-sm cursor-pointer">
           仅显示直飞航班
@@ -114,7 +128,10 @@ function FlightsContent() {
                   updateParam("departureTimeRange", checked ? t.value : "")
                 }
               />
-              <Label htmlFor={`time-${t.value}`} className="text-sm cursor-pointer">
+              <Label
+                htmlFor={`time-${t.value}`}
+                className="text-sm cursor-pointer"
+              >
                 {t.label}
               </Label>
             </div>
@@ -146,7 +163,7 @@ function FlightsContent() {
         </div>
       </div>
     </div>
-  )
+  );
 
   return (
     <UserLayout>
@@ -158,7 +175,14 @@ function FlightsContent() {
           defaultArrivalCity={searchParams.get("arrivalCity") || ""}
           defaultDepartureDate={searchParams.get("departureDate") || ""}
         />
-        {origin && destination && selectedDate && <DateFareStrip origin={origin} destination={destination} selectedDate={selectedDate} onSelect={(date) => updateParam("departureDate", date)} />}
+        {origin && destination && selectedDate && (
+          <DateFareStrip
+            origin={origin}
+            destination={destination}
+            selectedDate={selectedDate}
+            onSelect={(date) => updateParam("departureDate", date)}
+          />
+        )}
 
         {/* 结果区域 */}
         <div className="mt-6 flex gap-6">
@@ -213,7 +237,10 @@ function FlightsContent() {
             {error && (
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
                 <p className="text-destructive mb-3">{error}</p>
-                <Button variant="outline" onClick={() => window.location.reload()}>
+                <Button
+                  variant="outline"
+                  onClick={() => window.location.reload()}
+                >
                   重试
                 </Button>
               </div>
@@ -223,23 +250,37 @@ function FlightsContent() {
             {!isLoading && !error && (
               <div className="space-y-4">
                 {itineraries.map((itinerary) => (
-                  <ItineraryCard key={itinerary.segments.map((s) => s.id).join("-")} itinerary={itinerary} cabinClass={currentCabinClass} />
+                  <ItineraryCard
+                    key={itinerary.segments.map((s) => s.id).join("-")}
+                    itinerary={itinerary}
+                    cabinClass={currentCabinClass}
+                  />
                 ))}
               </div>
             )}
 
             {/* 空状态 */}
-            {!isLoading && !error && itineraries.length === 0 && (
-              <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
-                <p className="text-muted-foreground mb-4">未找到符合条件的航班</p>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/flights")}
-                >
-                  清除筛选
-                </Button>
+            {!hasCompleteSearchCriteria && (
+              <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+                请填写出发城市、到达城市和出发日期后搜索
               </div>
             )}
+            {hasCompleteSearchCriteria &&
+              !isLoading &&
+              !error &&
+              itineraries.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+                  <p className="text-muted-foreground mb-4">
+                    未找到符合条件的航班
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push("/flights")}
+                  >
+                    清除筛选
+                  </Button>
+                </div>
+              )}
 
             {/* 分页 */}
             {totalPages > 1 && (
@@ -253,9 +294,12 @@ function FlightsContent() {
                   <ChevronLeft className="h-4 w-4" /> 上一页
                 </Button>
                 {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
-                  const startPage = Math.max(1, Math.min(page - 2, totalPages - 4))
-                  const pageNum = startPage + i
-                  if (pageNum > totalPages) return null
+                  const startPage = Math.max(
+                    1,
+                    Math.min(page - 2, totalPages - 4),
+                  );
+                  const pageNum = startPage + i;
+                  if (pageNum > totalPages) return null;
                   return (
                     <Button
                       key={pageNum}
@@ -266,7 +310,7 @@ function FlightsContent() {
                     >
                       {pageNum}
                     </Button>
-                  )
+                  );
                 })}
                 <Button
                   variant="outline"
@@ -282,7 +326,7 @@ function FlightsContent() {
         </div>
       </div>
     </UserLayout>
-  )
+  );
 }
 
 export default function FlightsPage() {
@@ -299,5 +343,5 @@ export default function FlightsPage() {
     >
       <FlightsContent />
     </Suspense>
-  )
+  );
 }

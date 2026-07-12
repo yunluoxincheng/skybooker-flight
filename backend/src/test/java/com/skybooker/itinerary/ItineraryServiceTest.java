@@ -2,6 +2,8 @@ package com.skybooker.itinerary;
 
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.flight.service.FlightService;
+import com.skybooker.flight.dto.FlightSearchDTO;
+import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.itinerary.mapper.ItineraryMapper;
 import com.skybooker.itinerary.service.ItineraryService;
@@ -22,10 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class ItineraryServiceTest {
     private ItineraryService service;
     private ItineraryMapper itineraryMapper;
+    private FlightService flightService;
     private final LocalDateTime now = LocalDateTime.of(2026, 7, 11, 10, 0);
 
     @BeforeEach
@@ -35,8 +39,9 @@ class ItineraryServiceTest {
         ConnectingItinerary published = new ConnectingItinerary();
         published.setPublishStatus("PUBLISHED");
         when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(published);
+        flightService = mock(FlightService.class);
         service = new ItineraryService(itineraryMapper, mock(FlightMapper.class),
-                mock(FlightService.class), mock(PassengerMapper.class), clock);
+                flightService, mock(PassengerMapper.class), clock);
     }
 
     @Test void acceptsNinetyMinuteAndSixHourBoundaries() {
@@ -73,6 +78,24 @@ class ItineraryServiceTest {
         ConnectingItinerary draft = new ConnectingItinerary(); draft.setPublishStatus("DRAFT");
         when(itineraryMapper.findManagedPair(1L, 2L)).thenReturn(draft);
         assertThrows(BusinessException.class, () -> service.validate(pair(120), 1));
+    }
+
+    @Test void unifiedSearchDoesNotTruncateDirectFlightsAfterFirstHundred() {
+        List<FlightVO> firstHundred = java.util.stream.LongStream.rangeClosed(1, 100)
+                .mapToObj(id -> flight(id, 1L, 3L, now.plusDays(1).plusMinutes(id), now.plusDays(1).plusMinutes(id + 60)))
+                .toList();
+        FlightVO last = flight(101L, 1L, 3L, now.plusDays(1).plusMinutes(101), now.plusDays(1).plusMinutes(161));
+        when(flightService.searchFlights(any(FlightSearchDTO.class)))
+                .thenReturn(new PageResponse<>(firstHundred, 101, 1, 100))
+                .thenReturn(new PageResponse<>(List.of(last), 101, 2, 100));
+        when(itineraryMapper.findConnectingPairs("上海", "北京", now.toLocalDate().plusDays(1), 1, null))
+                .thenReturn(List.of());
+        FlightSearchDTO query = new FlightSearchDTO();
+        query.setDepartureCity(" 上海 "); query.setArrivalCity(" 北京 "); query.setDepartureDate(now.toLocalDate().plusDays(1));
+        query.setPage(11); query.setSize(10);
+        PageResponse<com.skybooker.itinerary.vo.ItineraryVO> result = service.search(query);
+        org.junit.jupiter.api.Assertions.assertEquals(101, result.getTotal());
+        org.junit.jupiter.api.Assertions.assertEquals(101L, result.getRecords().getFirst().getId());
     }
 
     private List<FlightVO> pair(int transferMinutes) {

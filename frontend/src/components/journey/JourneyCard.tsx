@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FlightPriceTag } from "@/components/common/FlightPriceTag"
 import { formatDate, formatTime, getCrossDayLabel } from "@/lib/date-utils"
-import type { CabinClass, ItineraryVO } from "@/types/flight"
+import type { ItineraryVO } from "@/types/flight"
 
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}时${minutes % 60 ? `${minutes % 60}分` : ""}`
 
-export function JourneyCard({ journey }: { journey: ItineraryVO; cabinClass?: CabinClass }) {
+export function JourneyCard({ journey }: { journey: ItineraryVO }) {
   const first = journey.segments[0]
   const last = journey.segments.at(-1)!
   const connecting = journey.journeyType === "CONNECTING"
