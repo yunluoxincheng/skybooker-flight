@@ -19,12 +19,10 @@
 按需生成并导入 seed 数据：
 
 ```bash
-python3 scripts/generate_test_data.py --profile dev --seed 20260707
-python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
-
-docker exec -i skybooker-mysql sh -c \
-  'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
-  < backend/src/main/resources/db/seed/seed-dev.sql
+./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" \
+  --profile dev --seed 20260707 --scenarios all --yes
+./scripts/test-data.sh validate --dir "$PWD" --source-dir "$PWD" \
+  --file "$PWD/test-data/seed-dev.sql" --database
 ```
 
 `dev` 用于本地开发和演示，`test` 用于功能测试和集成测试。完整数据规模、重置方式、覆盖场景和一致性校验 SQL 见 `docs/17_TEST_DATA_GUIDE.md`。

@@ -24,6 +24,25 @@ AIRPORT_FEE = Decimal("50.00")
 FUEL_FEE = Decimal("30.00")
 SERVICE_FEE = Decimal("0.00")
 
+COMPONENT_NAMES = (
+    "reference", "users", "flights", "orders", "refunds", "changes", "waitlists", "ai", "all"
+)
+SCENARIO_NAMES = (
+    "direct", "connecting", "payment", "cancel", "refund", "change", "waitlist", "sold-out",
+    "delayed", "near-departure", "all"
+)
+
+COMPONENT_DEPENDENCIES = {
+    "reference": set(),
+    "users": {"reference"},
+    "flights": {"reference"},
+    "orders": {"users", "flights"},
+    "refunds": {"orders"},
+    "changes": {"orders", "flights"},
+    "waitlists": {"users", "flights", "orders"},
+    "ai": {"users", "flights"},
+}
+
 
 @dataclass(frozen=True)
 class Airport:
@@ -119,6 +138,11 @@ class Ids:
             self.ai_session = base + 74_000
             self.ai_message = base + 74_100
             self.ai_recommendation = base + 74_200
+            self.connecting_itinerary = base + 75_000
+            self.order_segment = base + 76_000
+            self.segment_passenger = base + 77_000
+            self.connecting_change = base + 78_000
+            self.connecting_change_segment = base + 79_000
         else:
             self.user = base + 100
             self.passenger = base + 1_000
@@ -133,6 +157,11 @@ class Ids:
             self.ai_session = base + 880_000
             self.ai_message = base + 890_000
             self.ai_recommendation = base + 900_000
+            self.connecting_itinerary = base + 910_000
+            self.order_segment = base + 920_000
+            self.segment_passenger = base + 930_000
+            self.connecting_change = base + 940_000
+            self.connecting_change_segment = base + 950_000
 
     def next_user(self) -> int:
         value = self.user
@@ -197,6 +226,31 @@ class Ids:
     def next_ai_recommendation(self) -> int:
         value = self.ai_recommendation
         self.ai_recommendation += 1
+        return value
+
+    def next_connecting_itinerary(self) -> int:
+        value = self.connecting_itinerary
+        self.connecting_itinerary += 1
+        return value
+
+    def next_order_segment(self) -> int:
+        value = self.order_segment
+        self.order_segment += 1
+        return value
+
+    def next_segment_passenger(self) -> int:
+        value = self.segment_passenger
+        self.segment_passenger += 1
+        return value
+
+    def next_connecting_change(self) -> int:
+        value = self.connecting_change
+        self.connecting_change += 1
+        return value
+
+    def next_connecting_change_segment(self) -> int:
+        value = self.connecting_change_segment
+        self.connecting_change_segment += 1
         return value
 
 
@@ -569,6 +623,8 @@ def build_routes(airports: list[Airport], cfg: ProfileConfig, rng: random.Random
 
 
 def cabin_layout(tag: str | None, rng: random.Random) -> list[tuple[str, int]]:
+    if tag and tag.startswith("connecting-"):
+        return [("ECONOMY", 6)]
     if tag in {"all_sold_out", "last_seat", "economy_sold_business_available", "waitlist_target"}:
         return [("BUSINESS", 4), ("ECONOMY", 18)]
     if tag == "multi_locked":
@@ -647,10 +703,12 @@ def make_flight(
     status: str | None = None,
     direct_flag: int | None = None,
     scarcity: str | None = None,
+    publish_status: str = "PUBLISHED",
+    duration_override: int | None = None,
 ) -> Flight:
     dep = airports_by_code[dep_code]
     arr = airports_by_code[arr_code]
-    duration = estimate_duration(dep, arr, rng)
+    duration = duration_override or estimate_duration(dep, arr, rng)
     if tag == "cross_day":
         duration = max(duration, 170)
     arrival_at = depart_at + timedelta(minutes=duration)
@@ -670,7 +728,7 @@ def make_flight(
         duration_minutes=duration,
         base_price=route_base_price(duration, tier, depart_at.toordinal() % 7, scarcity),
         status=resolved_status,
-        publish_status="PUBLISHED",
+        publish_status=publish_status,
         direct_flag=direct_flag if direct_flag is not None else (0 if rng.random() < 0.08 else 1),
         baggage_allowance="20kg 托运行李",
         punctuality_rate=money(Decimal(rng.randint(8850, 9850)) / Decimal("100")),
@@ -746,6 +804,68 @@ def generate_flights(
 
     flights.sort(key=lambda item: (item.departure_time, item.flight_no, item.id))
     return flights
+
+
+def generate_connecting_itineraries(
+    ids: Ids,
+    rng: random.Random,
+    base_date: date,
+    airports: list[Airport],
+    airlines: list[Airline],
+) -> tuple[list[Flight], list[dict[str, Any]]]:
+    """Create deterministic, managed two-segment itineraries for issue #148.
+
+    The pair definitions deliberately exercise the business boundaries used by
+    the itinerary service while keeping every daily seed row valid for MySQL.
+    Negative combinations (broken airports and invalid transfer windows) remain
+    test fixtures rather than production-like seed data.
+    """
+    airports_by_code = {airport.code: airport for airport in airports}
+    specs = [
+        ("published", "CAN", "SHA", "PEK", 1, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("draft", "CAN", "SHA", "PEK", 2, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("different-via", "CAN", "PVG", "PEK", 3, time(8, 0), 180, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("minimum-window", "CAN", "SHA", "PEK", 4, time(8, 0), 120, 90, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("maximum-window", "CAN", "SHA", "PEK", 5, time(8, 0), 120, 360, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("cross-day", "CAN", "SHA", "PEK", 6, time(23, 0), 180, 90, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("first-tight", "CAN", "SHA", "PEK", 7, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("second-tight", "CAN", "SHA", "PEK", 8, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("sold-out", "CAN", "SHA", "PEK", 9, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "ON_TIME", "ON_TIME"),
+        ("cancelled", "CAN", "SHA", "PEK", 10, time(8, 0), 120, 120, "PUBLISHED", "PUBLISHED", "CANCELLED", "ON_TIME"),
+        ("unpublished", "CAN", "SHA", "PEK", 11, time(8, 0), 120, 120, "DRAFT", "PUBLISHED", "ON_TIME", "ON_TIME"),
+    ]
+    flights: list[Flight] = []
+    itineraries: list[dict[str, Any]] = []
+    for index, (tag, dep, via, arr, day, departure, first_duration, transfer_minutes,
+                first_publish, second_publish, first_status, second_status) in enumerate(specs, start=1):
+        if not {dep, via, arr}.issubset(airports_by_code):
+            continue
+        first = make_flight(
+            ids, rng, airports_by_code, airlines, dep, via,
+            datetime.combine(base_date + timedelta(days=day), departure),
+            "popular", tag=f"connecting-{tag}-first", status=first_status,
+            direct_flag=1, publish_status=first_publish, duration_override=first_duration,
+        )
+        second = make_flight(
+            ids, rng, airports_by_code, airlines, via,
+            arr, first.arrival_time + timedelta(minutes=transfer_minutes),
+            "popular", tag=f"connecting-{tag}-second", status=second_status,
+            direct_flag=1, publish_status=second_publish, duration_override=120 + (index % 3) * 30,
+        )
+        flights.extend((first, second))
+        itineraries.append(
+            {
+                "id": ids.next_connecting_itinerary(),
+                "first_flight_id": first.id,
+                "second_flight_id": second.id,
+                "publish_status": "PUBLISHED" if first_publish == second_publish == "PUBLISHED" and tag != "draft" else "DRAFT",
+                "created_by": None,
+                "created_at": datetime.combine(base_date, time(8, 0)) + timedelta(minutes=index),
+                "updated_at": datetime.combine(base_date, time(8, 0)) + timedelta(minutes=index),
+                "scenario": tag,
+            }
+        )
+    return flights, itineraries
 
 
 def generate_users_and_passengers(ids: Ids, profile: str, cfg: ProfileConfig) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -844,6 +964,8 @@ def create_order(
     created_at: datetime,
     pay_time: datetime | None,
     expire_time: datetime | None,
+    journey_type: str = "DIRECT",
+    client_request_id: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     ticket_amount, airport_fee, fuel_fee, service_fee, total_amount = order_amount(seats)
     order_id = ids.next_order()
@@ -852,6 +974,8 @@ def create_order(
         "order_no": f"TD{profile.upper()}{created_at:%Y%m%d}{sequence:08d}",
         "user_id": user_id,
         "flight_id": flight.id,
+        "journey_type": journey_type,
+        "client_request_id": client_request_id,
         "status": status,
         "ticket_amount": ticket_amount,
         "airport_fee": airport_fee,
@@ -1051,7 +1175,9 @@ def build_orders(
     sellable_flights = [
         flight
         for flight in flights
-        if flight.status in {"ON_TIME", "DELAYED"} and flight.tag not in protected_tags
+        if flight.status in {"ON_TIME", "DELAYED"}
+        and flight.tag not in protected_tags
+        and not (flight.tag and flight.tag.startswith("connecting-"))
     ]
     same_route: dict[tuple[int, int], list[Flight]] = {}
     for flight in sellable_flights:
@@ -1126,6 +1252,232 @@ def build_orders(
                 )
 
     return orders, order_passengers, refunds, changes, waitlists, waitlist_passengers
+
+
+def build_connecting_orders(
+    ids: Ids,
+    profile: str,
+    base_dt: datetime,
+    itineraries: list[dict[str, Any]],
+    flights: list[Flight],
+    passengers: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build valid two-segment order and change snapshots for managed itineraries."""
+    flight_by_id = {flight.id: flight for flight in flights}
+    passenger_by_user = passenger_pool_by_user(passengers)
+    itinerary_by_scenario = {item["scenario"]: item for item in itineraries}
+    connecting_orders: list[dict[str, Any]] = []
+    segments: list[dict[str, Any]] = []
+    segment_passengers: list[dict[str, Any]] = []
+    refunds: list[dict[str, Any]] = []
+    change_records: list[dict[str, Any]] = []
+    change_segments: list[dict[str, Any]] = []
+
+    def create_connecting_order(
+        itinerary: dict[str, Any],
+        status: str,
+        passenger_count: int,
+        sequence: int,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+        first = flight_by_id[itinerary["first_flight_id"]]
+        second = flight_by_id[itinerary["second_flight_id"]]
+        first_seats = available_seats(first, "ECONOMY")[:passenger_count]
+        second_seats = available_seats(second, "ECONOMY")[:passenger_count]
+        if len(first_seats) < passenger_count or len(second_seats) < passenger_count:
+            raise RuntimeError(f"connecting scenario {itinerary['scenario']} does not have enough seats")
+        eligible = [user_id for user_id, items in passenger_by_user.items() if len(items) >= passenger_count]
+        user_id = eligible[(sequence - 1) % len(eligible)]
+        selected = passenger_by_user[user_id][:passenger_count]
+        created_at = base_dt - timedelta(days=sequence, hours=sequence)
+        all_seats = first_seats + second_seats
+        ticket_amount = money(sum((seat.price for seat in all_seats), Decimal("0.00")))
+        airport_fee = AIRPORT_FEE * passenger_count * 2
+        fuel_fee = FUEL_FEE * passenger_count * 2
+        total_amount = money(ticket_amount + airport_fee + fuel_fee + SERVICE_FEE)
+        order_id = ids.next_order()
+        order = {
+            "id": order_id,
+            "order_no": f"TC{profile.upper()}{base_dt:%Y%m%d}{sequence:08d}",
+            "user_id": user_id,
+            "flight_id": first.id,
+            "journey_type": "CONNECTING",
+            "client_request_id": f"seed-{profile}-connecting-{sequence:04d}",
+            "status": status,
+            "ticket_amount": ticket_amount,
+            "airport_fee": airport_fee,
+            "fuel_fee": fuel_fee,
+            "service_fee": SERVICE_FEE,
+            "total_amount": total_amount,
+            "pay_time": created_at + timedelta(minutes=8) if status not in {"PENDING_PAYMENT", "CANCELLED"} else None,
+            "expire_time": created_at + timedelta(minutes=15),
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
+        connecting_orders.append(order)
+        segment_rows: list[dict[str, Any]] = []
+        for segment_no, (flight, seats) in enumerate(((first, first_seats), (second, second_seats)), start=1):
+            segment_id = ids.next_order_segment()
+            segment_rows.append(
+                {
+                    "id": segment_id,
+                    "order_id": order_id,
+                    "segment_no": segment_no,
+                    "flight_id": flight.id,
+                    "flight_no": flight.flight_no,
+                    "airline_code": next(a.code for a in AIRLINES if a.id == flight.airline_id),
+                    "airline_name": next(a.name for a in AIRLINES if a.id == flight.airline_id),
+                    "departure_airport_code": next(a.code for a in AIRPORTS if a.id == flight.departure_airport_id),
+                    "departure_airport_name": next(a.name for a in AIRPORTS if a.id == flight.departure_airport_id),
+                    "departure_city": next(a.city for a in AIRPORTS if a.id == flight.departure_airport_id),
+                    "arrival_airport_code": next(a.code for a in AIRPORTS if a.id == flight.arrival_airport_id),
+                    "arrival_airport_name": next(a.name for a in AIRPORTS if a.id == flight.arrival_airport_id),
+                    "arrival_city": next(a.city for a in AIRPORTS if a.id == flight.arrival_airport_id),
+                    "departure_time": flight.departure_time,
+                    "arrival_time": flight.arrival_time,
+                    "ticket_amount": money(sum((seat.price for seat in seats), Decimal("0.00"))),
+                    "created_at": created_at,
+                    "updated_at": created_at,
+                }
+            )
+            segments.append(segment_rows[-1])
+            for passenger, seat in zip(selected, seats):
+                segment_passengers.append(
+                    {
+                        "id": ids.next_segment_passenger(),
+                        "order_segment_id": segment_id,
+                        "passenger_id": passenger["id"],
+                        "passenger_name": passenger["name"],
+                        "passenger_type": passenger["passenger_type"],
+                        "seat_id": seat.id,
+                        "seat_no": seat.seat_no,
+                        "ticket_price": seat.price,
+                        "created_at": created_at,
+                    }
+                )
+            mark_seats_for_order(seats, order_id, status, order["expire_time"])
+        return order, segment_rows, selected
+
+    requested = [
+        ("published", "ISSUED", 1),
+        ("minimum-window", "PENDING_PAYMENT", 2),
+        ("different-via", "CANCELLED", 1),
+        ("maximum-window", "REFUNDED", 1),
+        ("cross-day", "ISSUED", 2),
+    ]
+    for sequence, (scenario, status, count) in enumerate(requested, start=1):
+        itinerary = itinerary_by_scenario.get(scenario)
+        if not itinerary or itinerary["publish_status"] != "PUBLISHED":
+            continue
+        order, _, _ = create_connecting_order(itinerary, status, count, sequence)
+        if status == "REFUNDED":
+            fee = money(order["total_amount"] * Decimal("0.10"))
+            refunds.append(
+                {
+                    "id": ids.next_refund(),
+                    "order_id": order["id"],
+                    "user_id": order["user_id"],
+                    "reason": "测试数据：联程计划变更退票",
+                    "refund_amount": money(order["total_amount"] - fee),
+                    "fee_amount": fee,
+                    "status": "SUCCESS",
+                    "created_at": order["created_at"] + timedelta(hours=2),
+                }
+            )
+
+    source = itinerary_by_scenario.get("cross-day")
+    replacement = itinerary_by_scenario.get("first-tight")
+    source_order = next((item for item in connecting_orders if item["client_request_id"].endswith("0005")), None)
+    if source and replacement and source_order and replacement["publish_status"] == "PUBLISHED":
+        old_segments = [item for item in segments if item["order_id"] == source_order["id"]]
+        new_first = flight_by_id[replacement["first_flight_id"]]
+        new_second = flight_by_id[replacement["second_flight_id"]]
+        new_seats = [available_seats(new_first, "ECONOMY")[:2], available_seats(new_second, "ECONOMY")[:2]]
+        if all(len(items) == 2 for items in new_seats):
+            old_total = source_order["total_amount"]
+            new_total = money(sum((seat.price for items in new_seats for seat in items), Decimal("0.00")) + Decimal("160.00"))
+            change_id = ids.next_connecting_change()
+            change_records.append(
+                {
+                    "id": change_id,
+                    "order_id": source_order["id"],
+                    "user_id": source_order["user_id"],
+                    "client_request_id": f"seed-{profile}-connecting-change-0001",
+                    "old_total_amount": old_total,
+                    "new_total_amount": new_total,
+                    "price_difference": money(new_total - old_total),
+                    "change_fee": money(new_total * Decimal("0.10")),
+                    "reason": "测试数据：联程改签补差价",
+                    "status": "SUCCESS",
+                    "created_at": base_dt + timedelta(hours=3),
+                    "updated_at": base_dt + timedelta(hours=3),
+                }
+            )
+            passenger_ids = [item["passenger_id"] for item in segment_passengers if item["order_segment_id"] == old_segments[0]["id"]]
+            for snapshot_type, pairs in (("OLD", [(old_segments[0], [item for item in segment_passengers if item["order_segment_id"] == old_segments[0]["id"]]),
+                                                    (old_segments[1], [item for item in segment_passengers if item["order_segment_id"] == old_segments[1]["id"]])]),
+                                         ("NEW", [(new_first, []), (new_second, [])])):
+                for segment_no, pair in enumerate(pairs, start=1):
+                    flight = pair[0]["flight_id"] if snapshot_type == "OLD" else pair[0].id
+                    flight_obj = flight_by_id[flight] if isinstance(flight, int) else flight
+                    if snapshot_type == "OLD":
+                        seat_pairs = [
+                            {"passenger_id": item["passenger_id"], "seat_id": item["seat_id"], "seat_no": item["seat_no"]}
+                            for item in pair[1]
+                        ]
+                    else:
+                        seat_pairs = [
+                            {"passenger_id": passenger_id, "seat_id": seat.id, "seat_no": seat.seat_no}
+                            for passenger_id, seat in zip(passenger_ids, new_seats[segment_no - 1])
+                        ]
+                    change_segments.append(
+                        {
+                            "id": ids.next_connecting_change_segment(),
+                            "change_record_id": change_id,
+                            "snapshot_type": snapshot_type,
+                            "segment_no": segment_no,
+                            "flight_id": flight_obj.id,
+                            "flight_no": flight_obj.flight_no,
+                            "departure_airport_code": next(a.code for a in AIRPORTS if a.id == flight_obj.departure_airport_id),
+                            "arrival_airport_code": next(a.code for a in AIRPORTS if a.id == flight_obj.arrival_airport_id),
+                            "departure_time": flight_obj.departure_time,
+                            "arrival_time": flight_obj.arrival_time,
+                            "passenger_seats": json.dumps(seat_pairs, ensure_ascii=False, separators=(",", ":")),
+                            "created_at": base_dt + timedelta(hours=3),
+                        }
+                    )
+            old_seat_ids = {
+                item["seat_id"]
+                for item in segment_passengers
+                if item["order_segment_id"] in {old_segments[0]["id"], old_segments[1]["id"]}
+            }
+            for flight in flights:
+                for seat in flight.seats:
+                    if seat.id in old_seat_ids:
+                        seat.status = "AVAILABLE"
+                        seat.locked_by_order_id = None
+                        seat.lock_expire_time = None
+            for segment, flight, seats in zip(old_segments, (new_first, new_second), new_seats):
+                segment["flight_id"] = flight.id
+                segment["flight_no"] = flight.flight_no
+                segment["departure_airport_code"] = next(a.code for a in AIRPORTS if a.id == flight.departure_airport_id)
+                segment["departure_airport_name"] = next(a.name for a in AIRPORTS if a.id == flight.departure_airport_id)
+                segment["departure_city"] = next(a.city for a in AIRPORTS if a.id == flight.departure_airport_id)
+                segment["arrival_airport_code"] = next(a.code for a in AIRPORTS if a.id == flight.arrival_airport_id)
+                segment["arrival_airport_name"] = next(a.name for a in AIRPORTS if a.id == flight.arrival_airport_id)
+                segment["arrival_city"] = next(a.city for a in AIRPORTS if a.id == flight.arrival_airport_id)
+                segment["departure_time"] = flight.departure_time
+                segment["arrival_time"] = flight.arrival_time
+                segment["ticket_amount"] = money(sum((seat.price for seat in seats), Decimal("0.00")))
+                for passenger, seat in zip(
+                    [item for item in segment_passengers if item["order_segment_id"] == segment["id"]], seats
+                ):
+                    passenger["seat_id"] = seat.id
+                    passenger["seat_no"] = seat.seat_no
+                    passenger["ticket_price"] = seat.price
+            for flight, seats in ((new_first, new_seats[0]), (new_second, new_seats[1])):
+                mark_seats_for_order(seats, source_order["id"], "CHANGED", None)
+            source_order["status"] = "CHANGED"
+    return connecting_orders, segments, segment_passengers, refunds, change_records, change_segments
 
 
 def build_ai_records(
@@ -1214,10 +1566,20 @@ def validate_dataset(
     orders: list[dict[str, Any]],
     order_passengers: list[dict[str, Any]],
     waitlists: list[dict[str, Any]],
+    itineraries: list[dict[str, Any]] | None = None,
+    order_segments: list[dict[str, Any]] | None = None,
+    segment_passengers: list[dict[str, Any]] | None = None,
+    connecting_changes: list[dict[str, Any]] | None = None,
+    connecting_change_segments: list[dict[str, Any]] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     orders_by_id = {order["id"]: order for order in orders}
     order_passenger_seat_pairs = {(op["order_id"], op["seat_id"]) for op in order_passengers}
+    segment_seat_pairs = {
+        (next((segment["order_id"] for segment in (order_segments or []) if segment["id"] == passenger["order_segment_id"]), None), passenger["seat_id"])
+        for passenger in (segment_passengers or [])
+    }
+    all_order_seat_pairs = order_passenger_seat_pairs | segment_seat_pairs
     for flight in flights:
         cabin_total = sum(cabin["total_seats"] for cabin in flight.cabins)
         if cabin_total != flight.total_seats:
@@ -1232,7 +1594,7 @@ def validate_dataset(
             if seat.status == "SOLD":
                 if seat.locked_by_order_id is None:
                     errors.append(f"seat {seat.id}: SOLD without order")
-                elif (seat.locked_by_order_id, seat.id) not in order_passenger_seat_pairs:
+                elif (seat.locked_by_order_id, seat.id) not in all_order_seat_pairs:
                     errors.append(f"seat {seat.id}: SOLD order passenger missing")
             if seat.status == "LOCKED":
                 if seat.locked_by_order_id is None or seat.lock_expire_time is None:
@@ -1248,6 +1610,45 @@ def validate_dataset(
     for waitlist in waitlists:
         if waitlist["status"] == "SUCCESS" and waitlist["ticket_order_id"] is None:
             errors.append(f"waitlist {waitlist['id']}: SUCCESS without ticket order")
+    flight_by_id = {flight.id: flight for flight in flights}
+    for itinerary in itineraries or []:
+        first = flight_by_id.get(itinerary["first_flight_id"])
+        second = flight_by_id.get(itinerary["second_flight_id"])
+        if not first or not second:
+            errors.append(f"connecting itinerary {itinerary['id']}: flight missing")
+            continue
+        transfer = int((second.departure_time - first.arrival_time).total_seconds() // 60)
+        if first.arrival_airport_id != second.departure_airport_id:
+            errors.append(f"connecting itinerary {itinerary['id']}: airports are not continuous")
+        if not 90 <= transfer <= 360:
+            errors.append(f"connecting itinerary {itinerary['id']}: transfer window {transfer} minutes is invalid")
+        if first.direct_flag != 1 or second.direct_flag != 1:
+            errors.append(f"connecting itinerary {itinerary['id']}: both flights must be direct")
+    segments_by_order: dict[int, list[dict[str, Any]]] = {}
+    for segment in order_segments or []:
+        segments_by_order.setdefault(segment["order_id"], []).append(segment)
+    passengers_by_segment: dict[int, list[dict[str, Any]]] = {}
+    for passenger in segment_passengers or []:
+        passengers_by_segment.setdefault(passenger["order_segment_id"], []).append(passenger)
+    for order in orders:
+        if order.get("journey_type") != "CONNECTING":
+            continue
+        order_segments_for_order = sorted(segments_by_order.get(order["id"], []), key=lambda item: item["segment_no"])
+        if [item["segment_no"] for item in order_segments_for_order] != [1, 2]:
+            errors.append(f"connecting order {order['id']}: must contain ordered segments 1 and 2")
+            continue
+        passenger_sets = []
+        for segment in order_segments_for_order:
+            passenger_sets.append({item["passenger_id"] for item in passengers_by_segment.get(segment["id"], [])})
+        if len(passenger_sets) != 2 or passenger_sets[0] != passenger_sets[1]:
+            errors.append(f"connecting order {order['id']}: passenger sets differ between segments")
+    changes_by_id = {item["id"]: item for item in connecting_changes or []}
+    snapshots_by_change: dict[int, set[tuple[str, int]]] = {}
+    for snapshot in connecting_change_segments or []:
+        snapshots_by_change.setdefault(snapshot["change_record_id"], set()).add((snapshot["snapshot_type"], snapshot["segment_no"]))
+    for change_id in changes_by_id:
+        if snapshots_by_change.get(change_id) != {("OLD", 1), ("OLD", 2), ("NEW", 1), ("NEW", 2)}:
+            errors.append(f"connecting change {change_id}: OLD/NEW snapshots are incomplete")
     return errors
 
 
@@ -1267,6 +1668,11 @@ def generated_id_values(dataset: dict[str, Any]) -> list[int]:
     ids.extend(session["id"] for session in dataset["ai_sessions"])
     ids.extend(message["id"] for message in dataset["ai_messages"])
     ids.extend(recommendation["id"] for recommendation in dataset["ai_recommendations"])
+    ids.extend(item["id"] for item in dataset["connecting_itineraries"])
+    ids.extend(item["id"] for item in dataset["order_segments"])
+    ids.extend(item["id"] for item in dataset["segment_passengers"])
+    ids.extend(item["id"] for item in dataset["connecting_changes"])
+    ids.extend(item["id"] for item in dataset["connecting_change_segments"])
     return ids
 
 
@@ -1281,18 +1687,80 @@ def validate_generated_id_ranges(dataset: dict[str, Any]) -> list[str]:
     return errors
 
 
-def build_dataset(profile: str, seed: int, base_date: date) -> dict[str, Any]:
+def resolve_components(raw_components: str | None, auto_dependencies: bool = True) -> set[str]:
+    requested = {item.strip().lower() for item in (raw_components or "all").split(",") if item.strip()}
+    if "all" in requested:
+        requested = set(COMPONENT_NAMES) - {"all"}
+    invalid = requested - set(COMPONENT_NAMES)
+    if invalid:
+        raise ValueError(f"unknown components: {', '.join(sorted(invalid))}")
+    if not auto_dependencies:
+        missing = {dependency for component in requested for dependency in COMPONENT_DEPENDENCIES[component] if dependency not in requested}
+        if missing:
+            raise ValueError(f"components require dependencies: {', '.join(sorted(missing))}; remove --no-auto-dependencies or add them explicitly")
+        return requested
+    resolved = set(requested)
+    changed = True
+    while changed:
+        changed = False
+        for component in tuple(resolved):
+            before = len(resolved)
+            resolved.update(COMPONENT_DEPENDENCIES[component])
+            changed = changed or len(resolved) != before
+    return resolved
+
+
+def resolve_scenarios(raw_scenarios: str | None) -> set[str]:
+    requested = {item.strip().lower() for item in (raw_scenarios or "all").split(",") if item.strip()}
+    if "all" in requested:
+        requested = set(SCENARIO_NAMES) - {"all"}
+    invalid = requested - set(SCENARIO_NAMES)
+    if invalid:
+        raise ValueError(f"unknown scenarios: {', '.join(sorted(invalid))}")
+    return requested
+
+
+def build_dataset(
+    profile: str,
+    seed: int,
+    base_date: date,
+    components: set[str] | None = None,
+    scenarios: set[str] | None = None,
+) -> dict[str, Any]:
     cfg = PROFILES[profile]
+    selected_components = components or resolve_components(None)
+    selected_scenarios = scenarios or resolve_scenarios(None)
     rng = random.Random(seed)
     ids = Ids(cfg.id_base, cfg.id_range)
     airports = selected_airports(cfg)
     airlines = selected_airlines(cfg)
     users, passengers = generate_users_and_passengers(ids, profile, cfg)
     flights = generate_flights(ids, rng, cfg, base_date, airports, airlines)
+    connecting_flights: list[Flight] = []
+    connecting_itineraries: list[dict[str, Any]] = []
+    if "connecting" in selected_scenarios:
+        connecting_flights, connecting_itineraries = generate_connecting_itineraries(ids, rng, base_date, airports, airlines)
+        flights.extend(connecting_flights)
     base_dt = datetime.combine(base_date, time(9, 0))
     orders, order_passengers, refunds, changes, waitlists, waitlist_passengers = build_orders(
         ids, rng, profile, cfg, base_dt, flights, passengers
     )
+    connecting_orders: list[dict[str, Any]] = []
+    order_segments: list[dict[str, Any]] = []
+    segment_passengers: list[dict[str, Any]] = []
+    connecting_changes: list[dict[str, Any]] = []
+    connecting_change_segments: list[dict[str, Any]] = []
+    if "connecting" in selected_scenarios and "orders" in selected_components:
+        (
+            connecting_orders,
+            order_segments,
+            segment_passengers,
+            connecting_refunds,
+            connecting_changes,
+            connecting_change_segments,
+        ) = build_connecting_orders(ids, profile, base_dt, connecting_itineraries, flights, passengers)
+        refunds.extend(connecting_refunds)
+        orders.extend(connecting_orders)
     ai_sessions, ai_messages, ai_recommendations = build_ai_records(ids, profile, base_dt, flights)
     dataset = {
         "profile": profile,
@@ -1313,8 +1781,18 @@ def build_dataset(profile: str, seed: int, base_date: date) -> dict[str, Any]:
         "ai_sessions": ai_sessions,
         "ai_messages": ai_messages,
         "ai_recommendations": ai_recommendations,
+        "connecting_itineraries": connecting_itineraries,
+        "order_segments": order_segments,
+        "segment_passengers": segment_passengers,
+        "connecting_changes": connecting_changes,
+        "connecting_change_segments": connecting_change_segments,
+        "components": selected_components,
+        "scenarios": selected_scenarios,
     }
-    errors = validate_dataset(flights, orders, order_passengers, waitlists)
+    errors = validate_dataset(
+        flights, orders, order_passengers, waitlists, connecting_itineraries,
+        order_segments, segment_passengers, connecting_changes, connecting_change_segments,
+    )
     errors.extend(validate_generated_id_ranges(dataset))
     if errors:
         raise RuntimeError("Generated dataset failed validation:\n" + "\n".join(errors[:20]))
@@ -1347,6 +1825,8 @@ def render_sql(dataset: dict[str, Any]) -> str:
     seed = dataset["seed"]
     base_date = dataset["base_date"]
     cfg: ProfileConfig = dataset["cfg"]
+    components: set[str] = dataset["components"]
+    include = lambda component: component in components
     start_id = cfg.id_base
     end_id = cfg.id_base + cfg.id_range
     generated_ids = generated_id_values(dataset)
@@ -1363,49 +1843,76 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "START TRANSACTION;",
         "",
         "-- Reset only rows owned by this seed profile.",
-        f"DELETE FROM ai_recommendation_record WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM ai_chat_message WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM ai_chat_session WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM waitlist_passenger WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM waitlist_order WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM change_record WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM refund_record WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM order_passenger WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM ticket_order WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM flight_seat WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM flight_cabin WHERE flight_id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM flight WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM passenger WHERE id BETWEEN {start_id} AND {end_id};",
-        f"DELETE FROM users WHERE id BETWEEN {start_id} AND {end_id};",
-        "",
     ]
+
+    if include("ai"):
+        statements.extend([
+            f"DELETE FROM ai_recommendation_record WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM ai_chat_message WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM ai_chat_session WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    if include("waitlists"):
+        statements.extend([
+            f"DELETE FROM waitlist_passenger WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM waitlist_order WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    if include("changes"):
+        statements.extend([
+            f"DELETE FROM connecting_change_segment WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM connecting_change_record WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM change_record WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    if include("refunds"):
+        statements.append(f"DELETE FROM refund_record WHERE id BETWEEN {start_id} AND {end_id};")
+    if include("orders"):
+        statements.extend([
+            f"DELETE FROM order_segment_passenger WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM ticket_order_segment WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM order_passenger WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM ticket_order WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    if include("flights"):
+        statements.extend([
+            f"DELETE FROM connecting_itinerary WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM flight_seat WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM flight_cabin WHERE flight_id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM flight WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    if include("users"):
+        statements.extend([
+            f"DELETE FROM passenger WHERE id BETWEEN {start_id} AND {end_id};",
+            f"DELETE FROM users WHERE id BETWEEN {start_id} AND {end_id};",
+        ])
+    statements.append("")
 
     airport_rows = [(a.id, a.code, a.name, a.city, a.province, "ENABLED") for a in dataset["airports"]]
     airline_rows = [(a.id, a.code, a.name, None, "ENABLED") for a in dataset["airlines"]]
-    statements.extend(
-        upsert_statement("airline", ["id", "code", "name", "logo_url", "status"], airline_rows, ["name", "logo_url", "status"])
-    )
-    statements.extend(
-        upsert_statement("airport", ["id", "code", "name", "city", "province", "status"], airport_rows, ["name", "city", "province", "status"])
-    )
+    if include("reference"):
+        statements.extend(
+            upsert_statement("airline", ["id", "code", "name", "logo_url", "status"], airline_rows, ["name", "logo_url", "status"])
+        )
+        statements.extend(
+            upsert_statement("airport", ["id", "code", "name", "city", "province", "status"], airport_rows, ["name", "city", "province", "status"])
+        )
 
-    statements.extend(
-        insert_statement(
-            "users",
-            [
-                "id", "email", "phone", "password_hash", "nickname", "role", "status",
-                "email_verified", "phone_verified", "last_login_at",
-            ],
-            rows_for_users(dataset["users"]),
+    if include("users"):
+        statements.extend(
+            insert_statement(
+                "users",
+                [
+                    "id", "email", "phone", "password_hash", "nickname", "role", "status",
+                    "email_verified", "phone_verified", "last_login_at",
+                ],
+                rows_for_users(dataset["users"]),
+            )
         )
-    )
-    statements.extend(
-        insert_statement(
-            "passenger",
-            ["id", "user_id", "name", "id_card_no", "passenger_type", "phone"],
-            rows_for_passengers(dataset["passengers"], cfg.id_base),
+        statements.extend(
+            insert_statement(
+                "passenger",
+                ["id", "user_id", "name", "id_card_no", "passenger_type", "phone"],
+                rows_for_passengers(dataset["passengers"], cfg.id_base),
+            )
         )
-    )
 
     flight_rows = [
         (
@@ -1416,43 +1923,62 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for flight in dataset["flights"]
     ]
-    statements.extend(
-        insert_statement(
-            "flight",
-            [
-                "id", "flight_no", "airline_id", "departure_airport_id", "arrival_airport_id",
-                "departure_time", "arrival_time", "duration_minutes", "base_price",
-                "remaining_seats", "total_seats", "status", "publish_status", "direct_flag",
-                "baggage_allowance", "punctuality_rate",
-            ],
-            flight_rows,
+    if include("flights"):
+        statements.extend(
+            insert_statement(
+                "flight",
+                [
+                    "id", "flight_no", "airline_id", "departure_airport_id", "arrival_airport_id",
+                    "departure_time", "arrival_time", "duration_minutes", "base_price",
+                    "remaining_seats", "total_seats", "status", "publish_status", "direct_flag",
+                    "baggage_allowance", "punctuality_rate",
+                ],
+                flight_rows,
+            )
         )
-    )
     cabin_rows = [
         (cabin["flight_id"], cabin["cabin_class"], cabin["price"], cabin["total_seats"])
         for flight in dataset["flights"]
         for cabin in flight.cabins
     ]
-    statements.extend(insert_statement("flight_cabin", ["flight_id", "cabin_class", "price", "total_seats"], cabin_rows))
+    if include("flights"):
+        statements.extend(insert_statement("flight_cabin", ["flight_id", "cabin_class", "price", "total_seats"], cabin_rows))
+        connecting_itinerary_rows = [
+            (
+                item["id"], item["first_flight_id"], item["second_flight_id"], item["publish_status"],
+                item["created_by"], item["created_at"], item["updated_at"],
+            )
+            for item in dataset["connecting_itineraries"]
+        ]
+        statements.extend(
+            insert_statement(
+                "connecting_itinerary",
+                ["id", "first_flight_id", "second_flight_id", "publish_status", "created_by", "created_at", "updated_at"],
+                connecting_itinerary_rows,
+            )
+        )
 
     order_rows = [
         (
-            order["id"], order["order_no"], order["user_id"], order["flight_id"], order["status"],
+            order["id"], order["order_no"], order["user_id"], order["flight_id"], order["journey_type"],
+            order["client_request_id"], order["status"],
             order["ticket_amount"], order["airport_fee"], order["fuel_fee"], order["service_fee"], order["total_amount"],
             order["pay_time"], order["expire_time"], order["created_at"], order["updated_at"],
         )
         for order in dataset["orders"]
     ]
-    statements.extend(
-        insert_statement(
-            "ticket_order",
-            [
-                "id", "order_no", "user_id", "flight_id", "status", "ticket_amount", "airport_fee",
-                "fuel_fee", "service_fee", "total_amount", "pay_time", "expire_time", "created_at", "updated_at",
-            ],
-            order_rows,
+    if include("orders"):
+        statements.extend(
+            insert_statement(
+                "ticket_order",
+                [
+                    "id", "order_no", "user_id", "flight_id", "journey_type", "client_request_id", "status",
+                    "ticket_amount", "airport_fee", "fuel_fee", "service_fee", "total_amount", "pay_time",
+                    "expire_time", "created_at", "updated_at",
+                ],
+                order_rows,
+            )
         )
-    )
 
     seat_rows = [
         (
@@ -1462,16 +1988,17 @@ def render_sql(dataset: dict[str, Any]) -> str:
         for flight in dataset["flights"]
         for seat in flight.seats
     ]
-    statements.extend(
-        insert_statement(
-            "flight_seat",
-            [
-                "id", "flight_id", "seat_no", "cabin_class", "seat_type", "price", "status",
-                "version", "locked_by_order_id", "lock_expire_time",
-            ],
-            seat_rows,
+    if include("flights"):
+        statements.extend(
+            insert_statement(
+                "flight_seat",
+                [
+                    "id", "flight_id", "seat_no", "cabin_class", "seat_type", "price", "status",
+                    "version", "locked_by_order_id", "lock_expire_time",
+                ],
+                seat_rows,
+            )
         )
-    )
 
     op_rows = [
         (
@@ -1480,13 +2007,54 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for op in dataset["order_passengers"]
     ]
-    statements.extend(
-        insert_statement(
-            "order_passenger",
-            ["id", "order_id", "passenger_id", "passenger_name", "passenger_type", "seat_id", "seat_no", "ticket_price", "created_at"],
-            op_rows,
+    if include("orders"):
+        statements.extend(
+            insert_statement(
+                "order_passenger",
+                ["id", "order_id", "passenger_id", "passenger_name", "passenger_type", "seat_id", "seat_no", "ticket_price", "created_at"],
+                op_rows,
+            )
         )
-    )
+        order_segment_rows = [
+            (
+                segment["id"], segment["order_id"], segment["segment_no"], segment["flight_id"], segment["flight_no"],
+                segment["airline_code"], segment["airline_name"], segment["departure_airport_code"],
+                segment["departure_airport_name"], segment["departure_city"], segment["arrival_airport_code"],
+                segment["arrival_airport_name"], segment["arrival_city"], segment["departure_time"],
+                segment["arrival_time"], segment["ticket_amount"], segment["created_at"], segment["updated_at"],
+            )
+            for segment in dataset["order_segments"]
+        ]
+        statements.extend(
+            insert_statement(
+                "ticket_order_segment",
+                [
+                    "id", "order_id", "segment_no", "flight_id", "flight_no", "airline_code", "airline_name",
+                    "departure_airport_code", "departure_airport_name", "departure_city", "arrival_airport_code",
+                    "arrival_airport_name", "arrival_city", "departure_time", "arrival_time", "ticket_amount",
+                    "created_at", "updated_at",
+                ],
+                order_segment_rows,
+            )
+        )
+        segment_passenger_rows = [
+            (
+                passenger["id"], passenger["order_segment_id"], passenger["passenger_id"], passenger["passenger_name"],
+                passenger["passenger_type"], passenger["seat_id"], passenger["seat_no"], passenger["ticket_price"],
+                passenger["created_at"],
+            )
+            for passenger in dataset["segment_passengers"]
+        ]
+        statements.extend(
+            insert_statement(
+                "order_segment_passenger",
+                [
+                    "id", "order_segment_id", "passenger_id", "passenger_name", "passenger_type", "seat_id",
+                    "seat_no", "ticket_price", "created_at",
+                ],
+                segment_passenger_rows,
+            )
+        )
 
     refund_rows = [
         (
@@ -1495,13 +2063,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for refund in dataset["refunds"]
     ]
-    statements.extend(
-        insert_statement(
-            "refund_record",
-            ["id", "order_id", "user_id", "reason", "refund_amount", "fee_amount", "status", "created_at"],
-            refund_rows,
+    if include("refunds"):
+        statements.extend(
+            insert_statement(
+                "refund_record",
+                ["id", "order_id", "user_id", "reason", "refund_amount", "fee_amount", "status", "created_at"],
+                refund_rows,
+            )
         )
-    )
 
     change_rows = [
         (
@@ -1511,16 +2080,55 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for change in dataset["changes"]
     ]
-    statements.extend(
-        insert_statement(
-            "change_record",
-            [
-                "id", "order_id", "old_flight_id", "new_flight_id", "old_seat_id", "new_seat_id",
-                "price_diff", "change_fee", "status", "created_at",
-            ],
-            change_rows,
+    if include("changes"):
+        statements.extend(
+            insert_statement(
+                "change_record",
+                [
+                    "id", "order_id", "old_flight_id", "new_flight_id", "old_seat_id", "new_seat_id",
+                    "price_diff", "change_fee", "status", "created_at",
+                ],
+                change_rows,
+            )
         )
-    )
+        connecting_change_rows = [
+            (
+                change["id"], change["order_id"], change["user_id"], change["client_request_id"],
+                change["old_total_amount"], change["new_total_amount"], change["price_difference"],
+                change["change_fee"], change["reason"], change["status"], change["created_at"], change["updated_at"],
+            )
+            for change in dataset["connecting_changes"]
+        ]
+        statements.extend(
+            insert_statement(
+                "connecting_change_record",
+                [
+                    "id", "order_id", "user_id", "client_request_id", "old_total_amount", "new_total_amount",
+                    "price_difference", "change_fee", "reason", "status", "created_at", "updated_at",
+                ],
+                connecting_change_rows,
+            )
+        )
+        connecting_change_segment_rows = [
+            (
+                segment["id"], segment["change_record_id"], segment["snapshot_type"], segment["segment_no"],
+                segment["flight_id"], segment["flight_no"], segment["departure_airport_code"],
+                segment["arrival_airport_code"], segment["departure_time"], segment["arrival_time"],
+                segment["passenger_seats"], segment["created_at"],
+            )
+            for segment in dataset["connecting_change_segments"]
+        ]
+        statements.extend(
+            insert_statement(
+                "connecting_change_segment",
+                [
+                    "id", "change_record_id", "snapshot_type", "segment_no", "flight_id", "flight_no",
+                    "departure_airport_code", "arrival_airport_code", "departure_time", "arrival_time",
+                    "passenger_seats", "created_at",
+                ],
+                connecting_change_segment_rows,
+            )
+        )
 
     waitlist_rows = [
         (
@@ -1531,17 +2139,18 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for waitlist in dataset["waitlists"]
     ]
-    statements.extend(
-        insert_statement(
-            "waitlist_order",
-            [
-                "id", "waitlist_no", "user_id", "flight_id", "ticket_order_id", "passenger_count",
-                "cabin_class", "pay_amount", "status", "expire_time", "paid_at", "refund_amount",
-                "refund_time", "last_skip_reason", "created_at", "updated_at",
-            ],
-            waitlist_rows,
+    if include("waitlists"):
+        statements.extend(
+            insert_statement(
+                "waitlist_order",
+                [
+                    "id", "waitlist_no", "user_id", "flight_id", "ticket_order_id", "passenger_count",
+                    "cabin_class", "pay_amount", "status", "expire_time", "paid_at", "refund_amount",
+                    "refund_time", "last_skip_reason", "created_at", "updated_at",
+                ],
+                waitlist_rows,
+            )
         )
-    )
     waitlist_passenger_rows = [
         (
             passenger["id"], passenger["waitlist_id"], passenger["passenger_id"], passenger["passenger_name"],
@@ -1550,16 +2159,17 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for passenger in dataset["waitlist_passengers"]
     ]
-    statements.extend(
-        insert_statement(
-            "waitlist_passenger",
-            [
-                "id", "waitlist_id", "passenger_id", "passenger_name", "passenger_type", "locked_seat_id",
-                "locked_seat_no", "created_at", "updated_at",
-            ],
-            waitlist_passenger_rows,
+    if include("waitlists"):
+        statements.extend(
+            insert_statement(
+                "waitlist_passenger",
+                [
+                    "id", "waitlist_id", "passenger_id", "passenger_name", "passenger_type", "locked_seat_id",
+                    "locked_seat_no", "created_at", "updated_at",
+                ],
+                waitlist_passenger_rows,
+            )
         )
-    )
 
     session_rows = [
         (
@@ -1568,13 +2178,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for session in dataset["ai_sessions"]
     ]
-    statements.extend(
-        insert_statement(
-            "ai_chat_session",
-            ["id", "public_session_id", "user_id", "session_title", "status", "created_at", "updated_at"],
-            session_rows,
+    if include("ai"):
+        statements.extend(
+            insert_statement(
+                "ai_chat_session",
+                ["id", "public_session_id", "user_id", "session_title", "status", "created_at", "updated_at"],
+                session_rows,
+            )
         )
-    )
     message_rows = [
         (
             message["id"], message["session_id"], message["role"], message["content"], message["message_type"],
@@ -1582,13 +2193,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for message in dataset["ai_messages"]
     ]
-    statements.extend(
-        insert_statement(
-            "ai_chat_message",
-            ["id", "session_id", "role", "content", "message_type", "extra_json", "created_at"],
-            message_rows,
+    if include("ai"):
+        statements.extend(
+            insert_statement(
+                "ai_chat_message",
+                ["id", "session_id", "role", "content", "message_type", "extra_json", "created_at"],
+                message_rows,
+            )
         )
-    )
     recommendation_rows = [
         (
             rec["id"], rec["session_id"], rec["user_id"], rec["query_text"], rec["parsed_condition_json"],
@@ -1596,37 +2208,48 @@ def render_sql(dataset: dict[str, Any]) -> str:
         )
         for rec in dataset["ai_recommendations"]
     ]
-    statements.extend(
-        insert_statement(
-            "ai_recommendation_record",
-            [
-                "id", "session_id", "user_id", "query_text", "parsed_condition_json",
-                "recommended_flight_ids", "search_url", "created_at",
-            ],
-            recommendation_rows,
+    if include("ai"):
+        statements.extend(
+            insert_statement(
+                "ai_recommendation_record",
+                [
+                    "id", "session_id", "user_id", "query_text", "parsed_condition_json",
+                    "recommended_flight_ids", "search_url", "created_at",
+                ],
+                recommendation_rows,
+            )
         )
-    )
 
     summary = {
         "profile": profile,
         "seed": seed,
         "baseDate": base_date.isoformat(),
+        "components": sorted(components),
+        "scenarios": sorted(dataset["scenarios"]),
         "seedIdRange": f"{start_id}-{end_id}",
         "generatedIdMin": generated_id_min,
         "generatedIdMax": generated_id_max,
         "airports": len(dataset["airports"]),
         "airlines": len(dataset["airlines"]),
         "routes": len({(flight.departure_airport_id, flight.arrival_airport_id) for flight in dataset["flights"]}),
-        "flights": len(dataset["flights"]),
-        "cabins": len(cabin_rows),
-        "seats": len(seat_rows),
-        "users": len(dataset["users"]) + 1,
-        "passengers": len(dataset["passengers"]),
-        "orders": len(dataset["orders"]),
-        "refunds": len(dataset["refunds"]),
-        "changes": len(dataset["changes"]),
-        "waitlists": len(dataset["waitlists"]),
-        "aiSessions": len(dataset["ai_sessions"]),
+        "flights": len(dataset["flights"]) if include("flights") else 0,
+        "cabins": len(cabin_rows) if include("flights") else 0,
+        "seats": len(seat_rows) if include("flights") else 0,
+        "users": len(dataset["users"]) + 1 if include("users") else 0,
+        "passengers": len(dataset["passengers"]) if include("users") else 0,
+        "orders": len(dataset["orders"]) if include("orders") else 0,
+        "refunds": len(dataset["refunds"]) if include("refunds") else 0,
+        "changes": len(dataset["changes"]) if include("changes") else 0,
+        "waitlists": len(dataset["waitlists"]) if include("waitlists") else 0,
+        "aiSessions": len(dataset["ai_sessions"]) if include("ai") else 0,
+        "connectingItineraries": len(dataset["connecting_itineraries"]) if include("flights") else 0,
+        "connectingOrders": sum(1 for order in dataset["orders"] if order.get("journey_type") == "CONNECTING") if include("orders") else 0,
+        "connectingChanges": len(dataset["connecting_changes"]) if include("changes") else 0,
+        "connectingChangeSnapshots": len(dataset["connecting_change_segments"]) if include("changes") else 0,
+        "scenarioCoverage": {
+            scenario: sum(1 for item in dataset["connecting_itineraries"] if item["scenario"] == scenario)
+            for scenario in sorted({item["scenario"] for item in dataset["connecting_itineraries"]})
+        },
         "validation": {
             "flightRemainingMatchesAvailableSeats": True,
             "flightCabinTotalsMatchFlightTotal": True,
@@ -1656,17 +2279,42 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=20260707)
     parser.add_argument("--base-date", help="YYYY-MM-DD. Defaults to YYYYMMDD when --seed looks like a date.")
     parser.add_argument(
+        "--components", default="all",
+        help="Comma-separated modules: reference,users,flights,orders,refunds,changes,waitlists,ai,all.",
+    )
+    parser.add_argument(
+        "--scenarios", default="all",
+        help="Comma-separated scenarios: direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all.",
+    )
+    parser.add_argument(
+        "--no-auto-dependencies", action="store_true",
+        help="Fail instead of adding required component dependencies automatically.",
+    )
+    parser.add_argument(
         "--output",
         help="Output SQL path. Defaults to backend/src/main/resources/db/seed/seed-<profile>.sql.",
     )
+    parser.add_argument("--summary-file", help="Write the machine-readable summary JSON to this path.")
     args = parser.parse_args()
 
     base_date = parse_base_date(args.seed, args.base_date)
-    dataset = build_dataset(args.profile, args.seed, base_date)
+    components = resolve_components(args.components, auto_dependencies=not args.no_auto_dependencies)
+    scenarios = resolve_scenarios(args.scenarios)
+    dataset = build_dataset(args.profile, args.seed, base_date, components, scenarios)
     sql = render_sql(dataset)
     output = Path(args.output) if args.output else Path("backend/src/main/resources/db/seed") / f"seed-{args.profile}.sql"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(sql, encoding="utf-8")
+    if args.summary_file:
+        summary_match = re.search(
+            r"-- SKYBOOKER_SEED_SUMMARY_BEGIN\s*\n-- (?P<json>\{.*?\})\s*\n-- SKYBOOKER_SEED_SUMMARY_END",
+            sql,
+            re.DOTALL,
+        )
+        if summary_match:
+            summary_path = Path(args.summary_file)
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            summary_path.write_text(json.dumps(json.loads(summary_match.group("json")), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Generated {output} ({len(sql.encode('utf-8'))} bytes)")
 
 

@@ -272,9 +272,18 @@ backend/src/main/resources/db/migration/
 Flyway 只初始化 schema、默认管理员、默认普通用户和默认乘机人。航司、机场、航班、座位、订单、退票、改签、候补和 AI 演示数据使用可复现 seed 脚本按需生成：
 
 ```bash
-# 生成并校验开发数据
-python3 scripts/generate_test_data.py --profile dev --seed 20260707
-python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
+# 统一生成、校验并导入开发数据（按 profile ID 范围幂等刷新）
+./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" --profile dev --scenarios all --yes
+./scripts/test-data.sh validate --dir "$PWD" --source-dir "$PWD" --file test-data/seed-dev.sql --database
+./scripts/test-data.sh status --dir "$PWD" --source-dir "$PWD"
+
+# 只生成指定模块和一次中转联程场景
+./scripts/test-data.sh generate \
+  --profile dev \
+  --components flights,orders,changes \
+  --scenarios connecting \
+  --output /tmp/connecting.sql
+./scripts/test-data.sh validate --file /tmp/connecting.sql
 
 # 生成并校验测试数据
 python3 scripts/generate_test_data.py --profile test --seed 20260707
@@ -284,6 +293,18 @@ python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/
 docker exec -i skybooker-mysql sh -c \
   'mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" "${MYSQL_DATABASE:-flight_booking}"' \
   < backend/src/main/resources/db/seed/seed-dev.sql
+```
+
+没有仓库克隆的部署环境可下载固定版本入口：
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/test-data.sh \
+  -o /tmp/skybooker-test-data.sh
+bash /tmp/skybooker-test-data.sh status \
+  --dir /opt/skybooker \
+  --repo yunluoxincheng/skybooker-flight \
+  --ref main
 ```
 
 完整说明见 `docs/17_TEST_DATA_GUIDE.md`。

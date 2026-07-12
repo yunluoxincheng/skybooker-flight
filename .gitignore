@@ -9,6 +9,8 @@ backend/target/
 reports/
 backend/src/main/resources/db/seed/seed-*.sql
 backend/src/main/resources/db/seed/generated/
+test-data/
+.skybooker-test-data/
 *.jtl
 *.jmeter.log
 jmeter.log
