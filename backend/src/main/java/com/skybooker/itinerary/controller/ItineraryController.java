@@ -9,6 +9,9 @@ import com.skybooker.itinerary.vo.ItineraryVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import com.skybooker.itinerary.vo.FareCalendarVO;
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/itineraries")
@@ -17,4 +20,10 @@ public class ItineraryController {
     private final ItineraryService service;
     @GetMapping("/search") public ApiResponse<PageResponse<ItineraryVO>> search(FlightSearchDTO dto) { return ApiResponse.success(service.search(dto)); }
     @PostMapping("/quote") public ApiResponse<ItineraryVO> quote(@Valid @RequestBody ItineraryQuoteDTO dto) { return ApiResponse.success(service.quote(dto)); }
+    @GetMapping("/fare-calendar")
+    public ApiResponse<List<FareCalendarVO>> fareCalendar(@RequestParam String departureCity,
+            @RequestParam String arrivalCity, @RequestParam LocalDate startDate,
+            @RequestParam(defaultValue = "7") int days) {
+        return ApiResponse.success(service.fareCalendar(departureCity, arrivalCity, startDate, days));
+    }
 }

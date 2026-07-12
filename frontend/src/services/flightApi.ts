@@ -1,5 +1,5 @@
 import { get, post } from "@/lib/request"
-import type { FlightVO, FlightSearchParams, FlightSeatVO, ItineraryVO } from "@/types/flight"
+import type { FareCalendarVO, FlightVO, FlightSearchParams, FlightSeatVO, ItineraryVO } from "@/types/flight"
 import type { PageData } from "@/types/api"
 
 /** 搜索航班 */
@@ -13,6 +13,10 @@ export function searchItineraries(params: FlightSearchParams) {
 
 export function quoteItinerary(data: { segmentFlightIds: number[]; passengerIds: number[]; cabinPreferences?: string[] }) {
   return post<ItineraryVO>("/itineraries/quote", data, { auth: "user" })
+}
+
+export function getFareCalendar(params: { departureCity: string; arrivalCity: string; startDate: string; days: number }) {
+  return get<FareCalendarVO[]>("/itineraries/fare-calendar", params)
 }
 
 /** 获取航班详情 */

@@ -20,9 +20,11 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import com.skybooker.itinerary.vo.FareCalendarVO;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +36,9 @@ public class ItineraryService {
     private final Clock businessClock;
 
     public PageResponse<ItineraryVO> search(FlightSearchDTO dto) {
+        dto.setDepartureCity(trimRequired(dto.getDepartureCity()));
+        dto.setArrivalCity(trimRequired(dto.getArrivalCity()));
+        if (dto.getDepartureDate() == null) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         int page = Math.max(1, dto.getPage() == null ? 1 : dto.getPage());
         int size = Math.min(100, Math.max(1, dto.getSize() == null ? 10 : dto.getSize()));
         int passengerCount = dto.getPassengerCount() == null ? 1 : Math.max(1, dto.getPassengerCount());
@@ -58,6 +63,20 @@ public class ItineraryService {
         int from = Math.min((page - 1) * size, all.size());
         int to = Math.min(from + size, all.size());
         return new PageResponse<>(all.subList(from, to), all.size(), page, size);
+    }
+
+    public List<FareCalendarVO> fareCalendar(String departureCity, String arrivalCity, LocalDate startDate, int days) {
+        String origin = trimRequired(departureCity);
+        String destination = trimRequired(arrivalCity);
+        if (startDate == null || days < 1 || days > 14) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        return itineraryMapper.findFareCalendar(origin, destination, startDate, startDate.plusDays(days - 1L));
+    }
+
+    private String trimRequired(String value) {
+        if (value == null || value.trim().isEmpty() || value.trim().length() > 50) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        return value.trim();
     }
 
     public ItineraryVO quote(ItineraryQuoteDTO dto) {

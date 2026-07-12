@@ -107,6 +107,11 @@ export interface ItineraryVO {
   segmentAvailability?: { flightId: number; seats: FlightSeatVO[] }[]
 }
 
+export interface FareCalendarVO {
+  date: string
+  lowestPrice: number
+}
+
 /** 座位类型 */
 export type SeatType = "WINDOW" | "AISLE" | "MIDDLE"
 

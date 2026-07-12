@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import com.skybooker.itinerary.vo.FareCalendarVO;
 
 @Mapper
 public interface ItineraryMapper {
@@ -41,4 +42,8 @@ public interface ItineraryMapper {
                                @Param("departureAirportId") Long departureAirportId,
                                @Param("arrivalAirportId") Long arrivalAirportId,
                                @Param("firstFlightId") Long firstFlightId);
+    List<FareCalendarVO> findFareCalendar(@Param("departureCity") String departureCity,
+                                          @Param("arrivalCity") String arrivalCity,
+                                          @Param("startDate") LocalDate startDate,
+                                          @Param("endDate") LocalDate endDate);
 }

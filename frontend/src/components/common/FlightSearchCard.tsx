@@ -26,12 +26,20 @@ export function FlightSearchCard({
   const [departureCity, setDepartureCity] = useState(defaultDepartureCity)
   const [arrivalCity, setArrivalCity] = useState(defaultArrivalCity)
   const [departureDate, setDepartureDate] = useState(defaultDepartureDate)
+  const [validationError, setValidationError] = useState("")
 
   const handleSearch = () => {
+    const origin = departureCity.trim()
+    const destination = arrivalCity.trim()
+    if (!origin || !destination || !departureDate) {
+      setValidationError("请选择出发城市、到达城市和出发日期")
+      return
+    }
+    setValidationError("")
     const params = new URLSearchParams()
-    if (departureCity) params.set("departureCity", departureCity)
-    if (arrivalCity) params.set("arrivalCity", arrivalCity)
-    if (departureDate) params.set("departureDate", departureDate)
+    params.set("departureCity", origin)
+    params.set("arrivalCity", destination)
+    params.set("departureDate", departureDate)
     onSearch?.()
     router.push(`/flights?${params.toString()}`)
   }
@@ -116,6 +124,7 @@ export function FlightSearchCard({
           搜索航班
         </Button>
       </div>
+      {validationError && <p role="alert" className="mt-3 text-sm text-destructive">{validationError}</p>}
     </div>
   )
 }
