@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react"
 import * as aiApi from "@/services/aiApi"
 import type { ChatMessage, AiChatReplyVO, QuickAction } from "@/types/ai"
 import type { ApiError } from "@/lib/request"
+import { normalizeAiJourneys } from "@/features/ai/normalizeAiJourneys"
 
 const SESSION_KEY = "skybooker_ai_session"
 
@@ -72,7 +73,7 @@ export function useAiChat() {
           content: reply.replyText,
           replyType: reply.replyType,
           intent: reply.intent,
-          flights: reply.flights,
+          flights: normalizeAiJourneys(reply.flights),
           quickActions: formatQuickActions(reply.quickActions),
           missingFields: reply.missingFields,
           followUpQuestion: reply.followUpQuestion,
@@ -99,7 +100,7 @@ export function useAiChat() {
         content: m.content,
         replyType: m.extra?.replyType,
         intent: m.extra?.intent,
-        flights: m.extra?.flights,
+        flights: normalizeAiJourneys(m.extra?.flights),
         quickActions: formatQuickActions(m.extra?.quickActions),
         missingFields: m.extra?.missingFields,
         followUpQuestion: m.extra?.followUpQuestion,

@@ -351,8 +351,8 @@ export default function AiAssistantPage() {
 
                       {showFlights && (
                         <div className="space-y-2 border-l border-cyan-200 pl-3">
-                          {msg.flights?.map((f) => (
-                            <JourneyCard key={`${f.journeyType}-${f.id}`} journey={f} />
+                          {msg.flights?.map((f, index) => (
+                            <JourneyCard key={`${msg.id}-${f.journeyType}-${f.id}-${index}`} journey={f} />
                           ))}
                         </div>
                       )}
