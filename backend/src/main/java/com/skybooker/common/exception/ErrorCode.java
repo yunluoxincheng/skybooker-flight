@@ -40,6 +40,7 @@ public enum ErrorCode {
     INVALID_CONNECTION(30005, "中转机场或中转时间不符合要求"),
     INCOMPLETE_SEGMENT_SEATS(30006, "每位乘机人必须在每个航段选择座位"),
     IDEMPOTENCY_CONFLICT(30007, "请求标识已被其他操作使用"),
+    CONNECTING_ITINERARY_ALREADY_EXISTS(30008, "该两段航班已存在联程方案，请勿重复创建"),
     ORDER_STATE_INVALID(40001, "订单状态不允许此操作"),
     ORDER_EXPIRED(40002, "订单已过期"),
     SEAT_ALREADY_EXISTS(40003, "航班座位已存在"),

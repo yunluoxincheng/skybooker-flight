@@ -5,6 +5,7 @@ import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryQueryDTO;
 import com.skybooker.admin.dto.ConnectingFlightCandidateQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
@@ -147,10 +148,22 @@ public class AdminFlightService {
         return flightMapper.findFlightByIdAnyStatus(id);
     }
 
-    public PageResponse<ConnectingItinerarySummaryVO> listConnectingItineraries(PageQueryDTO query) {
+    public PageResponse<ConnectingItinerarySummaryVO> listConnectingItineraries(ConnectingItineraryQueryDTO query) {
         AdminListQuerySupport.validatePage(query);
-        return new PageResponse<>(itineraryMapper.findManagedSummaries(AdminListQuerySupport.offset(query), query.getSize()),
-                itineraryMapper.countManaged(), query.getPage(), query.getSize());
+        query.setKeyword(AdminListQuerySupport.trimToNull(query.getKeyword()));
+        if (query.getKeyword() != null && query.getKeyword().length() > 100) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        query.setSegmentScope(query.getSegmentScope() == null ? "ALL" : query.getSegmentScope().trim().toUpperCase());
+        if (!java.util.Set.of("ALL", "FIRST", "SECOND").contains(query.getSegmentScope())) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        Long schemeId = parseSchemeId(query.getKeyword());
+        return new PageResponse<>(itineraryMapper.findManagedSummaries(query.getKeyword(), schemeId, query.getSegmentScope(), AdminListQuerySupport.offset(query), query.getSize()),
+                itineraryMapper.countManaged(query.getKeyword(), schemeId, query.getSegmentScope()), query.getPage(), query.getSize());
+    }
+
+    private Long parseSchemeId(String keyword) {
+        if (keyword == null) return null;
+        String value = keyword.startsWith("#") ? keyword.substring(1) : keyword;
+        try { return value.matches("\\d+") ? Long.valueOf(value) : null; }
+        catch (NumberFormatException ignored) { return null; }
     }
 
     public PageResponse<FlightVO> listConnectingFlightCandidates(ConnectingFlightCandidateQueryDTO query,
@@ -187,7 +200,7 @@ public class AdminFlightService {
     public ConnectingItineraryAdminVO createConnectingItinerary(ConnectingItineraryFormDTO dto) {
         validateManagedFlights(dto.getFirstFlightId(), dto.getSecondFlightId());
         if (itineraryMapper.findManagedPair(dto.getFirstFlightId(), dto.getSecondFlightId()) != null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            throw new BusinessException(ErrorCode.CONNECTING_ITINERARY_ALREADY_EXISTS);
         }
         return toManagedVO(createManaged(dto.getFirstFlightId(), dto.getSecondFlightId(), "DRAFT"));
     }
@@ -200,7 +213,7 @@ public class AdminFlightService {
         }
         validateManagedFlights(dto.getFirstFlightId(), dto.getSecondFlightId());
         ConnectingItinerary duplicate = itineraryMapper.findManagedPair(dto.getFirstFlightId(), dto.getSecondFlightId());
-        if (duplicate != null && !id.equals(duplicate.getId())) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        if (duplicate != null && !id.equals(duplicate.getId())) throw new BusinessException(ErrorCode.CONNECTING_ITINERARY_ALREADY_EXISTS);
         itineraryMapper.updateManagedFlights(id, dto.getFirstFlightId(), dto.getSecondFlightId());
         return toManagedVO(requireManaged(id));
     }
@@ -454,15 +467,12 @@ public class AdminFlightService {
     }
 
     private long validateManagedFlights(Long firstFlightId, Long secondFlightId) {
-        if (firstFlightId == null || secondFlightId == null || firstFlightId.equals(secondFlightId)) {
-            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
-        }
+        if (firstFlightId == null || secondFlightId == null) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        if (firstFlightId.equals(secondFlightId)) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "两段航班不能相同");
         Flight first = flightMapper.findById(firstFlightId);
         Flight second = flightMapper.findById(secondFlightId);
         if (first == null || second == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        if (!Boolean.TRUE.equals(first.getDirectFlag()) || !Boolean.TRUE.equals(second.getDirectFlag())) {
-            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
-        }
+        if (!Boolean.TRUE.equals(first.getDirectFlag()) || !Boolean.TRUE.equals(second.getDirectFlag())) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "联程方案只能使用直飞航段");
         return validateConnection(first.getDepartureAirportId(), first.getArrivalAirportId(), first.getArrivalTime(),
                 second.getDepartureAirportId(), second.getArrivalAirportId(), second.getDepartureTime());
     }
@@ -470,10 +480,10 @@ public class AdminFlightService {
     private long validateConnection(Long originId, Long connectionArrivalId, java.time.LocalDateTime firstArrival,
                                     Long connectionDepartureId, Long destinationId, java.time.LocalDateTime secondDeparture) {
         long transferMinutes = Duration.between(firstArrival, secondDeparture).toMinutes();
-        if (!connectionArrivalId.equals(connectionDepartureId) || originId.equals(destinationId)
-                || transferMinutes < 90 || transferMinutes > 360) {
-            throw new BusinessException(ErrorCode.INVALID_CONNECTION);
-        }
+        if (!connectionArrivalId.equals(connectionDepartureId)) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "第二段出发机场必须等于第一段到达机场");
+        if (originId.equals(destinationId)) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "最终目的地不能回到始发地");
+        if (transferMinutes < 90) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "中转时间不能少于 90 分钟");
+        if (transferMinutes > 360) throw new BusinessException(ErrorCode.INVALID_CONNECTION, "中转时间不能超过 360 分钟");
         return transferMinutes;
     }
 

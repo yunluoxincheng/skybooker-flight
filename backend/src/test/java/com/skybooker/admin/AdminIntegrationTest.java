@@ -450,6 +450,30 @@ class AdminIntegrationTest {
                         .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.publishStatus").value("DRAFT")).andReturn();
         long id = objectMapper.readTree(created.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mockMvc.perform(post("/api/admin/connecting-itineraries")
+                        .header("Authorization", "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(30008))
+                .andExpect(jsonPath("$.message").value("该两段航班已存在联程方案，请勿重复创建"));
+        for (String keyword : java.util.List.of(String.valueOf(id), "#" + id)) {
+            mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken)
+                            .param("keyword", keyword).param("segmentScope", "ALL"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == " + id + ")]").isNotEmpty());
+        }
+        for (String keyword : java.util.List.of(first.getFlightNo(), second.getFlightNo(), "北京")) {
+            mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken)
+                            .param("keyword", keyword).param("segmentScope", "ALL").param("size", "100"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == " + id + ")]").isNotEmpty());
+        }
+        mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken)
+                        .param("keyword", second.getFlightNo()).param("segmentScope", "FIRST"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == " + id + ")]").isEmpty());
+        mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken)
+                        .param("keyword", first.getFlightNo()).param("segmentScope", "SECOND"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == " + id + ")]").isEmpty());
+        mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken)
+                        .param("segmentScope", "INVALID"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(10003));
         mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.records[?(@.id == " + id + ")]").isNotEmpty());
         mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/publish", id)
@@ -470,6 +494,10 @@ class AdminIntegrationTest {
         mockMvc.perform(post("/api/admin/connecting-itineraries/{id}/publish", id)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.publishStatus").value("PUBLISHED"));
+        mockMvc.perform(post("/api/admin/connecting-itineraries")
+                        .header("Authorization", "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstFlightId\":" + firstId + ",\"secondFlightId\":" + secondId + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(30008));
         mockMvc.perform(get("/api/admin/connecting-itineraries").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[?(@.id == " + id + " && @.sellable == true && @.availableSeats == 12)]").isNotEmpty());

@@ -19,8 +19,9 @@ public interface ItineraryMapper {
                                                 @Param("passengerCount") int passengerCount,
                                                 @Param("cabinClass") String cabinClass);
 
-    List<ConnectingItinerarySummaryVO> findManagedSummaries(@Param("offset") int offset, @Param("size") int size);
-    long countManaged();
+    List<ConnectingItinerarySummaryVO> findManagedSummaries(@Param("keyword") String keyword, @Param("schemeId") Long schemeId,
+            @Param("segmentScope") String segmentScope, @Param("offset") int offset, @Param("size") int size);
+    long countManaged(@Param("keyword") String keyword, @Param("schemeId") Long schemeId, @Param("segmentScope") String segmentScope);
     ConnectingItinerary findManagedById(@Param("id") Long id);
     ConnectingItinerary findManagedPair(@Param("firstFlightId") Long firstFlightId,
                                         @Param("secondFlightId") Long secondFlightId);

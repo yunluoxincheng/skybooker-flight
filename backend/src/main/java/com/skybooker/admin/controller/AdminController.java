@@ -16,6 +16,7 @@ import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryQueryDTO;
 import com.skybooker.admin.dto.ConnectingFlightCandidateQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.service.AdminDashboardService;
@@ -76,7 +77,7 @@ public class AdminController {
     }
 
     @GetMapping("/connecting-itineraries")
-    public ApiResponse<PageResponse<ConnectingItinerarySummaryVO>> listConnectingItineraries(PageQueryDTO query) {
+    public ApiResponse<PageResponse<ConnectingItinerarySummaryVO>> listConnectingItineraries(ConnectingItineraryQueryDTO query) {
         return ApiResponse.success(adminFlightService.listConnectingItineraries(query));
     }
 

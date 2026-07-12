@@ -100,10 +100,39 @@
         JOIN airport aa2 ON aa2.id=f2.arrival_airport_id
         LEFT JOIN (SELECT flight_id,COUNT(*) available_seats FROM flight_seat WHERE status='AVAILABLE' GROUP BY flight_id) s1 ON s1.flight_id=f1.id
         LEFT JOIN (SELECT flight_id,COUNT(*) available_seats FROM flight_seat WHERE status='AVAILABLE' GROUP BY flight_id) s2 ON s2.flight_id=f2.id
+        <include refid="managedSearchWhere"/>
         ORDER BY ci.created_at DESC, ci.id DESC
         LIMIT #{offset},#{size}
     </select>
-    <select id="countManaged" resultType="long">SELECT COUNT(*) FROM connecting_itinerary</select>
+    <sql id="managedSearchWhere">
+        <if test="keyword != null and keyword != ''">
+            WHERE (
+              <if test="schemeId != null">ci.id=#{schemeId} OR</if>
+              <choose>
+                <when test="segmentScope == 'FIRST'">
+                  f1.flight_no LIKE CONCAT('%',#{keyword},'%') OR da1.city LIKE CONCAT('%',#{keyword},'%') OR aa1.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da1.code LIKE CONCAT('%',#{keyword},'%') OR da1.name LIKE CONCAT('%',#{keyword},'%') OR aa1.code LIKE CONCAT('%',#{keyword},'%') OR aa1.name LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test="segmentScope == 'SECOND'">
+                  f2.flight_no LIKE CONCAT('%',#{keyword},'%') OR da2.city LIKE CONCAT('%',#{keyword},'%') OR aa2.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da2.code LIKE CONCAT('%',#{keyword},'%') OR da2.name LIKE CONCAT('%',#{keyword},'%') OR aa2.code LIKE CONCAT('%',#{keyword},'%') OR aa2.name LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <otherwise>
+                  f1.flight_no LIKE CONCAT('%',#{keyword},'%') OR da1.city LIKE CONCAT('%',#{keyword},'%') OR aa1.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da1.code LIKE CONCAT('%',#{keyword},'%') OR da1.name LIKE CONCAT('%',#{keyword},'%') OR aa1.code LIKE CONCAT('%',#{keyword},'%') OR aa1.name LIKE CONCAT('%',#{keyword},'%')
+                  OR f2.flight_no LIKE CONCAT('%',#{keyword},'%') OR da2.city LIKE CONCAT('%',#{keyword},'%') OR aa2.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da2.code LIKE CONCAT('%',#{keyword},'%') OR da2.name LIKE CONCAT('%',#{keyword},'%') OR aa2.code LIKE CONCAT('%',#{keyword},'%') OR aa2.name LIKE CONCAT('%',#{keyword},'%')
+                </otherwise>
+              </choose>
+            )
+        </if>
+    </sql>
+    <select id="countManaged" resultType="long">
+        SELECT COUNT(*) FROM connecting_itinerary ci
+        JOIN flight f1 ON f1.id=ci.first_flight_id JOIN airport da1 ON da1.id=f1.departure_airport_id JOIN airport aa1 ON aa1.id=f1.arrival_airport_id
+        JOIN flight f2 ON f2.id=ci.second_flight_id JOIN airport da2 ON da2.id=f2.departure_airport_id JOIN airport aa2 ON aa2.id=f2.arrival_airport_id
+        <include refid="managedSearchWhere"/>
+    </select>
     <select id="findManagedById" resultMap="managedMap">
         SELECT * FROM connecting_itinerary WHERE id = #{id}
     </select>
