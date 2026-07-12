@@ -149,6 +149,31 @@ export interface ConnectingItineraryAdminVO {
   updatedAt: string
 }
 
+export interface ConnectingItinerarySummaryVO {
+  id: number
+  publishStatus: "DRAFT" | "PUBLISHED"
+  firstFlightId: number
+  firstFlightNo: string
+  firstDepartureCity: string
+  firstArrivalCity: string
+  firstDepartureTime: string
+  firstArrivalTime: string
+  firstRemainingSeats: number
+  secondFlightId: number
+  secondFlightNo: string
+  secondDepartureCity: string
+  secondArrivalCity: string
+  secondDepartureTime: string
+  secondArrivalTime: string
+  secondRemainingSeats: number
+  transferMinutes: number
+  availableSeats: number
+  sellable: boolean
+  unavailableReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 销售趋势 — 匹配后端 SalesTrendVO */
 export interface SalesTrendVO {
   period: string

@@ -16,6 +16,7 @@ import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
+import com.skybooker.admin.dto.ConnectingFlightCandidateQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
@@ -24,6 +25,7 @@ import com.skybooker.admin.service.AdminService;
 import com.skybooker.admin.vo.AdminOrderDetailVO;
 import com.skybooker.admin.vo.ConnectingFlightPairVO;
 import com.skybooker.admin.vo.ConnectingItineraryAdminVO;
+import com.skybooker.admin.vo.ConnectingItinerarySummaryVO;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
@@ -74,8 +76,19 @@ public class AdminController {
     }
 
     @GetMapping("/connecting-itineraries")
-    public ApiResponse<List<ConnectingItineraryAdminVO>> listConnectingItineraries() {
-        return ApiResponse.success(adminFlightService.listConnectingItineraries());
+    public ApiResponse<PageResponse<ConnectingItinerarySummaryVO>> listConnectingItineraries(PageQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingItineraries(query));
+    }
+
+    @GetMapping("/connecting-itineraries/flight-candidates")
+    public ApiResponse<PageResponse<FlightVO>> listConnectingFlightCandidates(ConnectingFlightCandidateQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingFlightCandidates(query, null));
+    }
+
+    @GetMapping("/connecting-itineraries/{firstFlightId}/second-flight-candidates")
+    public ApiResponse<PageResponse<FlightVO>> listSecondConnectingFlightCandidates(
+            @PathVariable Long firstFlightId, ConnectingFlightCandidateQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingFlightCandidates(query, firstFlightId));
     }
 
     @PostMapping("/connecting-itineraries")

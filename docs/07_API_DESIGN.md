@@ -708,14 +708,16 @@ POST   /api/admin/flights/{id}/unpublish
 GET    /api/admin/flights/{id}/cabins      # 查询舱位配置(各舱 price/totalSeats/availableSeats)
 PUT    /api/admin/flights/{id}/cabins      # 设置各舱位价格与座位数(仅未生成座位时；校验 sum=totalSeats、ECONOMY≥BUSINESS≥FIRST)
 POST   /api/admin/flights/{id}/generate-seats
-GET    /api/admin/connecting-itineraries        # 联程方案列表（方案仅引用底层航班，不复制库存）
+GET    /api/admin/connecting-itineraries        # 分页 JOIN 摘要：?page&size；含两段/联程余票、sellable 与 unavailableReason
+GET    /api/admin/connecting-itineraries/flight-candidates # 第一航段候选：?keyword&startDate&endDate&departureAirportId&arrivalAirportId&page&size
+GET    /api/admin/connecting-itineraries/{firstFlightId}/second-flight-candidates # 第二航段候选，服务端校验机场连续及 90–360 分钟
 POST   /api/admin/connecting-itineraries        # 从既有航班创建草稿方案：firstFlightId/secondFlightId
 PUT    /api/admin/connecting-itineraries/{id}   # 草稿状态下替换第一/第二航段
 POST   /api/admin/connecting-itineraries/{id}/publish
 POST   /api/admin/connecting-itineraries/{id}/unpublish
 ```
 
-联程方案必须由两条不同的直飞航段组成，第一段到达机场与第二段出发机场相同，中转时间为 90–360 分钟，且起终点不得形成环线。只有方案及两条底层航班均为已上架状态时才参与用户搜索；两段继续共享各自单航段销售的座位、舱位和票价库存。普通航班编辑不会改变历史 `direct_flag=0` 航班的类型，此类旧经停数据不参与新的直飞或联程方案搜索。
+联程方案必须由两条不同的直飞航段组成，第一段到达机场与第二段出发机场相同，中转时间为 90–360 分钟，且起终点不得形成环线。方案首次上架时，两段还必须均已上架、状态可售、尚未起飞并至少各有一张可用座位；后续售罄不会自动下架方案，管理摘要会返回 `sellable=false` 和不可售原因。只有方案及两条底层航班均满足实时可售条件时才参与用户搜索；两段继续共享各自单航段销售的座位、舱位和票价库存。普通航班编辑不会改变历史 `direct_flag=0` 航班的类型，此类旧经停数据不参与新的直飞或联程方案搜索。
 
 ### 订单管理
 

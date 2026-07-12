@@ -744,7 +744,8 @@ export default function AdminFlightsPage() {
         }}
       />
 
-      <ConnectingItineraryManagerDialog open={itineraryDialogOpen} onOpenChange={setItineraryDialogOpen} />
+      <ConnectingItineraryManagerDialog open={itineraryDialogOpen} onOpenChange={setItineraryDialogOpen}
+        airports={airports.filter((airport) => airport.status === "ENABLED")} />
 
       {/* 舱位库存 Dialog */}
       <Dialog open={cabinDialogOpen} onOpenChange={setCabinDialogOpen}>

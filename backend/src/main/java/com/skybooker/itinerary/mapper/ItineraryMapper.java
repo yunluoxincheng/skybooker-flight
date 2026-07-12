@@ -2,6 +2,8 @@ package com.skybooker.itinerary.mapper;
 
 import com.skybooker.itinerary.vo.ConnectingPairVO;
 import com.skybooker.itinerary.entity.ConnectingItinerary;
+import com.skybooker.admin.vo.ConnectingItinerarySummaryVO;
+import com.skybooker.flight.vo.FlightVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -16,7 +18,8 @@ public interface ItineraryMapper {
                                                 @Param("passengerCount") int passengerCount,
                                                 @Param("cabinClass") String cabinClass);
 
-    List<ConnectingItinerary> findAllManaged();
+    List<ConnectingItinerarySummaryVO> findManagedSummaries(@Param("offset") int offset, @Param("size") int size);
+    long countManaged();
     ConnectingItinerary findManagedById(@Param("id") Long id);
     ConnectingItinerary findManagedPair(@Param("firstFlightId") Long firstFlightId,
                                         @Param("secondFlightId") Long secondFlightId);
@@ -24,4 +27,17 @@ public interface ItineraryMapper {
     int updateManagedFlights(@Param("id") Long id, @Param("firstFlightId") Long firstFlightId,
                              @Param("secondFlightId") Long secondFlightId);
     int updateManagedStatus(@Param("id") Long id, @Param("publishStatus") String publishStatus);
+    List<FlightVO> findFlightCandidates(@Param("keyword") String keyword,
+                                        @Param("startDate") LocalDate startDate,
+                                        @Param("endDate") LocalDate endDate,
+                                        @Param("departureAirportId") Long departureAirportId,
+                                        @Param("arrivalAirportId") Long arrivalAirportId,
+                                        @Param("firstFlightId") Long firstFlightId,
+                                        @Param("offset") int offset, @Param("size") int size);
+    long countFlightCandidates(@Param("keyword") String keyword,
+                               @Param("startDate") LocalDate startDate,
+                               @Param("endDate") LocalDate endDate,
+                               @Param("departureAirportId") Long departureAirportId,
+                               @Param("arrivalAirportId") Long arrivalAirportId,
+                               @Param("firstFlightId") Long firstFlightId);
 }

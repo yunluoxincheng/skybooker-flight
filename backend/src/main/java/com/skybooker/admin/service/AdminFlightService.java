@@ -5,9 +5,12 @@ import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
 import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
+import com.skybooker.admin.dto.ConnectingFlightCandidateQueryDTO;
+import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.support.AdminListQuerySupport;
 import com.skybooker.admin.vo.ConnectingFlightPairVO;
 import com.skybooker.admin.vo.ConnectingItineraryAdminVO;
+import com.skybooker.admin.vo.ConnectingItinerarySummaryVO;
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.common.exception.ErrorCode;
 import com.skybooker.common.response.PageResponse;
@@ -28,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -46,6 +51,7 @@ public class AdminFlightService {
     private final FlightMapper flightMapper;
     private final FlightCabinMapper flightCabinMapper;
     private final ItineraryMapper itineraryMapper;
+    private final Clock businessClock;
 
     public PageResponse<FlightVO> listFlights(AdminFlightQueryDTO query) {
         AdminListQuerySupport.normalize(query);
@@ -141,8 +147,40 @@ public class AdminFlightService {
         return flightMapper.findFlightByIdAnyStatus(id);
     }
 
-    public List<ConnectingItineraryAdminVO> listConnectingItineraries() {
-        return itineraryMapper.findAllManaged().stream().map(this::toManagedVO).toList();
+    public PageResponse<ConnectingItinerarySummaryVO> listConnectingItineraries(PageQueryDTO query) {
+        AdminListQuerySupport.validatePage(query);
+        return new PageResponse<>(itineraryMapper.findManagedSummaries(AdminListQuerySupport.offset(query), query.getSize()),
+                itineraryMapper.countManaged(), query.getPage(), query.getSize());
+    }
+
+    public PageResponse<FlightVO> listConnectingFlightCandidates(ConnectingFlightCandidateQueryDTO query,
+                                                                  Long firstFlightId) {
+        AdminListQuerySupport.validatePage(query);
+        query.setKeyword(AdminListQuerySupport.trimToNull(query.getKeyword()));
+        if (query.getKeyword() != null && query.getKeyword().length() > 100) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if ((query.getDepartureAirportId() != null && query.getDepartureAirportId() <= 0)
+                || (query.getArrivalAirportId() != null && query.getArrivalAirportId() <= 0)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (query.getStartDate() != null && query.getEndDate() != null
+                && (query.getEndDate().isBefore(query.getStartDate())
+                || query.getEndDate().isAfter(query.getStartDate().plusYears(1)))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        if (firstFlightId != null) {
+            Flight first = flightMapper.findById(firstFlightId);
+            if (first == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            if (!Boolean.TRUE.equals(first.getDirectFlag())) throw new BusinessException(ErrorCode.INVALID_CONNECTION);
+        }
+        int offset = AdminListQuerySupport.offset(query);
+        return new PageResponse<>(itineraryMapper.findFlightCandidates(query.getKeyword(), query.getStartDate(),
+                query.getEndDate(), query.getDepartureAirportId(), query.getArrivalAirportId(), firstFlightId,
+                offset, query.getSize()),
+                itineraryMapper.countFlightCandidates(query.getKeyword(), query.getStartDate(), query.getEndDate(),
+                        query.getDepartureAirportId(), query.getArrivalAirportId(), firstFlightId),
+                query.getPage(), query.getSize());
     }
 
     @Transactional
@@ -174,9 +212,8 @@ public class AdminFlightService {
             validateManagedFlights(itinerary.getFirstFlightId(), itinerary.getSecondFlightId());
             Flight first = flightMapper.findById(itinerary.getFirstFlightId());
             Flight second = flightMapper.findById(itinerary.getSecondFlightId());
-            if (!"PUBLISHED".equals(first.getPublishStatus()) || !"PUBLISHED".equals(second.getPublishStatus())) {
-                throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
-            }
+            validateManagedSellability(first);
+            validateManagedSellability(second);
         }
         itineraryMapper.updateManagedStatus(id, published ? "PUBLISHED" : "DRAFT");
         return toManagedVO(requireManaged(id));
@@ -451,5 +488,15 @@ public class AdminFlightService {
         int transfer = (int) Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
         return new ConnectingItineraryAdminVO(itinerary.getId(), first, second, itinerary.getPublishStatus(), transfer,
                 itinerary.getCreatedBy(), itinerary.getCreatedAt(), itinerary.getUpdatedAt());
+    }
+
+    private void validateManagedSellability(Flight flight) {
+        if (!"PUBLISHED".equals(flight.getPublishStatus())
+                || !("ON_TIME".equals(flight.getStatus()) || "DELAYED".equals(flight.getStatus()))
+                || !flight.getDepartureTime().isAfter(LocalDateTime.now(businessClock))
+                || flight.getRemainingSeats() == null || flight.getRemainingSeats() <= 0
+                || flightMapper.countAvailableSeatsByFlightId(flight.getId()) <= 0) {
+            throw new BusinessException(ErrorCode.FLIGHT_NOT_SELLABLE);
+        }
     }
 }

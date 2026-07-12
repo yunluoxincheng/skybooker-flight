@@ -449,6 +449,9 @@
           AND cabin_class = #{cabinClass}
           AND status = 'AVAILABLE'
     </select>
+    <select id="countAvailableSeatsByFlightId" resultType="int">
+        SELECT COUNT(*) FROM flight_seat WHERE flight_id=#{flightId} AND status='AVAILABLE'
+    </select>
 
     <select id="findAvailableSeatsByFlightAndCabin" resultType="com.skybooker.flight.entity.FlightSeat">
         SELECT id, flight_id, seat_no, cabin_class, seat_type, price, status, version,

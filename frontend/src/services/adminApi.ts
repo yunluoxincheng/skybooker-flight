@@ -24,6 +24,7 @@ import type {
   ConnectingFlightPairVO,
   ConnectingItineraryAdminVO,
   ConnectingItineraryFormDTO,
+  ConnectingItinerarySummaryVO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
@@ -90,8 +91,16 @@ export function createConnectingFlights(data: CreateConnectingFlightsDTO) {
   return post<ConnectingFlightPairVO>("/admin/flights/connecting-pair", data, { auth: "admin" })
 }
 
-export function getConnectingItineraries() {
-  return get<ConnectingItineraryAdminVO[]>("/admin/connecting-itineraries", undefined, { auth: "admin" })
+export function getConnectingItineraries(params?: Record<string, string | number | undefined>) {
+  return get<PageData<ConnectingItinerarySummaryVO>>("/admin/connecting-itineraries", params, { auth: "admin" })
+}
+
+export function getConnectingFlightCandidates(params?: Record<string, string | number | undefined>) {
+  return get<PageData<FlightVO>>("/admin/connecting-itineraries/flight-candidates", params, { auth: "admin" })
+}
+
+export function getSecondConnectingFlightCandidates(firstFlightId: number, params?: Record<string, string | number | undefined>) {
+  return get<PageData<FlightVO>>(`/admin/connecting-itineraries/${firstFlightId}/second-flight-candidates`, params, { auth: "admin" })
 }
 
 export function createConnectingItinerary(data: ConnectingItineraryFormDTO) {
