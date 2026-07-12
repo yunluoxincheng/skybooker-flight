@@ -63,7 +63,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/admin/auth/refresh").permitAll()
                             .requestMatchers("/api/admin/logout").permitAll()
                             .requestMatchers("/api/flights/**").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/itineraries/search").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/itineraries/search", "/api/itineraries/fare-calendar", "/api/itineraries/connecting/*").permitAll()
                             .requestMatchers("/api/itineraries/quote").access((authSupplier, ctx) -> requireUserPortal(authSupplier))
                             .requestMatchers("/api/ai/**").access(
                                     (authSupplier, ctx) -> checkAiAccess(authSupplier))

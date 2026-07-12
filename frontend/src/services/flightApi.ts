@@ -19,6 +19,10 @@ export function getFareCalendar(params: { departureCity: string; arrivalCity: st
   return get<FareCalendarVO[]>("/itineraries/fare-calendar", params)
 }
 
+export function getConnectingItinerary(id: number) {
+  return get<ItineraryVO>(`/itineraries/connecting/${id}`)
+}
+
 /** 获取航班详情 */
 export function getFlightById(id: number) {
   return get<FlightVO>(`/flights/${id}`)

@@ -93,6 +93,7 @@ export interface FlightSeatVO {
 }
 
 export interface ItineraryVO {
+  id: number
   journeyType: "DIRECT" | "CONNECTING"
   segments: FlightVO[]
   originCity: string

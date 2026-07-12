@@ -13,6 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ItineraryVO {
+    private Long id;
     private String journeyType;
     private List<FlightVO> segments;
     private String originCity;

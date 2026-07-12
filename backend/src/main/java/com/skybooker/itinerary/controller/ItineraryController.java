@@ -26,4 +26,8 @@ public class ItineraryController {
             @RequestParam(defaultValue = "7") int days) {
         return ApiResponse.success(service.fareCalendar(departureCity, arrivalCity, startDate, days));
     }
+    @GetMapping("/connecting/{id}")
+    public ApiResponse<ItineraryVO> connectingDetail(@PathVariable Long id) {
+        return ApiResponse.success(service.connectingDetail(id));
+    }
 }

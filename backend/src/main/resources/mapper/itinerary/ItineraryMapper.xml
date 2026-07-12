@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.skybooker.itinerary.mapper.ItineraryMapper">
     <select id="findConnectingPairs" resultType="com.skybooker.itinerary.vo.ConnectingPairVO">
-        SELECT f1.id AS first_flight_id, f2.id AS second_flight_id
+        SELECT ci.id AS itinerary_id, f1.id AS first_flight_id, f2.id AS second_flight_id
         FROM connecting_itinerary ci
         JOIN flight f1 ON f1.id = ci.first_flight_id
         JOIN airport origin ON origin.id = f1.departure_airport_id

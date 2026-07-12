@@ -54,9 +54,9 @@ public class ItineraryService {
                 && dto.getArrivalCity() != null && dto.getDepartureDate() != null) {
             itineraryMapper.findConnectingPairs(dto.getDepartureCity(), dto.getArrivalCity(), dto.getDepartureDate(),
                             passengerCount, dto.getCabinClass()).stream()
-                    .map(pair -> List.of(flightMapper.findPublishedFlightById(pair.getFirstFlightId()),
-                            flightMapper.findPublishedFlightById(pair.getSecondFlightId())))
-                    .map(flights -> build(flights, dto.getCabinClass())).forEach(all::add);
+                    .map(pair -> build(pair.getItineraryId(), List.of(flightMapper.findPublishedFlightById(pair.getFirstFlightId()),
+                            flightMapper.findPublishedFlightById(pair.getSecondFlightId())), dto.getCabinClass()))
+                    .forEach(all::add);
         }
         all.removeIf(i -> !matchesFilters(i, dto));
         all.sort(comparator(dto.getSort()));
@@ -103,6 +103,17 @@ public class ItineraryService {
         return result;
     }
 
+    public ItineraryVO connectingDetail(Long id) {
+        var managed = itineraryMapper.findManagedById(id);
+        if (managed == null || !"PUBLISHED".equals(managed.getPublishStatus())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        List<FlightVO> flights = List.of(flightMapper.findPublishedFlightById(managed.getFirstFlightId()),
+                flightMapper.findPublishedFlightById(managed.getSecondFlightId()));
+        validate(flights, 1);
+        return build(id, flights, null);
+    }
+
     public void validate(List<FlightVO> flights, int passengerCount) {
         if (flights.size() < 1 || flights.size() > 2 || flights.stream().anyMatch(f -> f == null))
             throw new BusinessException(ErrorCode.ITINERARY_INVALID);
@@ -125,12 +136,16 @@ public class ItineraryService {
     }
 
     private ItineraryVO build(List<FlightVO> flights, String cabinClass) {
+        return build(flights.size() == 1 ? flights.getFirst().getId() : null, flights, cabinClass);
+    }
+
+    private ItineraryVO build(Long id, List<FlightVO> flights, String cabinClass) {
         FlightVO first = flights.getFirst(), last = flights.getLast();
         int connection = flights.size() == 2 ? (int) Duration.between(first.getArrivalTime(), last.getDepartureTime()).toMinutes() : 0;
         int duration = (int) Duration.between(first.getDepartureTime(), last.getArrivalTime()).toMinutes();
         BigDecimal price = flights.stream().map(f -> cabinPrice(f, cabinClass)).reduce(BigDecimal.ZERO, BigDecimal::add);
         int seats = flights.stream().mapToInt(FlightVO::getRemainingSeats).min().orElse(0);
-        return new ItineraryVO(flights.size() == 2 ? "CONNECTING" : "DIRECT", flights, first.getDepartureCity(),
+        return new ItineraryVO(id, flights.size() == 2 ? "CONNECTING" : "DIRECT", flights, first.getDepartureCity(),
                 last.getArrivalCity(), flights.size() == 2 ? first.getArrivalAirportCode() : null,
                 flights.size() == 2 ? first.getArrivalAirportName() : null, flights.size() == 2 ? connection : null,
                 duration, price, seats, seats > 0, null);
