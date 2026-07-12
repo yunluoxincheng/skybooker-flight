@@ -715,6 +715,10 @@ POST   /api/admin/connecting-itineraries        # 从既有航班创建草稿方
 PUT    /api/admin/connecting-itineraries/{id}   # 草稿状态下替换第一/第二航段
 POST   /api/admin/connecting-itineraries/{id}/publish
 POST   /api/admin/connecting-itineraries/{id}/unpublish
+DELETE /api/admin/connecting-itineraries/{id}   # 仅删除 DRAFT 联程关系；保留底层航班、座位和历史订单
+
+GET    /api/itineraries/fare-calendar           # ?departureCity&arrivalCity&startDate&days；一次聚合直飞/联程每日最低可售价
+GET    /api/itineraries/connecting/{id}          # 通过受管联程方案 ID 获取公开详情，不接受任意航段组合
 ```
 
 联程方案必须由两条不同的直飞航段组成，第一段到达机场与第二段出发机场相同，中转时间为 90–360 分钟，且起终点不得形成环线。方案首次上架时，两段还必须均已上架、状态可售、尚未起飞并至少各有一张可用座位；后续售罄不会自动下架方案，管理摘要会返回 `sellable=false` 和不可售原因。只有方案及两条底层航班均满足实时可售条件时才参与用户搜索；两段继续共享各自单航段销售的座位、舱位和票价库存。普通航班编辑不会改变历史 `direct_flag=0` 航班的类型，此类旧经停数据不参与新的直飞或联程方案搜索。
