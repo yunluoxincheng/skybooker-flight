@@ -43,6 +43,19 @@ COMPONENT_DEPENDENCIES = {
     "ai": {"users", "flights"},
 }
 
+SCENARIO_COMPONENT_DEPENDENCIES = {
+    "direct": {"flights"},
+    "connecting": {"flights"},
+    "payment": {"orders"},
+    "cancel": {"orders"},
+    "refund": {"orders", "refunds"},
+    "change": {"orders", "changes"},
+    "waitlist": {"orders", "waitlists"},
+    "sold-out": {"flights"},
+    "delayed": {"flights"},
+    "near-departure": {"flights"},
+}
+
 
 @dataclass(frozen=True)
 class Airport:
@@ -1735,7 +1748,11 @@ def validate_generated_id_ranges(dataset: dict[str, Any]) -> list[str]:
     return errors
 
 
-def resolve_components(raw_components: str | None, auto_dependencies: bool = True) -> set[str]:
+def resolve_components(
+    raw_components: str | None,
+    auto_dependencies: bool = True,
+    scenarios: set[str] | None = None,
+) -> set[str]:
     requested = {item.strip().lower() for item in (raw_components or "all").split(",") if item.strip()}
     if "all" in requested:
         requested = set(COMPONENT_NAMES) - {"all"}
@@ -1746,15 +1763,38 @@ def resolve_components(raw_components: str | None, auto_dependencies: bool = Tru
         missing = {dependency for component in requested for dependency in COMPONENT_DEPENDENCIES[component] if dependency not in requested}
         if missing:
             raise ValueError(f"components require dependencies: {', '.join(sorted(missing))}; remove --no-auto-dependencies or add them explicitly")
-        return requested
-    resolved = set(requested)
-    changed = True
-    while changed:
-        changed = False
-        for component in tuple(resolved):
-            before = len(resolved)
-            resolved.update(COMPONENT_DEPENDENCIES[component])
-            changed = changed or len(resolved) != before
+        resolved = set(requested)
+    else:
+        resolved = set(requested)
+        changed = True
+        while changed:
+            changed = False
+            for component in tuple(resolved):
+                before = len(resolved)
+                resolved.update(COMPONENT_DEPENDENCIES[component])
+                changed = changed or len(resolved) != before
+    if scenarios:
+        missing_scenario_components = {
+            dependency
+            for scenario in scenarios
+            for dependency in SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set())
+            if dependency not in resolved
+        }
+        if missing_scenario_components and not auto_dependencies:
+            raise ValueError(
+                "scenarios require components: "
+                + ", ".join(sorted(missing_scenario_components))
+                + "; remove --no-auto-dependencies or add them explicitly"
+            )
+        if missing_scenario_components and auto_dependencies:
+            resolved.update(missing_scenario_components)
+            changed = True
+            while changed:
+                changed = False
+                for component in tuple(resolved):
+                    before = len(resolved)
+                    resolved.update(COMPONENT_DEPENDENCIES[component])
+                    changed = changed or len(resolved) != before
     return resolved
 
 
@@ -1999,7 +2039,7 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "    table_name VARCHAR(64) NOT NULL,",
         "    row_id BIGINT NOT NULL,",
         "    PRIMARY KEY (table_name, row_id)",
-        ");",
+        ") DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
     ]
     ownership_rows = [(table, row_id) for table, row_id in ownership]
     statements.extend(insert_statement("tmp_skybooker_seed_rows", ["table_name", "row_id"], ownership_rows))
@@ -2472,8 +2512,12 @@ def main() -> None:
     args = parser.parse_args()
 
     base_date = parse_base_date(args.seed, args.base_date)
-    components = resolve_components(args.components, auto_dependencies=not args.no_auto_dependencies)
     scenarios = resolve_scenarios(args.scenarios)
+    components = resolve_components(
+        args.components,
+        auto_dependencies=not args.no_auto_dependencies,
+        scenarios=scenarios,
+    )
     dataset = build_dataset(args.profile, args.seed, base_date, components, scenarios)
     dataset["source_ref"] = args.source_ref
     sql = render_sql(dataset)

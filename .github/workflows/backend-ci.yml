@@ -41,6 +41,11 @@ jobs:
           tmp_dir="$(mktemp -d)"
           trap 'rm -rf "$tmp_dir"' EXIT
           for spec in \
+            "all direct" \
+            "all refund" \
+            "all change" \
+            "all waitlist" \
+            "all connecting" \
             "flights connecting" \
             "flights direct" \
             "orders direct" \
@@ -93,6 +98,17 @@ jobs:
             --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
             --file "$GITHUB_WORKSPACE/test-data/seed-dev.sql" --database \
             --host 127.0.0.1 --port 3306 --user root --db flight_booking_test
+          MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "UPDATE flight_seat s JOIN test_data_ownership o ON o.batch_key='skybooker:dev' AND o.table_name='flight_seat' AND o.row_id=s.id SET s.status='DISABLED', s.locked_by_order_id=NULL, s.lock_expire_time=NULL WHERE s.status='AVAILABLE';"
+          ./scripts/test-data.sh clean \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components orders --host 127.0.0.1 --port 3306 \
+            --user root --db flight_booking_test --yes
+          disabled_seats="$(MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "SELECT COUNT(*) FROM flight_seat s JOIN test_data_ownership o ON o.batch_key='skybooker:dev' AND o.table_name='flight_seat' AND o.row_id=s.id WHERE s.status='DISABLED';")"
+          test "$disabled_seats" -ge 1
           ./scripts/test-data.sh clean \
             --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
             --profile dev --components users --host 127.0.0.1 --port 3306 \

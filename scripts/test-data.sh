@@ -61,7 +61,7 @@ Common options:
   --base-date YYYY-MM-DD       Flight date base
   --components LIST            reference,users,flights,orders,refunds,changes,waitlists,ai,all
   --scenarios LIST             direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all
-  --no-auto-dependencies       Fail when selected components omit dependencies
+  --no-auto-dependencies       Fail when components or scenarios omit dependencies
   --output FILE                Generated SQL destination
   --file FILE                  Existing SQL file for validate/import
   --yes                        Skip destructive-operation confirmation
@@ -285,18 +285,45 @@ static_validate() {
 database_validate() {
   local file="$1"
   local output
-  local batch_key
-  batch_key="$(python3 - "$file" <<'PY'
+  local batch_key profile seed source_ref source_condition
+  IFS=$'\t' read -r batch_key profile seed source_ref <<< "$(python3 - "$file" <<'PY'
+import json
 import re
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
-match = re.search(r'"batchKey":\s*"(skybooker:(?:dev|test|perf))"', text)
+match = re.search(
+    r"-- SKYBOOKER_SEED_SUMMARY_BEGIN\s*\n-- (?P<json>\{.*?\})\s*\n-- SKYBOOKER_SEED_SUMMARY_END",
+    text,
+    re.DOTALL,
+)
 if not match:
     raise SystemExit(1)
-print(match.group(1))
+summary = json.loads(match.group("json"))
+batch = summary.get("batchKey")
+profile = summary.get("profile")
+seed = summary.get("seed")
+source_ref = summary.get("sourceRef")
+if not re.fullmatch(r"skybooker:(?:dev|test|perf)", str(batch)):
+    raise SystemExit(1)
+if profile not in {"dev", "test", "perf"} or not isinstance(seed, int) or isinstance(seed, bool):
+    raise SystemExit(1)
+if source_ref is not None and not re.fullmatch(r"[0-9a-fA-F]{40}", str(source_ref)):
+    raise SystemExit(1)
+print("\t".join([batch, profile, str(seed), source_ref or "NULL"]))
 PY
-)" || fail "Could not read ownership batchKey from $file."
+  )" || fail "Could not read ownership batch metadata from $file."
+  [[ "$batch_key" == "skybooker:$profile" ]] || fail "Seed summary batch/profile metadata is inconsistent."
+  if [[ "$source_ref" == "NULL" ]]; then
+    source_condition="b.source_ref <=> NULL"
+  else
+    source_condition="b.source_ref = '$source_ref'"
+  fi
   output="$(run_mysql <<SQL
+SELECT 'batch_metadata_mismatch', CASE WHEN EXISTS (
+  SELECT 1 FROM test_data_batch b
+  WHERE b.batch_key='${batch_key}' AND b.profile='${profile}' AND b.seed=${seed}
+    AND ${source_condition}
+) THEN 0 ELSE 1 END;
 SELECT 'flight_remaining_matches_available_seats', COUNT(*) FROM flight f WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight' AND o.row_id=f.id) AND f.remaining_seats <> (SELECT COUNT(*) FROM flight_seat s WHERE s.flight_id=f.id AND s.status='AVAILABLE');
 SELECT 'flight_cabin_totals_match', COUNT(*) FROM flight f WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight' AND o.row_id=f.id) AND f.total_seats <> (SELECT COALESCE(SUM(c.total_seats),0) FROM flight_cabin c WHERE c.flight_id=f.id);
 SELECT 'seat_prices_match_cabin', COUNT(*) FROM flight_seat s JOIN flight_cabin c ON c.flight_id=s.flight_id AND c.cabin_class=s.cabin_class WHERE EXISTS (SELECT 1 FROM test_data_ownership o WHERE o.batch_key='${batch_key}' AND o.table_name='flight_seat' AND o.row_id=s.id) AND s.price <> c.price;

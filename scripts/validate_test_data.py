@@ -31,6 +31,19 @@ TABLES_BY_COMPONENT = {
 
 REQUIRED_WAITLIST_STATUSES = ["PENDING_PAYMENT", "WAITING", "SUCCESS", "FAILED", "CANCELLED", "REFUNDED"]
 
+SCENARIO_COMPONENT_DEPENDENCIES = {
+    "direct": {"flights"},
+    "connecting": {"flights"},
+    "payment": {"orders"},
+    "cancel": {"orders"},
+    "refund": {"orders", "refunds"},
+    "change": {"orders", "changes"},
+    "waitlist": {"orders", "waitlists"},
+    "sold-out": {"flights"},
+    "delayed": {"flights"},
+    "near-departure": {"flights"},
+}
+
 
 def extract_summary(sql: str) -> dict:
     match = re.search(
@@ -93,6 +106,24 @@ def validate(sql: str) -> tuple[dict, list[str]]:
         errors.append("seed SQL contains Python None text")
     if re.search(r"\breal_name\b", sql, re.IGNORECASE):
         errors.append("seed SQL must not contain the removed users.real_name field")
+
+    expected_batch = f"skybooker:{profile}" if profile else ""
+    if summary.get("batchKey") != expected_batch:
+        errors.append("summary batchKey does not match profile")
+    if not isinstance(summary.get("seed"), int) or isinstance(summary.get("seed"), bool):
+        errors.append("summary seed must be an integer")
+    source_ref = summary.get("sourceRef")
+    if source_ref is not None and (
+        not isinstance(source_ref, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", source_ref)
+    ):
+        errors.append("summary sourceRef must be null or a 40-character commit SHA")
+
+    for scenario in sorted(scenarios):
+        missing = SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set()) - components
+        if missing:
+            errors.append(
+                f"scenario {scenario} requires components: {', '.join(sorted(missing))}"
+            )
 
     for table in sorted(selected_tables(summary)):
         if f"INSERT INTO {table}" not in sql:
@@ -172,7 +203,7 @@ def validate(sql: str) -> tuple[dict, list[str]]:
         for status in sorted(required_seat_statuses):
             if count_literal(sql, status) == 0:
                 errors.append(f"missing seat status literal {status}")
-    if "waitlists" in components:
+    if "waitlists" in components and summary.get("waitlists", 0) > 0:
         for status in REQUIRED_WAITLIST_STATUSES:
             if count_literal(sql, status) == 0:
                 errors.append(f"missing waitlist status literal {status}")
@@ -233,6 +264,30 @@ DATABASE_CHECKS = {
 }
 
 
+def database_metadata_query(summary: dict) -> str:
+    profile = summary.get("profile")
+    batch = summary.get("batchKey")
+    seed = summary.get("seed")
+    source_ref = summary.get("sourceRef")
+    if profile not in {"dev", "test", "perf"} or not isinstance(batch, str) or not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError("invalid summary metadata")
+    if not re.fullmatch(r"skybooker:(dev|test|perf)", batch) or batch != f"skybooker:{profile}":
+        raise ValueError("invalid summary batchKey")
+    if source_ref is None:
+        source_expression = "b.source_ref <=> NULL"
+    elif isinstance(source_ref, str) and re.fullmatch(r"[0-9a-fA-F]{40}", source_ref):
+        source_expression = "b.source_ref = '" + source_ref + "'"
+    else:
+        raise ValueError("invalid summary sourceRef")
+    return f"""
+        SELECT CASE WHEN EXISTS (
+            SELECT 1 FROM test_data_batch b
+            WHERE b.batch_key='{batch}' AND b.profile='{profile}' AND b.seed={seed}
+              AND {source_expression}
+        ) THEN 0 ELSE 1 END
+    """
+
+
 def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
     batch = summary.get("batchKey")
     if not isinstance(batch, str) or not re.fullmatch(r"skybooker:(dev|test|perf)", batch):
@@ -247,7 +302,12 @@ def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
         "-D", args.database_name, "--batch", "--skip-column-names", "--raw",
     ]
     errors: list[str] = []
-    for name, template in DATABASE_CHECKS.items():
+    try:
+        checks = [("batch_metadata_mismatch", database_metadata_query(summary))]
+    except ValueError as exc:
+        return [f"database metadata check cannot be built: {exc}"]
+    checks.extend(DATABASE_CHECKS.items())
+    for name, template in checks:
         query = template.format(batch=batch)
         result = subprocess.run(command, input=query, text=True, capture_output=True, env=env)
         if result.returncode != 0:

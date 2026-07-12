@@ -30,6 +30,17 @@ class TestDataToolTest(unittest.TestCase):
         self.assertEqual(generator.resolve_components("orders"), {"reference", "users", "flights", "orders"})
         with self.assertRaises(ValueError):
             generator.resolve_components("orders", auto_dependencies=False)
+        refund_components = generator.resolve_components(
+            "flights,orders,changes",
+            scenarios=generator.resolve_scenarios("refund"),
+        )
+        self.assertIn("refunds", refund_components)
+        with self.assertRaisesRegex(ValueError, "scenarios require components: refunds"):
+            generator.resolve_components(
+                "reference,users,flights,orders,changes",
+                auto_dependencies=False,
+                scenarios=generator.resolve_scenarios("refund"),
+            )
 
     def test_connecting_dataset_is_deterministic_and_complete(self):
         components = generator.resolve_components("all")
@@ -64,6 +75,15 @@ class TestDataToolTest(unittest.TestCase):
         self.assertNotIn("INSERT INTO ticket_order", sql)
         self.assertNotIn("locked_by_order_id=", sql)
 
+    def test_all_components_single_scenarios_validate(self):
+        components = generator.resolve_components("all")
+        for scenario_name in ("direct", "refund", "change", "waitlist", "connecting"):
+            dataset = generator.build_dataset(
+                "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios(scenario_name)
+            )
+            _, errors = validator.validate(generator.render_sql(dataset))
+            self.assertEqual(errors, [], scenario_name)
+
     def test_scenarios_are_scoped(self):
         components = generator.resolve_components("all")
         delayed = generator.build_dataset(
@@ -88,6 +108,7 @@ class TestDataToolTest(unittest.TestCase):
         self.assertIn("INSERT INTO test_data_ownership", sql)
         self.assertIn("skybooker:dev", sql)
         self.assertNotIn("DELETE FROM users WHERE id BETWEEN", sql)
+        self.assertIn("COLLATE utf8mb4_unicode_ci", sql)
 
     def test_cleanup_is_profile_scoped_and_respects_foreign_keys(self):
         sql = cleaner.render("dev", "all")
@@ -102,6 +123,17 @@ class TestDataToolTest(unittest.TestCase):
         self.assertIn("ticket_order", users_sql)
         self.assertIn("refund_record", users_sql)
         self.assertIn("connecting_change_record", users_sql)
+        self.assertIn("s.status IN ('LOCKED', 'SOLD')", users_sql)
+
+    def test_database_metadata_query_checks_seed_and_source_ref(self):
+        query = validator.database_metadata_query({
+            "profile": "dev",
+            "batchKey": "skybooker:dev",
+            "seed": 20260707,
+            "sourceRef": None,
+        })
+        self.assertIn("b.seed=20260707", query)
+        self.assertIn("b.source_ref <=> NULL", query)
 
     def test_shell_help_and_syntax(self):
         shell = ROOT / "scripts/test-data.sh"
