@@ -114,11 +114,10 @@ public class ItineraryService {
         if (managed == null || !"PUBLISHED".equals(managed.getPublishStatus())) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        List<FlightVO> flights = List.of(flightMapper.findPublishedFlightById(managed.getFirstFlightId()),
-                flightMapper.findPublishedFlightById(managed.getSecondFlightId()));
-        if (flights.stream().anyMatch(java.util.Objects::isNull)) {
-            throw new BusinessException(ErrorCode.ITINERARY_INVALID);
-        }
+        FlightVO firstFlight = flightMapper.findFlightByIdAnyStatus(managed.getFirstFlightId());
+        FlightVO secondFlight = flightMapper.findFlightByIdAnyStatus(managed.getSecondFlightId());
+        if (firstFlight == null || secondFlight == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        List<FlightVO> flights = List.of(firstFlight, secondFlight);
         FlightVO first = flights.getFirst(), second = flights.getLast();
         long transfer = Duration.between(first.getArrivalTime(), second.getDepartureTime()).toMinutes();
         if (!Integer.valueOf(1).equals(first.getDirectFlag()) || !Integer.valueOf(1).equals(second.getDirectFlag())

@@ -125,11 +125,50 @@ class ItineraryServiceTest {
         managed.setFirstFlightId(1L); managed.setSecondFlightId(2L);
         when(itineraryMapper.findManagedById(9L)).thenReturn(managed);
         List<FlightVO> pair = pair(120); pair.getLast().setRemainingSeats(0);
-        when(flightMapper.findPublishedFlightById(1L)).thenReturn(pair.getFirst());
-        when(flightMapper.findPublishedFlightById(2L)).thenReturn(pair.getLast());
+        when(flightMapper.findFlightByIdAnyStatus(1L)).thenReturn(pair.getFirst());
+        when(flightMapper.findFlightByIdAnyStatus(2L)).thenReturn(pair.getLast());
         var detail = service.connectingDetail(9L);
         org.junit.jupiter.api.Assertions.assertFalse(detail.getSellable());
         org.junit.jupiter.api.Assertions.assertEquals("该联程行程已售罄", detail.getUnavailableReason());
+    }
+
+    @Test void publishedConnectingDetailReturnsUnpublishedReason() {
+        stubManagedDetail();
+        List<FlightVO> flights = pair(120); flights.getFirst().setPublishStatus("DRAFT");
+        stubDetailFlights(flights);
+        var detail = service.connectingDetail(9L);
+        org.junit.jupiter.api.Assertions.assertFalse(detail.getSellable());
+        org.junit.jupiter.api.Assertions.assertEquals("部分航段已下架", detail.getUnavailableReason());
+    }
+
+    @Test void publishedConnectingDetailReturnsControlledErrorWhenSegmentIsMissing() {
+        stubManagedDetail();
+        when(flightMapper.findFlightByIdAnyStatus(1L)).thenReturn(pair(120).getFirst());
+        when(flightMapper.findFlightByIdAnyStatus(2L)).thenReturn(null);
+        BusinessException error = assertThrows(BusinessException.class, () -> service.connectingDetail(9L));
+        org.junit.jupiter.api.Assertions.assertEquals(com.skybooker.common.exception.ErrorCode.RESOURCE_NOT_FOUND, error.getErrorCode());
+    }
+
+    @Test void publishedConnectingDetailReturnsCancelledAndExpiredReasons() {
+        stubManagedDetail();
+        List<FlightVO> cancelled = pair(120); cancelled.getLast().setStatus("CANCELLED"); stubDetailFlights(cancelled);
+        org.junit.jupiter.api.Assertions.assertEquals("部分航段已取消", service.connectingDetail(9L).getUnavailableReason());
+        List<FlightVO> expired = pair(120);
+        expired.getFirst().setDepartureTime(now.minusHours(3)); expired.getFirst().setArrivalTime(now.minusHours(1));
+        expired.getLast().setDepartureTime(now.plusMinutes(119)); expired.getLast().setArrivalTime(now.plusHours(2));
+        stubDetailFlights(expired);
+        org.junit.jupiter.api.Assertions.assertEquals("行程已经起飞或过期", service.connectingDetail(9L).getUnavailableReason());
+    }
+
+    private void stubManagedDetail() {
+        ConnectingItinerary managed = new ConnectingItinerary(); managed.setId(9L); managed.setPublishStatus("PUBLISHED");
+        managed.setFirstFlightId(1L); managed.setSecondFlightId(2L);
+        when(itineraryMapper.findManagedById(9L)).thenReturn(managed);
+    }
+
+    private void stubDetailFlights(List<FlightVO> flights) {
+        when(flightMapper.findFlightByIdAnyStatus(1L)).thenReturn(flights.getFirst());
+        when(flightMapper.findFlightByIdAnyStatus(2L)).thenReturn(flights.getLast());
     }
 
     private List<FlightVO> pair(int transferMinutes) {
