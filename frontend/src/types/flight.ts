@@ -92,6 +92,28 @@ export interface FlightSeatVO {
   version: number
 }
 
+export interface ItineraryVO {
+  id: number
+  journeyType: "DIRECT" | "CONNECTING"
+  segments: FlightVO[]
+  originCity: string
+  destinationCity: string
+  connectionAirportCode?: string
+  connectionAirportName?: string
+  connectionDurationMinutes?: number
+  totalDurationMinutes: number
+  estimatedAmount: number
+  availableSeats: number
+  sellable: boolean
+  unavailableReason?: string
+  segmentAvailability?: { flightId: number; seats: FlightSeatVO[] }[]
+}
+
+export interface FareCalendarVO {
+  date: string
+  lowestPrice: number
+}
+
 /** 座位类型 */
 export type SeatType = "WINDOW" | "AISLE" | "MIDDLE"
 

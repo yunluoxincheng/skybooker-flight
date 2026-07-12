@@ -60,9 +60,14 @@ public class OrderCleanupService {
         if (affected == 0) {
             return;
         }
-        int passengerCount = countOrderPassengers(order.getId());
         flightMapper.releaseSeatsByOrderId(order.getId());
-        flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
+        var segments = orderMapper.findSegmentsByOrderId(order.getId());
+        if (!segments.isEmpty()) {
+            segments.forEach(s -> flightMapper.incrementRemainingSeats(
+                    s.getFlightId(), orderMapper.findSegmentPassengers(s.getId()).size()));
+        } else {
+            flightMapper.incrementRemainingSeats(order.getFlightId(), countOrderPassengers(order.getId()));
+        }
     }
 
     private int countOrderPassengers(Long orderId) {

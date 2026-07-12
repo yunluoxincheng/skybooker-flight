@@ -157,7 +157,8 @@ public class AiChatService {
         record.setQueryText(recommendationLog.queryText());
         record.setParsedConditionJson(toJson(recommendationLog.parsedCondition()));
         record.setRecommendedFlightIds(recommendationLog.flights().stream()
-                .map(flight -> String.valueOf(flight.get("flightId")))
+                .flatMap(journey -> ((java.util.List<?>) journey.get("segments")).stream())
+                .map(segment -> String.valueOf(((com.skybooker.flight.vo.FlightVO) segment).getId()))
                 .collect(Collectors.joining(",")));
         record.setSearchUrl(recommendationLog.searchUrl());
         aiMapper.insertRecommendationRecord(record);

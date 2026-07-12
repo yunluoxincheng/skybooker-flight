@@ -5,6 +5,23 @@
 
     <sql id="activeOrderStatuses">'ISSUED', 'CHANGED'</sql>
 
+    <!-- V14 segment snapshots may inherit a different server-default collation than legacy airport.city. -->
+    <sql id="orderDepartureCity">
+        COALESCE(
+            (SELECT CONVERT(s.departure_city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+             FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1),
+            CONVERT(da.city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci
+    </sql>
+
+    <sql id="orderArrivalCity">
+        COALESCE(
+            (SELECT CONVERT(s.arrival_city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+             FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1),
+            CONVERT(aa.city USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ) COLLATE utf8mb4_unicode_ci
+    </sql>
+
     <sql id="routeJoin">
         JOIN flight f ON o.flight_id = f.id
         JOIN airport da ON f.departure_airport_id = da.id
@@ -67,8 +84,8 @@
         FROM (
             <!-- Revenue side: active orders grouped by route -->
             SELECT
-                da.city AS departure_city,
-                aa.city AS arrival_city,
+                <include refid="orderDepartureCity"/> AS departure_city,
+                <include refid="orderArrivalCity"/> AS arrival_city,
                 COUNT(DISTINCT o.id) AS active_order_count,
                 COALESCE(SUM(op_cnt.cnt), 0) AS passenger_count,
                 COALESCE(SUM(o.total_amount), 0.00) AS revenue,
@@ -83,17 +100,19 @@
             WHERE o.status IN (<include refid="activeOrderStatuses"/>)
               AND o.pay_time &gt;= #{startDateTime}
               AND o.pay_time &lt; #{endDateTime}
-              <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
-              <if test="departureCity != null">AND da.city = #{departureCity}</if>
-              <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
-            GROUP BY da.city, aa.city
+              <if test="airlineId != null">AND (f.airline_id = #{airlineId} OR EXISTS (
+                  SELECT 1 FROM ticket_order_segment s JOIN flight sf ON sf.id=s.flight_id
+                  WHERE s.order_id=o.id AND sf.airline_id=#{airlineId}))</if>
+              <if test="departureCity != null">AND <include refid="orderDepartureCity"/> = #{departureCity}</if>
+              <if test="arrivalCity != null">AND <include refid="orderArrivalCity"/> = #{arrivalCity}</if>
+            GROUP BY departure_city, arrival_city
 
             UNION ALL
 
             <!-- Refund side: refund records grouped by route -->
             SELECT
-                da.city AS departure_city,
-                aa.city AS arrival_city,
+                <include refid="orderDepartureCity"/> AS departure_city,
+                <include refid="orderArrivalCity"/> AS arrival_city,
                 0 AS active_order_count,
                 0 AS passenger_count,
                 0.00 AS revenue,
@@ -106,10 +125,12 @@
             WHERE r.created_at &gt;= #{startDateTime}
               AND r.created_at &lt; #{endDateTime}
               AND r.status = 'SUCCESS'
-              <if test="airlineId != null">AND f.airline_id = #{airlineId}</if>
-              <if test="departureCity != null">AND da.city = #{departureCity}</if>
-              <if test="arrivalCity != null">AND aa.city = #{arrivalCity}</if>
-            GROUP BY da.city, aa.city
+              <if test="airlineId != null">AND (f.airline_id = #{airlineId} OR EXISTS (
+                  SELECT 1 FROM ticket_order_segment s JOIN flight sf ON sf.id=s.flight_id
+                  WHERE s.order_id=o.id AND sf.airline_id=#{airlineId}))</if>
+              <if test="departureCity != null">AND <include refid="orderDepartureCity"/> = #{departureCity}</if>
+              <if test="arrivalCity != null">AND <include refid="orderArrivalCity"/> = #{arrivalCity}</if>
+            GROUP BY departure_city, arrival_city
         ) combined
         GROUP BY combined.departure_city, combined.arrival_city
         ORDER BY netRevenue DESC, activeOrderCount DESC, routeLabel ASC
@@ -134,11 +155,23 @@
         JOIN airport da ON f.departure_airport_id = da.id
         JOIN airport aa ON f.arrival_airport_id = aa.id
         LEFT JOIN (
+            SELECT sold_segments.flight_id, SUM(sold_segments.cnt) AS cnt
+            FROM (
             SELECT o.flight_id, COUNT(op.id) AS cnt
             FROM ticket_order o
             JOIN order_passenger op ON o.id = op.order_id
             WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+              AND NOT EXISTS (SELECT 1 FROM ticket_order_segment s WHERE s.order_id=o.id)
             GROUP BY o.flight_id
+            UNION ALL
+            SELECT s.flight_id, COUNT(sp.id) AS cnt
+            FROM ticket_order o
+            JOIN ticket_order_segment s ON s.order_id=o.id
+            JOIN order_segment_passenger sp ON sp.order_segment_id=s.id
+            WHERE o.status IN (<include refid="activeOrderStatuses"/>)
+            GROUP BY s.flight_id
+            ) sold_segments
+            GROUP BY sold_segments.flight_id
         ) sold ON f.id = sold.flight_id
         WHERE f.departure_time &gt;= #{startDateTime}
           AND f.departure_time &lt; #{endDateTime}

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.change.mapper.ConnectingChangeMapper">
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO connecting_change_record(order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status)
+    VALUES(#{orderId},#{userId},#{clientRequestId},#{oldTotalAmount},#{newTotalAmount},#{priceDifference},#{changeFee},#{reason},#{status})
+  </insert>
+  <select id="findByOrderAndRequest" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
+    FROM connecting_change_record WHERE order_id=#{orderId} AND client_request_id=#{clientRequestId}
+  </select>
+  <select id="findByUserAndRequest" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
+    FROM connecting_change_record WHERE user_id=#{userId} AND client_request_id=#{clientRequestId}
+  </select>
+  <select id="findByOrderId" resultType="com.skybooker.change.entity.ConnectingChangeRecord">
+    SELECT id,order_id,user_id,client_request_id,old_total_amount,new_total_amount,price_difference,change_fee,reason,status,created_at,updated_at
+    FROM connecting_change_record WHERE order_id=#{orderId} ORDER BY id
+  </select>
+  <insert id="insertSnapshotsFromOrder">
+    INSERT INTO connecting_change_segment(change_record_id,snapshot_type,segment_no,flight_id,flight_no,
+      departure_airport_code,arrival_airport_code,departure_time,arrival_time,passenger_seats)
+    SELECT #{changeRecordId},#{snapshotType},s.segment_no,s.flight_id,s.flight_no,s.departure_airport_code,
+      s.arrival_airport_code,s.departure_time,s.arrival_time,
+      JSON_ARRAYAGG(JSON_OBJECT('passengerId',p.passenger_id,'passengerName',p.passenger_name,
+        'seatId',p.seat_id,'seatNo',p.seat_no,'ticketPrice',p.ticket_price))
+    FROM ticket_order_segment s JOIN order_segment_passenger p ON p.order_segment_id=s.id
+    WHERE s.order_id=#{orderId}
+    GROUP BY s.id,s.segment_no,s.flight_id,s.flight_no,s.departure_airport_code,s.arrival_airport_code,s.departure_time,s.arrival_time
+  </insert>
+  <select id="findSegmentSnapshots" resultType="com.skybooker.change.entity.ConnectingChangeSegmentSnapshot">
+    SELECT segment_no, flight_id, CAST(passenger_seats AS CHAR) AS passenger_seats
+    FROM connecting_change_segment
+    WHERE change_record_id=#{changeRecordId} AND snapshot_type=#{snapshotType}
+    ORDER BY segment_no
+  </select>
+</mapper>

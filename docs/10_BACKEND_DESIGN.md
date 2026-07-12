@@ -149,6 +149,13 @@ public interface FlightMapper {
 
 ## 6. 事务设计
 
+### 联程订单聚合
+
+`ticket_order` 仍是支付和状态流转聚合根。`journey_type=CONNECTING` 时，`flight_id` 仅兼容指向首段；
+业务读取与库存操作必须使用 `ticket_order_segment` 和 `order_segment_passenger` 的不可变快照。
+创建、支付、取消/过期、整单退票与整段改签都在单事务内按父订单 CAS 状态。多段锁座按航班和座位确定性排序，
+新改签方案全部保护成功后才释放旧座位。连接订单不会进入单航班候补兑现。
+
 需要使用事务的方法：
 
 - 创建订单并锁定座位；

@@ -131,7 +131,7 @@ public class OrderService {
             }
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
-        int passengerCount = countOrderPassengers(orderId);
+        int passengerCount = expectedSeatCount(order);
         int sold = flightMapper.updateSeatStatusToSold(orderId);
         if (sold != passengerCount) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
@@ -147,6 +147,7 @@ public class OrderService {
         cleanupService.cleanupAllExpiredOrders();
         int offset = (page - 1) * size;
         List<OrderVO> records = orderMapper.findByUserId(userId, offset, size);
+        records.forEach(this::hydrateSegments);
         long total = orderMapper.countByUserId(userId);
         return new PageResponse<>(records, total, page, size);
     }
@@ -184,9 +185,13 @@ public class OrderService {
             }
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
-        int passengerCount = countOrderPassengers(orderId);
+        int passengerCount = expectedSeatCount(order);
         int released = flightMapper.releaseSeatsByOrderId(orderId);
-        if (released == passengerCount) {
+        var managedSegments = orderMapper.findSegmentsByOrderId(orderId);
+        if (released == passengerCount && !managedSegments.isEmpty()) {
+            managedSegments.forEach(s -> flightMapper.incrementRemainingSeats(
+                    s.getFlightId(), orderMapper.findSegmentPassengers(s.getId()).size()));
+        } else if (released == passengerCount) {
             flightMapper.incrementRemainingSeats(order.getFlightId(), passengerCount);
         }
 
@@ -266,11 +271,46 @@ public class OrderService {
         return detail != null && detail.getPassengers() != null ? detail.getPassengers().size() : 0;
     }
 
-    private OrderVO getOrderDetailForUser(Long orderId, Long userId) {
+    public OrderVO getOrderDetailForUser(Long orderId, Long userId) {
         TicketOrder order = orderMapper.findById(orderId);
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        return orderMapper.findDetailById(orderId);
+        OrderVO result = orderMapper.findDetailById(orderId);
+        hydrateSegments(result);
+        return result;
+    }
+
+    private int expectedSeatCount(TicketOrder order) {
+        var segments = orderMapper.findSegmentsByOrderId(order.getId());
+        if (!segments.isEmpty()) {
+            return segments.stream()
+                    .mapToInt(s -> orderMapper.findSegmentPassengers(s.getId()).size()).sum();
+        }
+        return countOrderPassengers(order.getId());
+    }
+
+    private void hydrateSegments(OrderVO order) {
+        if (order == null) return;
+        var segments = orderMapper.findSegmentsByOrderId(order.getId());
+        if (segments.isEmpty()) return;
+        order.setSegments(segments.stream().map(s -> new OrderVO.OrderSegmentVO(
+                s.getId(), s.getSegmentNo(), s.getFlightId(), s.getFlightNo(), s.getAirlineCode(), s.getAirlineName(),
+                s.getDepartureAirportCode(), s.getDepartureAirportName(), s.getDepartureCity(), s.getArrivalAirportCode(),
+                s.getArrivalAirportName(), s.getArrivalCity(), s.getDepartureTime(), s.getArrivalTime(), s.getTicketAmount(),
+                orderMapper.findSegmentPassengers(s.getId()).stream().map(p -> new OrderVO.OrderPassengerVO(
+                        p.getPassengerId(), p.getPassengerName(), p.getPassengerType(), p.getSeatId(), p.getSeatNo(), p.getTicketPrice())).toList()
+        )).toList());
+        if (!order.getSegments().isEmpty()) {
+            var first = order.getSegments().getFirst();
+            var last = order.getSegments().getLast();
+            order.setDepartureCity(first.getDepartureCity()); order.setArrivalCity(last.getArrivalCity());
+            order.setDepartureTime(first.getDepartureTime()); order.setArrivalTime(last.getArrivalTime());
+        }
+    }
+
+    public OrderVO enrichOrder(OrderVO order) {
+        hydrateSegments(order);
+        return order;
     }
 }

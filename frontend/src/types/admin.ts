@@ -1,3 +1,5 @@
+import type { FlightVO } from "@/types/flight"
+
 /** 仪表盘汇总 */
 export interface DashboardSummaryVO {
   totalUsers: number
@@ -118,6 +120,58 @@ export interface FlightFormDTO {
   totalSeats: number
   baggageAllowance: string
   directFlag: boolean
+}
+
+export interface CreateConnectingFlightsDTO {
+  firstSegment: FlightFormDTO
+  secondSegment: FlightFormDTO
+}
+
+export interface ConnectingFlightPairVO {
+  firstSegment: FlightVO
+  secondSegment: FlightVO
+  transferMinutes: number
+}
+
+export interface ConnectingItineraryFormDTO {
+  firstFlightId: number
+  secondFlightId: number
+}
+
+export interface ConnectingItineraryAdminVO {
+  id: number
+  firstSegment: FlightVO
+  secondSegment: FlightVO
+  publishStatus: "DRAFT" | "PUBLISHED"
+  transferMinutes: number
+  createdBy?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ConnectingItinerarySummaryVO {
+  id: number
+  publishStatus: "DRAFT" | "PUBLISHED"
+  firstFlightId: number
+  firstFlightNo: string
+  firstDepartureCity: string
+  firstArrivalCity: string
+  firstDepartureTime: string
+  firstArrivalTime: string
+  firstRemainingSeats: number
+  secondFlightId: number
+  secondFlightNo: string
+  secondDepartureCity: string
+  secondArrivalCity: string
+  secondDepartureTime: string
+  secondArrivalTime: string
+  secondRemainingSeats: number
+  transferMinutes: number
+  availableSeats: number
+  sellable: boolean
+  unavailableReason?: string
+  createdAt: string
+  updatedAt: string
 }
 
 /** 销售趋势 — 匹配后端 SalesTrendVO */

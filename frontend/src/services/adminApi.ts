@@ -20,6 +20,11 @@ import type {
   LlmConfigDTO,
   CreateUserAdminDTO,
   DeleteUserBlockInfoVO,
+  CreateConnectingFlightsDTO,
+  ConnectingFlightPairVO,
+  ConnectingItineraryAdminVO,
+  ConnectingItineraryFormDTO,
+  ConnectingItinerarySummaryVO,
 } from "@/types/admin"
 import type { FlightCabinVO, FlightSeatVO, FlightVO } from "@/types/flight"
 import type { PassengerVO } from "@/types/passenger"
@@ -35,11 +40,14 @@ import type {
   ChangeOrderResultVO,
   ChangeRecordVO,
   CreateAdminOrderDTO,
+  CreateAdminConnectingOrderDTO,
+  ConnectingChangeDTO,
   OrderVO,
   RefundRecordVO,
   RefundVO,
 } from "@/types/order"
 import type { PageData } from "@/types/api"
+import type { FlightSearchParams, ItineraryVO } from "@/types/flight"
 
 // ---- Auth ----
 
@@ -77,6 +85,42 @@ export function getFlights(params?: Record<string, string | number | boolean | u
 
 export function createFlight(data: FlightFormDTO) {
   return post<FlightVO>("/admin/flights", data, { auth: "admin" })
+}
+
+export function createConnectingFlights(data: CreateConnectingFlightsDTO) {
+  return post<ConnectingFlightPairVO>("/admin/flights/connecting-pair", data, { auth: "admin" })
+}
+
+export function getConnectingItineraries(params?: Record<string, string | number | undefined>) {
+  return get<PageData<ConnectingItinerarySummaryVO>>("/admin/connecting-itineraries", params, { auth: "admin" })
+}
+
+export function getConnectingFlightCandidates(params?: Record<string, string | number | undefined>) {
+  return get<PageData<FlightVO>>("/admin/connecting-itineraries/flight-candidates", params, { auth: "admin" })
+}
+
+export function getSecondConnectingFlightCandidates(firstFlightId: number, params?: Record<string, string | number | undefined>) {
+  return get<PageData<FlightVO>>(`/admin/connecting-itineraries/${firstFlightId}/second-flight-candidates`, params, { auth: "admin" })
+}
+
+export function createConnectingItinerary(data: ConnectingItineraryFormDTO) {
+  return post<ConnectingItineraryAdminVO>("/admin/connecting-itineraries", data, { auth: "admin" })
+}
+
+export function updateConnectingItinerary(id: number, data: ConnectingItineraryFormDTO) {
+  return put<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}`, data, { auth: "admin" })
+}
+
+export function publishConnectingItinerary(id: number) {
+  return post<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}/publish`, undefined, { auth: "admin" })
+}
+
+export function unpublishConnectingItinerary(id: number) {
+  return post<ConnectingItineraryAdminVO>(`/admin/connecting-itineraries/${id}/unpublish`, undefined, { auth: "admin" })
+}
+
+export function deleteConnectingItinerary(id: number) {
+  return del<null>(`/admin/connecting-itineraries/${id}`, { auth: "admin" })
 }
 
 export function updateFlight(id: number, data: FlightFormDTO) {
@@ -165,6 +209,14 @@ export function createAdminOrder(data: CreateAdminOrderDTO) {
   return post<OrderVO>("/admin/orders", data, { auth: "admin" })
 }
 
+export function searchAdminItineraries(params: FlightSearchParams) {
+  return get<PageData<ItineraryVO>>("/itineraries/search", params as Record<string, string | number | boolean | undefined>, { auth: "admin" })
+}
+
+export function createAdminConnectingOrder(data: CreateAdminConnectingOrderDTO) {
+  return post<OrderVO>("/admin/orders/connecting", data, { auth: "admin" })
+}
+
 export function refundAdminOrder(id: number, data: AdminRefundDTO) {
   return post<RefundVO>(`/admin/orders/${id}/refund`, data, { auth: "admin" })
 }
@@ -179,6 +231,14 @@ export function getAdminChangeOptions(id: number) {
 
 export function changeAdminOrder(id: number, data: AdminChangeDTO) {
   return post<ChangeOrderResultVO>(`/admin/orders/${id}/change`, data, { auth: "admin" })
+}
+
+export function getAdminConnectingChangeOptions(id: number, startDate?: string, endDate?: string) {
+  return get<ItineraryVO[]>(`/admin/orders/${id}/connecting-change-options`, { startDate, endDate }, { auth: "admin" })
+}
+
+export function changeAdminConnectingOrder(id: number, data: ConnectingChangeDTO) {
+  return post<OrderVO>(`/admin/orders/${id}/connecting-change`, data, { auth: "admin" })
 }
 
 export function voidAdminOrder(id: number, data: AdminVoidDTO) {

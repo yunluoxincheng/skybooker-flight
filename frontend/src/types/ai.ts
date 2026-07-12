@@ -1,3 +1,5 @@
+import type { ItineraryVO } from "@/types/flight"
+
 /** AI 回复类型 */
 export type AiReplyType =
   | "TRAVEL_CHAT"
@@ -14,20 +16,8 @@ export interface QuickAction {
 }
 
 /** AI 推荐航班卡片 — 匹配后端 AIChatReplyVO.flights 的轻量 Map 结构 */
-export interface AiFlightCardVO {
-  flightId: number
-  flightNo: string
-  airlineName: string
-  departureCity: string
-  arrivalCity: string
-  departureTime: string
-  arrivalTime: string
-  durationMinutes: number
-  price: number
-  remainingSeats: number
-  status: string
+export interface AiJourneyCardVO extends ItineraryVO {
   detailUrl?: string
-  bookingUrl?: string
 }
 
 /** AI 聊天回复 */
@@ -40,7 +30,7 @@ export interface AiChatReplyVO {
   missingFields?: string[]
   followUpQuestion?: string
   searchUrl?: string
-  flights?: AiFlightCardVO[]
+  flights?: AiJourneyCardVO[]
   quickActions?: QuickAction[]
 }
 
@@ -52,7 +42,7 @@ export interface AiSessionMessageExtra {
   missingFields?: string[]
   followUpQuestion?: string
   searchUrl?: string
-  flights?: AiFlightCardVO[]
+  flights?: AiJourneyCardVO[]
   quickActions?: QuickAction[]
 }
 
@@ -79,7 +69,7 @@ export interface ChatMessage {
   content: string
   replyType?: AiReplyType
   intent?: string
-  flights?: AiFlightCardVO[]
+  flights?: AiJourneyCardVO[]
   quickActions?: QuickAction[]
   missingFields?: string[]
   followUpQuestion?: string

@@ -8,6 +8,7 @@ import {
   Eye,
   MoreHorizontal,
   Plus,
+  Route,
   Trash2,
   Undo2,
 } from "lucide-react"
@@ -43,6 +44,8 @@ import type { ApiError } from "@/lib/request"
 import * as adminApi from "@/services/adminApi"
 import type { AdminOrderDetailVO, AdminOrderQueryDTO, OrderVO } from "@/types/order"
 import { ChangeOrderDialog } from "./_components/ChangeOrderDialog"
+import { ConnectingChangeOrderDialog } from "./_components/ConnectingChangeOrderDialog"
+import { ConnectingOrderFormDialog } from "./_components/ConnectingOrderFormDialog"
 import { CancelOrderDialog } from "./_components/CancelOrderDialog"
 import { DeleteCancelDialog } from "./_components/DeleteCancelDialog"
 import { OrderDetailSheet } from "./_components/OrderDetailSheet"
@@ -72,10 +75,12 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [orderNoFilter, setOrderNoFilter] = useState("")
+  const [flightFilter, setFlightFilter] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
+  const [connectingFormOpen, setConnectingFormOpen] = useState(false)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailOrder, setDetailOrder] = useState<AdminOrderDetailVO | null>(null)
@@ -83,6 +88,7 @@ export default function AdminOrdersPage() {
 
   const [refundOrder, setRefundOrder] = useState<OrderVO | null>(null)
   const [changeOrder, setChangeOrder] = useState<OrderVO | null>(null)
+  const [connectingChangeOrder, setConnectingChangeOrder] = useState<OrderVO | null>(null)
   const [cancelOrder, setCancelOrder] = useState<OrderVO | null>(null)
   const [deleteOrder, setDeleteOrder] = useState<OrderVO | null>(null)
 
@@ -99,6 +105,7 @@ export default function AdminOrdersPage() {
       if (orderNoFilter.trim()) {
         params.orderNo = orderNoFilter.trim()
       }
+      if (flightFilter.trim()) params.flightKeyword = flightFilter.trim()
 
       const data = await adminApi.getAdminOrders(params)
       setOrders(data.records)
@@ -109,7 +116,7 @@ export default function AdminOrdersPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [orderNoFilter, page, statusFilter])
+  }, [flightFilter, orderNoFilter, page, statusFilter])
 
   useEffect(() => {
     fetchOrders()
@@ -148,10 +155,10 @@ export default function AdminOrdersPage() {
             按订单状态提供取消、退票、改签和作废操作。
           </p>
         </div>
-        <Button onClick={openCreate}>
+        <div className="flex gap-2"><Button variant="outline" onClick={openCreate}>
           <Plus className="h-4 w-4" />
-          新增订单
-        </Button>
+          新增直飞订单
+        </Button><Button onClick={() => setConnectingFormOpen(true)}><Route className="h-4 w-4"/>新增中转联程订单</Button></div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -163,6 +170,12 @@ export default function AdminOrdersPage() {
             setOrderNoFilter(event.target.value)
             setPage(1)
           }}
+        />
+        <Input
+          placeholder="搜索任一航段/城市"
+          className="w-60"
+          value={flightFilter}
+          onChange={(event) => { setFlightFilter(event.target.value); setPage(1) }}
         />
         <Select
           value={statusFilter}
@@ -191,6 +204,7 @@ export default function AdminOrdersPage() {
           onClick={() => {
             setStatusFilter("ALL")
             setOrderNoFilter("")
+            setFlightFilter("")
             setPage(1)
           }}
         >
@@ -234,7 +248,7 @@ export default function AdminOrdersPage() {
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-xs">{order.orderNo}</TableCell>
                     <TableCell>{order.userNickname || order.userEmail}</TableCell>
-                    <TableCell>{order.flightNo}</TableCell>
+                    <TableCell><div className="space-y-1"><p>{order.segments?.length ? order.segments.map((segment) => segment.flightNo).join(" → ") : order.flightNo}</p><p className="text-xs text-muted-foreground">{order.journeyType === "CONNECTING" ? "中转联程" : "直飞"} · {order.departureCity} → {order.arrivalCity}</p></div></TableCell>
                     <TableCell>
                       <FlightPriceTag price={order.totalAmount} className="text-sm" />
                     </TableCell>
@@ -272,7 +286,7 @@ export default function AdminOrdersPage() {
                                 <Undo2 className="h-4 w-4" />
                                 退票
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setChangeOrder(order)}>
+                              <DropdownMenuItem onClick={() => order.segments?.length ? setConnectingChangeOrder(order) : setChangeOrder(order)}>
                                 <ArrowRightLeft className="h-4 w-4" />
                                 改签
                               </DropdownMenuItem>
@@ -334,6 +348,8 @@ export default function AdminOrdersPage() {
         onSuccess={refreshOrders}
       />
 
+      <ConnectingOrderFormDialog open={connectingFormOpen} onOpenChange={setConnectingFormOpen} onSuccess={refreshOrders}/>
+
       <RefundConfirmDialog
         open={Boolean(refundOrder)}
         onOpenChange={(open) => {
@@ -349,6 +365,13 @@ export default function AdminOrdersPage() {
           if (!open) setChangeOrder(null)
         }}
         order={changeOrder}
+        onSuccess={refreshOrders}
+      />
+
+      <ConnectingChangeOrderDialog
+        open={Boolean(connectingChangeOrder)}
+        onOpenChange={(open) => { if (!open) setConnectingChangeOrder(null) }}
+        order={connectingChangeOrder}
         onSuccess={refreshOrders}
       />
 

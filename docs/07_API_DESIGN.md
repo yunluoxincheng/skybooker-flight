@@ -224,6 +224,39 @@ POST /api/admin/logout
 
 ## 3. 航班接口
 
+### 联程行程搜索与报价
+
+```http
+GET /api/itineraries/search?departureCity=上海&arrivalCity=广州&departureDate=2026-07-20&passengerCount=1&page=1&size=10
+POST /api/itineraries/quote
+Authorization: Bearer <user-access-token>
+```
+
+搜索响应使用 `ItineraryVO`：`journeyType` 为 `DIRECT|CONNECTING`，`segments` 按飞行顺序排列；联程结果另含
+`connectionAirportCode`、`connectionDurationMinutes`、`totalDurationMinutes`、`estimatedAmount` 与
+`availableSeats`。`directOnly=true` 只返回直飞。报价请求仅提交 `segmentFlightIds`、`passengerIds` 和可选舱位偏好，
+服务端重新校验航段连续性、90 分钟至 6 小时中转窗口、乘机人归属、可售状态和座位图；报价不锁库存。
+
+```json
+{"segmentFlightIds":[101,205],"passengerIds":[1,2],"cabinPreferences":["ECONOMY","BUSINESS"]}
+```
+
+### 联程下单与整段改签
+
+```http
+POST /api/orders/connecting
+GET  /api/orders/{id}/connecting-change-options
+POST /api/orders/{id}/connecting-change
+```
+
+联程下单要求 UUID `clientRequestId` 和恰好两个 `segments`。每段必须包含完全相同的乘机人集合，且每人每段一个座位。
+一个事务内创建父订单/航段快照、锁定全部座位并扣减两段库存；任何座位 CAS 或库存扣减失败均整体回滚。
+重复的同用户 `clientRequestId` 返回既有订单。支付、未支付取消、过期释放和退票均以父订单为单位处理全部航段。
+联程改签请求可提交一段直飞或两段联程替代方案，必须保持原始起终点，并先锁定全部新座位再释放旧座位。
+
+新增业务错误：`ITINERARY_INVALID(30004)`、`INVALID_CONNECTION(30005)`、
+`INCOMPLETE_SEGMENT_SEATS(30006)`、`IDEMPOTENCY_CONFLICT(30007)`。
+
 ### 航班查询
 
 ```http
@@ -668,13 +701,29 @@ DELETE /api/admin/airports/{id}                 # 物理删除（有关联航班
 ```http
 GET    /api/admin/flights                       # 列表/搜索：?keyword&flightNo&airlineId&departureCity&arrivalCity&status&publishStatus&departureDateStart&departureDateEnd&page&size（keyword 命中航班号/航司/机场/城市；非法枚举或日期返回 10003）
 POST   /api/admin/flights
+POST   /api/admin/flights/connecting-pair       # 原子创建两条直飞航段和一个草稿联程方案
 PUT    /api/admin/flights/{id}
 POST   /api/admin/flights/{id}/publish
 POST   /api/admin/flights/{id}/unpublish
 GET    /api/admin/flights/{id}/cabins      # 查询舱位配置(各舱 price/totalSeats/availableSeats)
 PUT    /api/admin/flights/{id}/cabins      # 设置各舱位价格与座位数(仅未生成座位时；校验 sum=totalSeats、ECONOMY≥BUSINESS≥FIRST)
 POST   /api/admin/flights/{id}/generate-seats
+GET    /api/admin/connecting-itineraries        # 分页 JOIN 摘要：?page&size&keyword&segmentScope=ALL|FIRST|SECOND；支持方案号、航班号、城市和机场服务端搜索
+GET    /api/admin/connecting-itineraries/flight-candidates # 第一航段候选：?keyword&startDate&endDate&departureAirportId&arrivalAirportId&page&size
+GET    /api/admin/connecting-itineraries/{firstFlightId}/second-flight-candidates # 第二航段候选，服务端校验机场连续及 90–360 分钟
+POST   /api/admin/connecting-itineraries        # 从既有航班创建草稿方案：firstFlightId/secondFlightId
+PUT    /api/admin/connecting-itineraries/{id}   # 草稿状态下替换第一/第二航段
+POST   /api/admin/connecting-itineraries/{id}/publish
+POST   /api/admin/connecting-itineraries/{id}/unpublish
+DELETE /api/admin/connecting-itineraries/{id}   # 仅删除 DRAFT 联程关系；保留底层航班、座位和历史订单
+
+GET    /api/itineraries/fare-calendar           # ?departureCity&arrivalCity&startDate&days；一次聚合直飞/联程每日最低可售价
+GET    /api/itineraries/connecting/{id}          # 通过受管联程方案 ID 获取公开详情，不接受任意航段组合
 ```
+
+联程方案必须由两条不同的直飞航段组成，第一段到达机场与第二段出发机场相同，中转时间为 90–360 分钟，且起终点不得形成环线。方案首次上架时，两段还必须均已上架、状态可售、尚未起飞并至少各有一张可用座位；后续售罄不会自动下架方案，管理摘要会返回 `sellable=false` 和不可售原因。只有方案及两条底层航班均满足实时可售条件时才参与用户搜索；两段继续共享各自单航段销售的座位、舱位和票价库存。普通航班编辑不会改变历史 `direct_flag=0` 航班的类型，此类旧经停数据不参与新的直飞或联程方案搜索。
+
+创建或编辑时若相同航段组合已被其他方案占用，返回业务码 `30008 CONNECTING_ITINERARY_ALREADY_EXISTS`；请求仅需要 `firstFlightId` 和 `secondFlightId`，日期及机场由航班记录推导。
 
 ### 订单管理
 

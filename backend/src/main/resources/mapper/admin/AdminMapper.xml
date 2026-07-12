@@ -77,8 +77,8 @@
             SELECT
                 o.id,
                 o.total_amount,
-                da.city AS departure_city,
-                aa.city AS arrival_city,
+                COALESCE((SELECT s.departure_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no LIMIT 1), da.city) AS departure_city,
+                COALESCE((SELECT s.arrival_city FROM ticket_order_segment s WHERE s.order_id=o.id ORDER BY s.segment_no DESC LIMIT 1), aa.city) AS arrival_city,
                 COUNT(op.id) AS passenger_count
             FROM ticket_order o
             JOIN flight f ON o.flight_id = f.id
@@ -86,7 +86,7 @@
             JOIN airport aa ON f.arrival_airport_id = aa.id
             LEFT JOIN order_passenger op ON o.id = op.order_id
             WHERE o.status = 'ISSUED'
-            GROUP BY o.id, o.total_amount, da.city, aa.city
+            GROUP BY o.id, o.total_amount, departure_city, arrival_city
         ) route
         GROUP BY route.departure_city, route.arrival_city
         ORDER BY issued_order_count DESC, revenue DESC

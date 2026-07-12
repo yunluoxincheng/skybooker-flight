@@ -4,12 +4,11 @@ import { useEffect, useState, useCallback, useMemo } from "react"
 import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2 } from "lucide-react"
+import { Plus, Pencil, Eye, EyeOff, ArmchairIcon, Loader2, ChevronLeft, ChevronRight, Settings2, Route } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -52,6 +51,8 @@ import {
 } from "@/types/flight"
 import type { AirlineVO, AirportVO, FlightCabinSettingDTO, FlightFormDTO } from "@/types/admin"
 import type { ApiError } from "@/lib/request"
+import { ConnectingFlightPairDialog } from "./_components/ConnectingFlightPairDialog"
+import { ConnectingItineraryManagerDialog } from "./_components/ConnectingItineraryManagerDialog"
 
 const selectNumberField = (label: string) =>
   z.preprocess(
@@ -134,6 +135,8 @@ export default function AdminFlightsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingFlight, setEditingFlight] = useState<FlightVO | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pairDialogOpen, setPairDialogOpen] = useState(false)
+  const [itineraryDialogOpen, setItineraryDialogOpen] = useState(false)
 
   // 舱位库存 Dialog
   const [cabinDialogOpen, setCabinDialogOpen] = useState(false)
@@ -393,11 +396,19 @@ export default function AdminFlightsPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">航班管理</h1>
-        <Button size="sm" onClick={openAdd} className="gap-1">
-          <Plus className="h-4 w-4" /> 新增航班
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setItineraryDialogOpen(true)} className="gap-1.5">
+            <Route className="h-4 w-4" /> 联程方案视图
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setPairDialogOpen(true)} className="gap-1.5">
+            <Route className="h-4 w-4" /> 快速创建联程航段
+          </Button>
+          <Button size="sm" onClick={openAdd} className="gap-1">
+            <Plus className="h-4 w-4" /> 新增单航段航班
+          </Button>
+        </div>
       </div>
 
       {actionErr && (
@@ -534,6 +545,7 @@ export default function AdminFlightsPage() {
                     <TableCell>{f.remainingSeats}/{f.totalSeats}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
+                        {!f.directFlag && <Badge variant="outline" className="border-amber-300 text-amber-700">旧经停数据 · 不参与联程</Badge>}
                         <FlightStatusBadge status={f.status} />
                         {f.publishStatus === "PUBLISHED" ? (
                           <Badge variant="secondary" className="text-xs">已上架</Badge>
@@ -590,7 +602,7 @@ export default function AdminFlightsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{editingFlight ? "编辑航班" : "新增航班"}</DialogTitle>
+            <DialogTitle>{editingFlight ? "编辑单航段航班" : "新增单航段航班"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
             {actionErr && (
@@ -706,11 +718,9 @@ export default function AdminFlightsPage() {
                 <Input type="number" {...register("totalSeats")} />
                 {errors.totalSeats && <p className="text-xs text-destructive">{errors.totalSeats.message}</p>}
               </div>
-              <div className="flex items-center gap-2 pt-7">
-                <Checkbox id="directFlag" {...register("directFlag")} />
-                <Label htmlFor="directFlag" className="cursor-pointer text-sm">直飞航班</Label>
+              <div className="col-span-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                每条航班记录表示一个独立直飞航段。需要一次创建两段中转航班时，请使用“快速创建联程航段”。
               </div>
-              <div />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>取消</Button>
@@ -722,6 +732,20 @@ export default function AdminFlightsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConnectingFlightPairDialog
+        open={pairDialogOpen}
+        onOpenChange={setPairDialogOpen}
+        airlines={airlines.filter((airline) => airline.status === "ENABLED")}
+        airports={airports.filter((airport) => airport.status === "ENABLED")}
+        onCreated={() => {
+          setPage(1)
+          fetchFlights()
+        }}
+      />
+
+      <ConnectingItineraryManagerDialog open={itineraryDialogOpen} onOpenChange={setItineraryDialogOpen}
+        airports={airports.filter((airport) => airport.status === "ENABLED")} />
 
       {/* 舱位库存 Dialog */}
       <Dialog open={cabinDialogOpen} onOpenChange={setCabinDialogOpen}>

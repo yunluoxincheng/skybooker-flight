@@ -26,6 +26,7 @@ export interface OrderVO {
   id: number
   orderNo: string
   flightId: number
+  journeyType: "DIRECT" | "CONNECTING"
   flightNo: string
   userId: number
   userEmail: string
@@ -45,6 +46,26 @@ export interface OrderVO {
   departureTime?: string
   arrivalTime?: string
   airlineName?: string
+  segments?: OrderSegmentVO[]
+}
+
+export interface OrderSegmentVO {
+  id: number; segmentNo: number; flightId: number; flightNo: string; airlineCode: string; airlineName: string
+  departureAirportCode: string; departureAirportName: string; departureCity: string
+  arrivalAirportCode: string; arrivalAirportName: string; arrivalCity: string
+  departureTime: string; arrivalTime: string; ticketAmount: number; passengers: OrderPassengerVO[]
+}
+
+export interface CreateConnectingOrderDTO {
+  clientRequestId: string
+  segments: { flightId: number; items: OrderItemDTO[] }[]
+}
+
+export interface ConnectingChangeDTO {
+  clientRequestId: string
+  segments: { flightId: number; items: OrderItemDTO[] }[]
+  reason?: string
+  force?: boolean
 }
 
 export interface AdminOrderQueryDTO {
@@ -126,6 +147,12 @@ export interface CreateAdminOrderDTO {
   items: OrderItemDTO[]
 }
 
+export interface CreateAdminConnectingOrderDTO {
+  userId: number
+  clientRequestId: string
+  segments: { flightId: number; items: OrderItemDTO[] }[]
+}
+
 export interface AdminRefundDTO {
   reason: string
   force?: boolean
@@ -177,8 +204,14 @@ export interface AdminOrderTimelineItemVO {
 export interface AdminOrderDetailVO extends OrderVO {
   refunds: RefundRecordVO[]
   changes: ChangeRecordVO[]
+  connectingChanges: ConnectingChangeRecordVO[]
   timeline: AdminOrderTimelineItemVO[]
   adminNote?: string
+}
+
+export interface ConnectingChangeRecordVO {
+  id: number; orderId: number; userId: number; clientRequestId: string; oldTotalAmount: number; newTotalAmount: number
+  priceDifference: number; changeFee: number; reason?: string; status: string
 }
 
 export type OrderDeleteType = "cancel" | "delete"

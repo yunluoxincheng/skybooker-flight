@@ -12,6 +12,7 @@
 - `generate_test_data.py`：按 dev/test/perf profile 生成可复现 seed SQL，输出到 `backend/src/main/resources/db/seed/seed-*.sql`。
 - `validate_test_data.py`：静态校验生成的 seed SQL，检查规模、核心表、状态覆盖和生成器一致性标志。
 - `refresh-demo-flight-dates.sql`：历史兼容占位；Flyway 不再自动插入演示航班，演示日期请通过重新生成 seed 刷新。
+- `seed-connecting-itineraries.sql`：仅供一次中转联程功能本地验收，在一次性演示库生成北京→上海→广州的有效两段组合；不会由 Flyway 自动执行。
 - `smoke/backend-smoke.sh`：部署后烟测脚本，检查公共航班查询、用户/管理员登录边界、用户订单、AI 聊天和管理员统计。
 - `jmeter/same-seat-order-race.jmx`：JMeter 同座位并发下单测试计划。
 - `jmeter/run-same-seat-concurrency-report.sh`：JMeter 同座位并发报告运行脚本，生成时间戳证据目录、HTML 报告、运行日志、数据库校验输出和中文摘要。

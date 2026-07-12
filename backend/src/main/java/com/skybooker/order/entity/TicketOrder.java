@@ -18,6 +18,8 @@ public class TicketOrder {
     private String orderNo;
     private Long userId;
     private Long flightId;
+    private String journeyType;
+    private String clientRequestId;
     private String status;
     private BigDecimal ticketAmount;
     private BigDecimal airportFee;

@@ -3,6 +3,8 @@ package com.skybooker.order.mapper;
 import com.skybooker.admin.dto.AdminOrderQueryDTO;
 import com.skybooker.order.entity.OrderPassenger;
 import com.skybooker.order.entity.TicketOrder;
+import com.skybooker.order.entity.TicketOrderSegment;
+import com.skybooker.order.entity.OrderSegmentPassenger;
 import com.skybooker.order.vo.OrderVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,8 +19,17 @@ public interface OrderMapper {
     void insertOrderPassenger(OrderPassenger op);
 
     void batchInsertOrderPassengers(@Param("list") List<OrderPassenger> list);
+    void insertOrderSegment(TicketOrderSegment segment);
+    void batchInsertSegmentPassengers(@Param("list") List<OrderSegmentPassenger> list);
+    List<TicketOrderSegment> findSegmentsByOrderId(@Param("orderId") Long orderId);
+    List<OrderSegmentPassenger> findSegmentPassengers(@Param("segmentId") Long segmentId);
+    TicketOrder findByUserAndClientRequestId(@Param("userId") Long userId, @Param("clientRequestId") String clientRequestId);
+    Long lockUserForIdempotency(@Param("userId") Long userId);
+    void deleteSegmentPassengersByOrderId(@Param("orderId") Long orderId);
+    void deleteSegmentsByOrderId(@Param("orderId") Long orderId);
 
     TicketOrder findById(@Param("id") Long id);
+    TicketOrder findByIdForUpdate(@Param("id") Long id);
 
     List<OrderVO> findByUserId(@Param("userId") Long userId, @Param("offset") int offset, @Param("size") int size);
 
@@ -48,6 +59,7 @@ public interface OrderMapper {
 
     void updateOrderFlightAndAmounts(@Param("id") Long id,
                                      @Param("flightId") Long flightId,
+                                     @Param("journeyType") String journeyType,
                                      @Param("ticketAmount") java.math.BigDecimal ticketAmount,
                                      @Param("airportFee") java.math.BigDecimal airportFee,
                                      @Param("fuelFee") java.math.BigDecimal fuelFee,

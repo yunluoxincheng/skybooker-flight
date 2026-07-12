@@ -3,6 +3,7 @@ package com.skybooker.admin.service;
 import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingOrderDTO;
 import com.skybooker.admin.dto.AdminNoteDTO;
 import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
@@ -13,8 +14,12 @@ import com.skybooker.admin.vo.AdminOrderTimelineItemVO;
 import com.skybooker.auth.entity.User;
 import com.skybooker.auth.mapper.AuthMapper;
 import com.skybooker.change.entity.ChangeRecord;
+import com.skybooker.change.entity.ConnectingChangeRecord;
 import com.skybooker.change.mapper.ChangeMapper;
+import com.skybooker.change.mapper.ConnectingChangeMapper;
 import com.skybooker.change.service.ChangeService;
+import com.skybooker.change.service.ConnectingChangeService;
+import com.skybooker.change.dto.ConnectingChangeDTO;
 import com.skybooker.change.vo.ChangeOptionVO;
 import com.skybooker.change.vo.ChangeOrderResultVO;
 import com.skybooker.common.exception.BusinessException;
@@ -26,6 +31,7 @@ import com.skybooker.flight.vo.FlightSeatVO;
 import com.skybooker.order.entity.TicketOrder;
 import com.skybooker.order.mapper.OrderMapper;
 import com.skybooker.order.service.OrderService;
+import com.skybooker.order.service.ConnectingOrderService;
 import com.skybooker.order.vo.OrderVO;
 import com.skybooker.passenger.mapper.PassengerMapper;
 import com.skybooker.passenger.vo.PassengerVO;
@@ -50,11 +56,14 @@ public class AdminOrderService {
     private final AuthMapper authMapper;
     private final AdminOperationLogService operationLogService;
     private final OrderService orderService;
+    private final ConnectingOrderService connectingOrderService;
+    private final ConnectingChangeService connectingChangeService;
     private final RefundService refundService;
     private final ChangeService changeService;
     private final OrderMapper orderMapper;
     private final RefundMapper refundMapper;
     private final ChangeMapper changeMapper;
+    private final ConnectingChangeMapper connectingChangeMapper;
     private final FlightMapper flightMapper;
     private final PassengerMapper passengerMapper;
 
@@ -67,6 +76,42 @@ public class AdminOrderService {
         operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, order.getId(),
                 AdminOperationLogService.ACTION_ORDER_CREATE, null);
         return order;
+    }
+
+    @Transactional
+    public OrderVO createConnectingOrderForUser(AdminCreateConnectingOrderDTO dto) {
+        Long adminUserId = currentAdminId();
+        if (dto.hasConflictingUserAlias()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        Long targetUserId = dto.resolveTargetUserId();
+        if (targetUserId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        requireNormalOrdinaryUser(targetUserId);
+        OrderVO order = connectingOrderService.createForUser(targetUserId, dto.toCreateConnectingOrderDTO());
+        operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, order.getId(),
+                AdminOperationLogService.ACTION_ORDER_CREATE, "管理员代客创建中转联程订单");
+        return order;
+    }
+
+    public List<com.skybooker.itinerary.vo.ItineraryVO> listConnectingChangeOptions(Long orderId,
+                                                                                     java.time.LocalDate startDate,
+                                                                                     java.time.LocalDate endDate) {
+        findOrder(orderId);
+        return connectingChangeService.optionsForAdmin(orderId, startDate, endDate);
+    }
+
+    @Transactional
+    public OrderVO changeConnecting(Long orderId, ConnectingChangeDTO dto) {
+        Long adminUserId = currentAdminId();
+        findOrder(orderId);
+        boolean force = Boolean.TRUE.equals(dto.getForce());
+        OrderVO result = connectingChangeService.changeForAdmin(orderId, dto);
+        operationLogService.log(adminUserId, AdminOperationLogService.TARGET_ORDER, orderId,
+                force ? AdminOperationLogService.ACTION_CHANGE_FORCE : AdminOperationLogService.ACTION_CHANGE,
+                dto.getReason());
+        return result;
     }
 
     @Transactional
@@ -171,14 +216,13 @@ public class AdminOrderService {
     }
 
     public AdminOrderDetailVO getEnhancedOrderDetail(Long orderId) {
-        OrderVO order = orderMapper.findDetailById(orderId);
-        if (order == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
         TicketOrder entity = findOrder(orderId);
+        OrderVO order = orderService.getOrderDetailForUser(orderId, entity.getUserId());
         List<RefundRecord> refunds = refundMapper.findRecordsByOrderId(orderId);
         List<ChangeRecord> changes = changeMapper.findByOrderId(orderId);
-        return AdminOrderDetailVO.from(order, refunds, changes, buildTimeline(order, entity, refunds, changes));
+        List<ConnectingChangeRecord> connectingChanges = connectingChangeMapper.findByOrderId(orderId);
+        return AdminOrderDetailVO.from(order, refunds, changes, connectingChanges,
+                buildTimeline(order, entity, refunds, changes, connectingChanges));
     }
 
     public List<ChangeOptionVO> listChangeOptions(Long orderId) {
@@ -250,12 +294,17 @@ public class AdminOrderService {
     private List<AdminOrderTimelineItemVO> buildTimeline(OrderVO order,
                                                          TicketOrder entity,
                                                          List<RefundRecord> refunds,
-                                                         List<ChangeRecord> changes) {
+                                                         List<ChangeRecord> changes,
+                                                         List<ConnectingChangeRecord> connectingChanges) {
         List<AdminOrderTimelineItemVO> timeline = new ArrayList<>();
         addTimeline(timeline, "CREATED", TicketOrder.STATUS_PENDING_PAYMENT, "Order created", order.getCreatedAt());
         addTimeline(timeline, "PAID", TicketOrder.STATUS_ISSUED, "Order paid and issued", order.getPayTime());
         for (ChangeRecord change : changes) {
             addTimeline(timeline, "CHANGED", TicketOrder.STATUS_CHANGED, "Order changed", change.getCreatedAt());
+        }
+        for (ConnectingChangeRecord change : connectingChanges) {
+            addTimeline(timeline, "CONNECTING_CHANGED", TicketOrder.STATUS_CHANGED,
+                    "Whole itinerary changed", change.getCreatedAt());
         }
         for (RefundRecord refund : refunds) {
             addTimeline(timeline, "REFUNDED", TicketOrder.STATUS_REFUNDED, "Order refunded", refund.getCreatedAt());

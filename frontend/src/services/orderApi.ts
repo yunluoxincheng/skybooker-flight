@@ -1,10 +1,23 @@
 import { get, post } from "@/lib/request"
-import type { OrderVO, CreateOrderDTO, ChangeOptionVO, ChangeOrderDTO, RefundVO, ChangeOrderResultVO } from "@/types/order"
+import type { OrderVO, CreateOrderDTO, CreateConnectingOrderDTO, ConnectingChangeDTO, ChangeOptionVO, ChangeOrderDTO, RefundVO, ChangeOrderResultVO } from "@/types/order"
+import type { ItineraryVO } from "@/types/flight"
 import type { PageData } from "@/types/api"
 
 /** 创建订单 */
 export function createOrder(data: CreateOrderDTO) {
   return post<OrderVO>("/orders", data, { auth: "user" })
+}
+
+export function createConnectingOrder(data: CreateConnectingOrderDTO) {
+  return post<OrderVO>("/orders/connecting", data, { auth: "user" })
+}
+
+export function getConnectingChangeOptions(id: number) {
+  return get<ItineraryVO[]>(`/orders/${id}/connecting-change-options`, undefined, { auth: "user" })
+}
+
+export function changeConnectingOrder(id: number, data: ConnectingChangeDTO) {
+  return post<OrderVO>(`/orders/${id}/connecting-change`, data, { auth: "user" })
 }
 
 /** 支付订单 */

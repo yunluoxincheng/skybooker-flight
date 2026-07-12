@@ -7,6 +7,7 @@
         <id property="id" column="id"/>
         <result property="orderNo" column="order_no"/>
         <result property="flightId" column="flight_id"/>
+        <result property="journeyType" column="journey_type"/>
         <result property="flightNo" column="flight_no"/>
         <result property="airlineName" column="airline_name"/>
         <result property="departureCity" column="departure_city"/>
@@ -40,13 +41,49 @@
     </resultMap>
 
     <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO ticket_order(order_no, user_id, flight_id, status,
+        INSERT INTO ticket_order(order_no, user_id, flight_id, journey_type, client_request_id, status,
                                 ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
                                 expire_time)
-        VALUES(#{orderNo}, #{userId}, #{flightId}, #{status},
+        VALUES(#{orderNo}, #{userId}, #{flightId}, COALESCE(#{journeyType}, 'DIRECT'), #{clientRequestId}, #{status},
                #{ticketAmount}, #{airportFee}, #{fuelFee}, #{serviceFee}, #{totalAmount},
                #{expireTime})
     </insert>
+
+    <insert id="insertOrderSegment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ticket_order_segment(order_id, segment_no, flight_id, flight_no, airline_code, airline_name,
+          departure_airport_code, departure_airport_name, departure_city, arrival_airport_code, arrival_airport_name,
+          arrival_city, departure_time, arrival_time, ticket_amount)
+        VALUES(#{orderId},#{segmentNo},#{flightId},#{flightNo},#{airlineCode},#{airlineName},#{departureAirportCode},
+          #{departureAirportName},#{departureCity},#{arrivalAirportCode},#{arrivalAirportName},#{arrivalCity},
+          #{departureTime},#{arrivalTime},#{ticketAmount})
+    </insert>
+
+    <insert id="batchInsertSegmentPassengers" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO order_segment_passenger(order_segment_id, passenger_id, passenger_name, passenger_type, seat_id, seat_no, ticket_price)
+        VALUES <foreach collection="list" item="p" separator=",">
+          (#{p.orderSegmentId},#{p.passengerId},#{p.passengerName},#{p.passengerType},#{p.seatId},#{p.seatNo},#{p.ticketPrice})
+        </foreach>
+    </insert>
+
+    <select id="findSegmentsByOrderId" resultType="com.skybooker.order.entity.TicketOrderSegment">
+        SELECT id, order_id, segment_no, flight_id, flight_no, airline_code, airline_name, departure_airport_code,
+          departure_airport_name, departure_city, arrival_airport_code, arrival_airport_name, arrival_city,
+          departure_time, arrival_time, ticket_amount FROM ticket_order_segment WHERE order_id=#{orderId} ORDER BY segment_no
+    </select>
+
+    <select id="findSegmentPassengers" resultType="com.skybooker.order.entity.OrderSegmentPassenger">
+        SELECT id, order_segment_id, passenger_id, passenger_name, passenger_type, seat_id, seat_no, ticket_price
+        FROM order_segment_passenger WHERE order_segment_id=#{segmentId} ORDER BY id
+    </select>
+
+    <select id="findByUserAndClientRequestId" resultType="com.skybooker.order.entity.TicketOrder">
+        SELECT id, order_no, user_id, flight_id, journey_type, client_request_id, status, ticket_amount, airport_fee,
+          fuel_fee, service_fee, total_amount, pay_time, expire_time, admin_note, created_at, updated_at
+        FROM ticket_order WHERE user_id=#{userId} AND client_request_id=#{clientRequestId}
+    </select>
+    <select id="lockUserForIdempotency" resultType="long">SELECT id FROM users WHERE id=#{userId} FOR UPDATE</select>
+    <delete id="deleteSegmentPassengersByOrderId">DELETE p FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=#{orderId}</delete>
+    <delete id="deleteSegmentsByOrderId">DELETE FROM ticket_order_segment WHERE order_id=#{orderId}</delete>
 
     <insert id="insertOrderPassenger" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO order_passenger(order_id, passenger_id, passenger_name, passenger_type, seat_id, seat_no, ticket_price)
@@ -62,14 +99,20 @@
     </insert>
 
     <select id="findById" resultType="com.skybooker.order.entity.TicketOrder">
-        SELECT id, order_no, user_id, flight_id, status,
+        SELECT id, order_no, user_id, flight_id, journey_type, client_request_id, status,
                ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
                pay_time, expire_time, admin_note, created_at, updated_at
         FROM ticket_order WHERE id = #{id}
     </select>
+    <select id="findByIdForUpdate" resultType="com.skybooker.order.entity.TicketOrder">
+        SELECT id, order_no, user_id, flight_id, journey_type, client_request_id, status,
+               ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
+               pay_time, expire_time, admin_note, created_at, updated_at
+        FROM ticket_order WHERE id = #{id} FOR UPDATE
+    </select>
 
     <select id="findByUserId" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+        SELECT o.id, o.order_no, o.flight_id, o.journey_type, f.flight_no,
                al.name AS airline_name,
                da.city AS departure_city, aa.city AS arrival_city,
                f.departure_time, f.arrival_time,
@@ -93,7 +136,7 @@
     </select>
 
     <select id="findDetailById" resultMap="orderDetailResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+        SELECT o.id, o.order_no, o.flight_id, o.journey_type, f.flight_no,
                al.name AS airline_name,
                da.city AS departure_city, aa.city AS arrival_city,
                f.departure_time, f.arrival_time,
@@ -128,7 +171,7 @@
     </update>
 
     <select id="findExpiredPendingOrders" resultType="com.skybooker.order.entity.TicketOrder">
-        SELECT id, order_no, user_id, flight_id, status,
+        SELECT id, order_no, user_id, flight_id, journey_type, client_request_id, status,
                ticket_amount, airport_fee, fuel_fee, service_fee, total_amount,
                pay_time, expire_time, admin_note, created_at, updated_at
         FROM ticket_order
@@ -136,7 +179,7 @@
     </select>
 
     <select id="findAllOrders" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+        SELECT o.id, o.order_no, o.flight_id, o.journey_type, f.flight_no,
                al.name AS airline_name,
                da.city AS departure_city, aa.city AS arrival_city,
                f.departure_time, f.arrival_time,
@@ -176,7 +219,9 @@
                   OR u.phone LIKE CONCAT('%', #{query.userKeyword}, '%'))
             </if>
             <if test="query.flightNo != null and query.flightNo != ''">
-                AND f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
+                AND (f.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')
+                  OR EXISTS (SELECT 1 FROM ticket_order_segment os
+                             WHERE os.order_id = o.id AND os.flight_no LIKE CONCAT('%', #{query.flightNo}, '%')))
             </if>
             <if test="query.flightKeyword != null and query.flightKeyword != ''">
                 AND (f.flight_no LIKE CONCAT('%', #{query.flightKeyword}, '%')
@@ -184,22 +229,37 @@
                   OR da.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
                   OR da.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
                   OR aa.city LIKE CONCAT('%', #{query.flightKeyword}, '%')
-                  OR aa.name LIKE CONCAT('%', #{query.flightKeyword}, '%'))
+                  OR aa.name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                  OR EXISTS (SELECT 1 FROM ticket_order_segment os
+                             WHERE os.order_id = o.id AND (os.flight_no LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.airline_name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.departure_city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.departure_airport_name LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.arrival_city LIKE CONCAT('%', #{query.flightKeyword}, '%')
+                               OR os.arrival_airport_name LIKE CONCAT('%', #{query.flightKeyword}, '%'))))
             </if>
             <if test="query.departureDateStart != null and query.departureDateStart != ''">
-                AND f.departure_time &gt;= #{query.departureDateStart}
+                AND COALESCE((SELECT os.departure_time FROM ticket_order_segment os
+                              WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time)
+                    &gt;= #{query.departureDateStart}
             </if>
             <if test="query.departureDateEnd != null and query.departureDateEnd != ''">
-                AND f.departure_time &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
+                AND COALESCE((SELECT os.departure_time FROM ticket_order_segment os
+                              WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time)
+                    &lt; #{query.departureDateEnd} + INTERVAL 1 DAY
             </if>
         </where>
     </sql>
 
     <select id="searchOrdersAdmin" resultMap="orderVOResult">
-        SELECT o.id, o.order_no, o.flight_id, f.flight_no,
+        SELECT o.id, o.order_no, o.flight_id, o.journey_type,
+               COALESCE((SELECT GROUP_CONCAT(os.flight_no ORDER BY os.segment_no SEPARATOR ' / ')
+                         FROM ticket_order_segment os WHERE os.order_id=o.id), f.flight_no) AS flight_no,
                al.name AS airline_name,
-               da.city AS departure_city, aa.city AS arrival_city,
-               f.departure_time, f.arrival_time,
+               COALESCE((SELECT os.departure_city FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), da.city) AS departure_city,
+               COALESCE((SELECT os.arrival_city FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no DESC LIMIT 1), aa.city) AS arrival_city,
+               COALESCE((SELECT os.departure_time FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no LIMIT 1), f.departure_time) AS departure_time,
+               COALESCE((SELECT os.arrival_time FROM ticket_order_segment os WHERE os.order_id=o.id ORDER BY os.segment_no DESC LIMIT 1), f.arrival_time) AS arrival_time,
                o.user_id, u.email AS user_email, u.nickname AS user_nickname,
                o.status,
                o.ticket_amount, o.airport_fee, o.fuel_fee, o.service_fee, o.total_amount,
@@ -229,6 +289,7 @@
     <update id="updateOrderFlightAndAmounts">
         UPDATE ticket_order
         SET flight_id = #{flightId},
+            journey_type = #{journeyType},
             ticket_amount = #{ticketAmount},
             airport_fee = #{airportFee},
             fuel_fee = #{fuelFee},

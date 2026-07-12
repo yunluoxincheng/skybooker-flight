@@ -3,6 +3,8 @@ package com.skybooker.admin.controller;
 import com.skybooker.admin.dto.AdminCancelOrderDTO;
 import com.skybooker.admin.dto.AdminChangeDTO;
 import com.skybooker.admin.dto.AdminCreateOrderDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingOrderDTO;
+import com.skybooker.admin.dto.AdminCreateConnectingFlightsDTO;
 import com.skybooker.admin.dto.AdminCreateUserDTO;
 import com.skybooker.admin.dto.AdminDeleteOrderDTO;
 import com.skybooker.admin.dto.AdminFlightQueryDTO;
@@ -13,12 +15,18 @@ import com.skybooker.admin.dto.AdminRefundDTO;
 import com.skybooker.admin.dto.AdminVoidDTO;
 import com.skybooker.admin.dto.FlightCabinDTO;
 import com.skybooker.admin.dto.FlightFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryFormDTO;
+import com.skybooker.admin.dto.ConnectingItineraryQueryDTO;
+import com.skybooker.admin.dto.ConnectingFlightCandidateQueryDTO;
 import com.skybooker.admin.dto.PageQueryDTO;
 import com.skybooker.admin.service.AdminDashboardService;
 import com.skybooker.admin.service.AdminFlightService;
 import com.skybooker.admin.service.AdminOrderService;
 import com.skybooker.admin.service.AdminService;
 import com.skybooker.admin.vo.AdminOrderDetailVO;
+import com.skybooker.admin.vo.ConnectingFlightPairVO;
+import com.skybooker.admin.vo.ConnectingItineraryAdminVO;
+import com.skybooker.admin.vo.ConnectingItinerarySummaryVO;
 import com.skybooker.admin.vo.DashboardSummaryVO;
 import com.skybooker.admin.vo.HotRouteVO;
 import com.skybooker.admin.vo.OrderStatusDistributionVO;
@@ -60,6 +68,56 @@ public class AdminController {
     @PostMapping("/flights")
     public ApiResponse<FlightVO> createFlight(@Valid @RequestBody FlightFormDTO dto) {
         return ApiResponse.success(adminFlightService.createFlight(dto));
+    }
+
+    @PostMapping("/flights/connecting-pair")
+    public ApiResponse<ConnectingFlightPairVO> createConnectingFlights(
+            @Valid @RequestBody AdminCreateConnectingFlightsDTO dto) {
+        return ApiResponse.success(adminFlightService.createConnectingFlights(dto));
+    }
+
+    @GetMapping("/connecting-itineraries")
+    public ApiResponse<PageResponse<ConnectingItinerarySummaryVO>> listConnectingItineraries(ConnectingItineraryQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingItineraries(query));
+    }
+
+    @GetMapping("/connecting-itineraries/flight-candidates")
+    public ApiResponse<PageResponse<FlightVO>> listConnectingFlightCandidates(ConnectingFlightCandidateQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingFlightCandidates(query, null));
+    }
+
+    @GetMapping("/connecting-itineraries/{firstFlightId}/second-flight-candidates")
+    public ApiResponse<PageResponse<FlightVO>> listSecondConnectingFlightCandidates(
+            @PathVariable Long firstFlightId, ConnectingFlightCandidateQueryDTO query) {
+        return ApiResponse.success(adminFlightService.listConnectingFlightCandidates(query, firstFlightId));
+    }
+
+    @PostMapping("/connecting-itineraries")
+    public ApiResponse<ConnectingItineraryAdminVO> createConnectingItinerary(
+            @Valid @RequestBody ConnectingItineraryFormDTO dto) {
+        return ApiResponse.success(adminFlightService.createConnectingItinerary(dto));
+    }
+
+    @PutMapping("/connecting-itineraries/{id}")
+    public ApiResponse<ConnectingItineraryAdminVO> updateConnectingItinerary(
+            @PathVariable Long id, @Valid @RequestBody ConnectingItineraryFormDTO dto) {
+        return ApiResponse.success(adminFlightService.updateConnectingItinerary(id, dto));
+    }
+
+    @PostMapping("/connecting-itineraries/{id}/publish")
+    public ApiResponse<ConnectingItineraryAdminVO> publishConnectingItinerary(@PathVariable Long id) {
+        return ApiResponse.success(adminFlightService.setConnectingItineraryPublished(id, true));
+    }
+
+    @PostMapping("/connecting-itineraries/{id}/unpublish")
+    public ApiResponse<ConnectingItineraryAdminVO> unpublishConnectingItinerary(@PathVariable Long id) {
+        return ApiResponse.success(adminFlightService.setConnectingItineraryPublished(id, false));
+    }
+
+    @DeleteMapping("/connecting-itineraries/{id}")
+    public ApiResponse<Void> deleteConnectingItinerary(@PathVariable Long id) {
+        adminFlightService.deleteConnectingItinerary(id);
+        return ApiResponse.success();
     }
 
     @PutMapping("/flights/{id}")
@@ -122,6 +180,11 @@ public class AdminController {
         return ApiResponse.success(adminOrderService.createOrderForUser(dto));
     }
 
+    @PostMapping("/orders/connecting")
+    public ApiResponse<OrderVO> createConnectingOrderForUser(@Valid @RequestBody AdminCreateConnectingOrderDTO dto) {
+        return ApiResponse.success(adminOrderService.createConnectingOrderForUser(dto));
+    }
+
     @PostMapping("/orders/{id}/refund")
     public ApiResponse<RefundVO> refundOrder(@PathVariable Long id, @Valid @RequestBody AdminRefundDTO dto) {
         return ApiResponse.success(adminOrderService.refund(id, dto));
@@ -136,6 +199,19 @@ public class AdminController {
     @PostMapping("/orders/{id}/change")
     public ApiResponse<ChangeOrderResultVO> changeOrder(@PathVariable Long id, @Valid @RequestBody AdminChangeDTO dto) {
         return ApiResponse.success(adminOrderService.change(id, dto));
+    }
+
+    @GetMapping("/orders/{id}/connecting-change-options")
+    public ApiResponse<List<com.skybooker.itinerary.vo.ItineraryVO>> connectingChangeOptions(
+            @PathVariable Long id,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate startDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate endDate) {
+        return ApiResponse.success(adminOrderService.listConnectingChangeOptions(id, startDate, endDate));
+    }
+
+    @PostMapping("/orders/{id}/connecting-change")
+    public ApiResponse<OrderVO> connectingChange(@PathVariable Long id, @Valid @RequestBody com.skybooker.change.dto.ConnectingChangeDTO dto) {
+        return ApiResponse.success(adminOrderService.changeConnecting(id, dto));
     }
 
     @PostMapping("/orders/{id}/void")

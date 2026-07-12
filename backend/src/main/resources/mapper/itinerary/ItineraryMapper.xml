@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.skybooker.itinerary.mapper.ItineraryMapper">
+    <select id="findConnectingPairs" resultType="com.skybooker.itinerary.vo.ConnectingPairVO">
+        SELECT ci.id AS itinerary_id, f1.id AS first_flight_id, f2.id AS second_flight_id
+        FROM connecting_itinerary ci
+        JOIN flight f1 ON f1.id = ci.first_flight_id
+        JOIN airport origin ON origin.id = f1.departure_airport_id
+        JOIN airport connection ON connection.id = f1.arrival_airport_id
+        JOIN flight f2 ON f2.id = ci.second_flight_id AND f2.departure_airport_id = f1.arrival_airport_id
+        JOIN airport destination ON destination.id = f2.arrival_airport_id
+        WHERE ci.publish_status = 'PUBLISHED'
+          AND origin.city = #{departureCity}
+          AND destination.city = #{arrivalCity}
+          AND DATE(f1.departure_time) = #{departureDate}
+          AND f1.departure_time &gt; NOW()
+          AND f2.departure_time &gt;= f1.arrival_time + INTERVAL 90 MINUTE
+          AND f2.departure_time &lt;= f1.arrival_time + INTERVAL 6 HOUR
+          AND f1.publish_status = 'PUBLISHED' AND f2.publish_status = 'PUBLISHED'
+          AND f1.direct_flag = 1 AND f2.direct_flag = 1
+          AND f1.status IN ('ON_TIME', 'DELAYED') AND f2.status IN ('ON_TIME', 'DELAYED')
+          AND f1.remaining_seats &gt;= #{passengerCount} AND f2.remaining_seats &gt;= #{passengerCount}
+          <if test="cabinClass != null and cabinClass != ''">
+              AND (SELECT COUNT(*) FROM flight_seat s1 WHERE s1.flight_id=f1.id AND s1.cabin_class=#{cabinClass} AND s1.status='AVAILABLE') &gt;= #{passengerCount}
+              AND (SELECT COUNT(*) FROM flight_seat s2 WHERE s2.flight_id=f2.id AND s2.cabin_class=#{cabinClass} AND s2.status='AVAILABLE') &gt;= #{passengerCount}
+          </if>
+        ORDER BY f1.departure_time, f2.arrival_time
+    </select>
+
+    <resultMap id="managedMap" type="com.skybooker.itinerary.entity.ConnectingItinerary">
+        <id property="id" column="id"/>
+        <result property="firstFlightId" column="first_flight_id"/>
+        <result property="secondFlightId" column="second_flight_id"/>
+        <result property="publishStatus" column="publish_status"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findFareCalendar" resultType="com.skybooker.itinerary.vo.FareCalendarVO">
+        SELECT fares.departure_date AS date, MIN(fares.price) AS lowestPrice
+        FROM (
+          SELECT DATE(f.departure_time) AS departure_date, f.base_price AS price
+          FROM flight f JOIN airport da ON da.id=f.departure_airport_id JOIN airport aa ON aa.id=f.arrival_airport_id
+          WHERE da.city=#{departureCity} AND aa.city=#{arrivalCity} AND DATE(f.departure_time) BETWEEN #{startDate} AND #{endDate}
+            AND f.departure_time&gt;NOW() AND f.publish_status='PUBLISHED' AND f.status IN ('ON_TIME','DELAYED')
+            AND f.direct_flag=1 AND f.remaining_seats&gt;0
+          UNION ALL
+          SELECT DATE(f1.departure_time), f1.base_price + f2.base_price
+          FROM connecting_itinerary ci
+          JOIN flight f1 ON f1.id=ci.first_flight_id JOIN flight f2 ON f2.id=ci.second_flight_id
+          JOIN airport da ON da.id=f1.departure_airport_id JOIN airport aa ON aa.id=f2.arrival_airport_id
+          WHERE ci.publish_status='PUBLISHED' AND da.city=#{departureCity} AND aa.city=#{arrivalCity}
+            AND DATE(f1.departure_time) BETWEEN #{startDate} AND #{endDate} AND f1.departure_time&gt;NOW()
+            AND f1.publish_status='PUBLISHED' AND f2.publish_status='PUBLISHED'
+            AND f1.status IN ('ON_TIME','DELAYED') AND f2.status IN ('ON_TIME','DELAYED')
+            AND f1.remaining_seats&gt;0 AND f2.remaining_seats&gt;0
+            AND f2.departure_time&gt;=f1.arrival_time+INTERVAL 90 MINUTE
+            AND f2.departure_time&lt;=f1.arrival_time+INTERVAL 6 HOUR
+        ) fares GROUP BY fares.departure_date ORDER BY fares.departure_date
+    </select>
+
+    <select id="findManagedSummaries" resultType="com.skybooker.admin.vo.ConnectingItinerarySummaryVO">
+        SELECT ci.id, ci.publish_status AS publishStatus,
+               f1.id AS firstFlightId, f1.flight_no AS firstFlightNo,
+               da1.city AS firstDepartureCity, aa1.city AS firstArrivalCity,
+               f1.departure_time AS firstDepartureTime, f1.arrival_time AS firstArrivalTime,
+               f1.remaining_seats AS firstRemainingSeats,
+               f2.id AS secondFlightId, f2.flight_no AS secondFlightNo,
+               da2.city AS secondDepartureCity, aa2.city AS secondArrivalCity,
+               f2.departure_time AS secondDepartureTime, f2.arrival_time AS secondArrivalTime,
+               f2.remaining_seats AS secondRemainingSeats,
+               TIMESTAMPDIFF(MINUTE, f1.arrival_time, f2.departure_time) AS transferMinutes,
+               LEAST(f1.remaining_seats, f2.remaining_seats) AS availableSeats,
+               CASE WHEN ci.publish_status='PUBLISHED'
+                          AND f1.publish_status='PUBLISHED' AND f2.publish_status='PUBLISHED'
+                          AND f1.status IN ('ON_TIME','DELAYED') AND f2.status IN ('ON_TIME','DELAYED')
+                          AND f1.departure_time &gt; NOW() AND f2.departure_time &gt; NOW()
+                          AND f1.remaining_seats &gt; 0 AND f2.remaining_seats &gt; 0
+                          AND COALESCE(s1.available_seats,0) &gt; 0 AND COALESCE(s2.available_seats,0) &gt; 0
+                    THEN TRUE ELSE FALSE END AS sellable,
+               CASE
+                   WHEN ci.publish_status&lt;&gt;'PUBLISHED' THEN '方案未上架'
+                   WHEN f1.publish_status&lt;&gt;'PUBLISHED' THEN '第一航段未上架'
+                   WHEN f2.publish_status&lt;&gt;'PUBLISHED' THEN '第二航段未上架'
+                   WHEN f1.status NOT IN ('ON_TIME','DELAYED') THEN '第一航段状态不可售'
+                   WHEN f2.status NOT IN ('ON_TIME','DELAYED') THEN '第二航段状态不可售'
+                   WHEN f1.departure_time&lt;=NOW() THEN '第一航段已起飞或过期'
+                   WHEN f2.departure_time&lt;=NOW() THEN '第二航段已起飞或过期'
+                   WHEN f1.remaining_seats&lt;=0 OR COALESCE(s1.available_seats,0)=0 THEN '第一航段暂无余票'
+                   WHEN f2.remaining_seats&lt;=0 OR COALESCE(s2.available_seats,0)=0 THEN '第二航段暂无余票'
+                   ELSE NULL END AS unavailableReason,
+               ci.created_by AS createdBy, ci.created_at AS createdAt, ci.updated_at AS updatedAt
+        FROM connecting_itinerary ci
+        JOIN flight f1 ON f1.id=ci.first_flight_id
+        JOIN airport da1 ON da1.id=f1.departure_airport_id
+        JOIN airport aa1 ON aa1.id=f1.arrival_airport_id
+        JOIN flight f2 ON f2.id=ci.second_flight_id
+        JOIN airport da2 ON da2.id=f2.departure_airport_id
+        JOIN airport aa2 ON aa2.id=f2.arrival_airport_id
+        LEFT JOIN (SELECT flight_id,COUNT(*) available_seats FROM flight_seat WHERE status='AVAILABLE' GROUP BY flight_id) s1 ON s1.flight_id=f1.id
+        LEFT JOIN (SELECT flight_id,COUNT(*) available_seats FROM flight_seat WHERE status='AVAILABLE' GROUP BY flight_id) s2 ON s2.flight_id=f2.id
+        <include refid="managedSearchWhere"/>
+        ORDER BY ci.created_at DESC, ci.id DESC
+        LIMIT #{offset},#{size}
+    </select>
+    <sql id="managedSearchWhere">
+        <if test="keyword != null and keyword != ''">
+            WHERE (
+              <if test="schemeId != null">ci.id=#{schemeId} OR</if>
+              <choose>
+                <when test="segmentScope == 'FIRST'">
+                  f1.flight_no LIKE CONCAT('%',#{keyword},'%') OR da1.city LIKE CONCAT('%',#{keyword},'%') OR aa1.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da1.code LIKE CONCAT('%',#{keyword},'%') OR da1.name LIKE CONCAT('%',#{keyword},'%') OR aa1.code LIKE CONCAT('%',#{keyword},'%') OR aa1.name LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test="segmentScope == 'SECOND'">
+                  f2.flight_no LIKE CONCAT('%',#{keyword},'%') OR da2.city LIKE CONCAT('%',#{keyword},'%') OR aa2.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da2.code LIKE CONCAT('%',#{keyword},'%') OR da2.name LIKE CONCAT('%',#{keyword},'%') OR aa2.code LIKE CONCAT('%',#{keyword},'%') OR aa2.name LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <otherwise>
+                  f1.flight_no LIKE CONCAT('%',#{keyword},'%') OR da1.city LIKE CONCAT('%',#{keyword},'%') OR aa1.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da1.code LIKE CONCAT('%',#{keyword},'%') OR da1.name LIKE CONCAT('%',#{keyword},'%') OR aa1.code LIKE CONCAT('%',#{keyword},'%') OR aa1.name LIKE CONCAT('%',#{keyword},'%')
+                  OR f2.flight_no LIKE CONCAT('%',#{keyword},'%') OR da2.city LIKE CONCAT('%',#{keyword},'%') OR aa2.city LIKE CONCAT('%',#{keyword},'%')
+                  OR da2.code LIKE CONCAT('%',#{keyword},'%') OR da2.name LIKE CONCAT('%',#{keyword},'%') OR aa2.code LIKE CONCAT('%',#{keyword},'%') OR aa2.name LIKE CONCAT('%',#{keyword},'%')
+                </otherwise>
+              </choose>
+            )
+        </if>
+    </sql>
+    <select id="countManaged" resultType="long">
+        SELECT COUNT(*) FROM connecting_itinerary ci
+        JOIN flight f1 ON f1.id=ci.first_flight_id JOIN airport da1 ON da1.id=f1.departure_airport_id JOIN airport aa1 ON aa1.id=f1.arrival_airport_id
+        JOIN flight f2 ON f2.id=ci.second_flight_id JOIN airport da2 ON da2.id=f2.departure_airport_id JOIN airport aa2 ON aa2.id=f2.arrival_airport_id
+        <include refid="managedSearchWhere"/>
+    </select>
+    <select id="findManagedById" resultMap="managedMap">
+        SELECT * FROM connecting_itinerary WHERE id = #{id}
+    </select>
+    <select id="findManagedPair" resultMap="managedMap">
+        SELECT * FROM connecting_itinerary
+        WHERE first_flight_id = #{firstFlightId} AND second_flight_id = #{secondFlightId}
+    </select>
+    <insert id="insertManaged" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO connecting_itinerary(first_flight_id, second_flight_id, publish_status, created_by)
+        VALUES(#{firstFlightId}, #{secondFlightId}, #{publishStatus}, #{createdBy})
+    </insert>
+    <update id="updateManagedFlights">
+        UPDATE connecting_itinerary SET first_flight_id=#{firstFlightId}, second_flight_id=#{secondFlightId}
+        WHERE id=#{id}
+    </update>
+    <update id="updateManagedStatus">
+        UPDATE connecting_itinerary SET publish_status=#{publishStatus} WHERE id=#{id}
+    </update>
+    <delete id="deleteManaged">
+        DELETE FROM connecting_itinerary WHERE id=#{id} AND publish_status='DRAFT'
+    </delete>
+
+    <sql id="candidateWhere">
+        WHERE f.direct_flag=1
+          AND f.departure_time&gt;NOW()
+          AND f.status IN ('ON_TIME','DELAYED')
+        <if test="keyword != null and keyword != ''">
+            AND (f.flight_no LIKE CONCAT('%',#{keyword},'%') OR al.name LIKE CONCAT('%',#{keyword},'%')
+                 OR da.code LIKE CONCAT('%',#{keyword},'%') OR da.name LIKE CONCAT('%',#{keyword},'%')
+                 OR da.city LIKE CONCAT('%',#{keyword},'%') OR aa.code LIKE CONCAT('%',#{keyword},'%')
+                 OR aa.name LIKE CONCAT('%',#{keyword},'%') OR aa.city LIKE CONCAT('%',#{keyword},'%'))
+        </if>
+        <if test="startDate != null">AND f.departure_time&gt;=#{startDate}</if>
+        <if test="endDate != null">AND f.departure_time&lt;#{endDate}+INTERVAL 1 DAY</if>
+        <if test="departureAirportId != null">AND f.departure_airport_id=#{departureAirportId}</if>
+        <if test="arrivalAirportId != null">AND f.arrival_airport_id=#{arrivalAirportId}</if>
+        <if test="firstFlightId != null">
+            AND f.id&lt;&gt;ff.id
+            AND f.departure_airport_id=ff.arrival_airport_id
+            AND f.arrival_airport_id&lt;&gt;ff.departure_airport_id
+            AND f.departure_time&gt;=ff.arrival_time+INTERVAL 90 MINUTE
+            AND f.departure_time&lt;=ff.arrival_time+INTERVAL 6 HOUR
+        </if>
+    </sql>
+    <select id="findFlightCandidates" resultType="com.skybooker.flight.vo.FlightVO">
+        SELECT f.id,f.flight_no,f.airline_id,f.departure_airport_id,f.arrival_airport_id,
+               f.departure_time,f.arrival_time,f.duration_minutes,f.base_price,f.remaining_seats,f.total_seats,
+               f.status,f.publish_status,f.direct_flag,f.baggage_allowance,f.punctuality_rate,
+               al.code airline_code,al.name airline_name,
+               da.code departure_airport_code,da.name departure_airport_name,da.city departure_city,
+               aa.code arrival_airport_code,aa.name arrival_airport_name,aa.city arrival_city
+        FROM flight f
+        JOIN airline al ON al.id=f.airline_id
+        JOIN airport da ON da.id=f.departure_airport_id
+        JOIN airport aa ON aa.id=f.arrival_airport_id
+        <if test="firstFlightId != null">JOIN flight ff ON ff.id=#{firstFlightId}</if>
+        <include refid="candidateWhere"/>
+        ORDER BY f.departure_time,f.id LIMIT #{offset},#{size}
+    </select>
+    <select id="countFlightCandidates" resultType="long">
+        SELECT COUNT(*) FROM flight f
+        JOIN airline al ON al.id=f.airline_id
+        JOIN airport da ON da.id=f.departure_airport_id
+        JOIN airport aa ON aa.id=f.arrival_airport_id
+        <if test="firstFlightId != null">JOIN flight ff ON ff.id=#{firstFlightId}</if>
+        <include refid="candidateWhere"/>
+    </select>
+</mapper>

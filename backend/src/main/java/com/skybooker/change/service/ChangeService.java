@@ -54,6 +54,7 @@ public class ChangeService {
         if (order == null || (userId != null && !order.getUserId().equals(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        if (!orderMapper.findSegmentsByOrderId(orderId).isEmpty()) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
@@ -93,6 +94,7 @@ public class ChangeService {
         if (order == null || !order.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        if (!orderMapper.findSegmentsByOrderId(orderId).isEmpty()) throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         if (!isChangeableStatus(order.getStatus())) {
             throw new BusinessException(ErrorCode.ORDER_STATE_INVALID);
         }
@@ -165,7 +167,7 @@ public class ChangeService {
         BigDecimal newTotalAmount = newTicketAmount.add(airportFee).add(fuelFee).add(SERVICE_FEE);
 
         orderMapper.updateOrderFlightAndAmounts(orderId, dto.getNewFlightId(),
-                newTicketAmount, airportFee, fuelFee, SERVICE_FEE, newTotalAmount);
+                "DIRECT", newTicketAmount, airportFee, fuelFee, SERVICE_FEE, newTotalAmount);
 
         for (int i = 0; i < currentPassengers.size(); i++) {
             OrderPassenger op = currentPassengers.get(i);
