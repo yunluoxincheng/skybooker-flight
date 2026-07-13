@@ -1009,6 +1009,34 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_timeUnlimitedOnlyClearsDepartureTimePeriod() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("广州到北京明天上午");
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("06:00"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").value("12:00"))
+                .andReturn();
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest clearTime = new AiChatRequest();
+        clearTime.setSessionId(sessionId);
+        clearTime.setMessage("时间不限");
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clearTime)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").doesNotExist())
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").doesNotExist());
+    }
+
+    @Test
     void chat_multiTurnAmbiguousDateKeepsSpecificFollowUp() throws Exception {
         String sessionId = startRouteFollowUpSession("查上海到北京机票");
 

@@ -135,8 +135,11 @@ public class AiAssistantOrchestrator {
     private ParsedCondition applyExplicitClears(String message, ParsedCondition condition) {
         if (condition == null || message == null) return condition;
         ParsedCondition.ParsedConditionBuilder builder = condition.toBuilder();
-        if (message.contains("日期不限") || message.contains("时间不限")) {
+        if (message.contains("日期不限")) {
             builder.departureDate(null).departureDateStart(null).departureDateEnd(null);
+        }
+        if (message.contains("时间不限") || message.contains("时段不限")) {
+            builder.departureTimeStart(null).departureTimeEnd(null);
         }
         if (message.contains("航空公司不限") || message.contains("航司不限")) builder.airlineRaw(null);
         if (message.contains("不限制价格") || message.contains("价格不限")) builder.minPrice(null).maxPrice(null);
