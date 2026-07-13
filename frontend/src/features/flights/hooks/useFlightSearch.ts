@@ -77,6 +77,7 @@ export function useFlightSearch(): UseFlightSearchReturn {
       if (maxPrice) params.maxPrice = Number(maxPrice);
       if (directOnly === "true") params.directOnly = true;
       params.cabinClass = cabinClassSearchParam(cabinClass);
+      params.includeSoldOut = true;
       if (departureTimeRange) {
         const parts = departureTimeRange.split("-");
         if (parts.length === 2) {

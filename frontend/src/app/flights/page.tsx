@@ -21,6 +21,7 @@ import { FlightSearchCard } from "@/components/common/FlightSearchCard";
 import { ItineraryCard } from "@/components/common/ItineraryCard";
 import { useFlightSearch } from "@/features/flights/hooks/useFlightSearch";
 import { DateFareStrip } from "@/features/flights/components/DateFareStrip";
+import { isCabinClass } from "@/types/flight";
 
 function FlightsContent() {
   const router = useRouter();
@@ -54,6 +55,10 @@ function FlightsContent() {
   const origin = searchParams.get("departureCity")?.trim() || "";
   const destination = searchParams.get("arrivalCity")?.trim() || "";
   const selectedDate = searchParams.get("departureDate") || "";
+  const cabinClassParam = searchParams.get("cabinClass");
+  const selectedCabinClass = isCabinClass(cabinClassParam)
+    ? cabinClassParam
+    : undefined;
   const hasCompleteSearchCriteria = Boolean(
     origin && destination && selectedDate,
   );
@@ -248,6 +253,7 @@ function FlightsContent() {
                   <ItineraryCard
                     key={itinerary.segments.map((s) => s.id).join("-")}
                     itinerary={itinerary}
+                    cabinClass={selectedCabinClass}
                   />
                 ))}
               </div>

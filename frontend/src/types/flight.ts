@@ -76,6 +76,9 @@ export interface FlightSearchParams {
   directOnly?: boolean
   departureTimeStart?: string // "HH:mm"
   departureTimeEnd?: string   // "HH:mm"
+  passengerCount?: number
+  cabinClass?: CabinClass
+  includeSoldOut?: boolean
   sort?: string
   page?: number
   size?: number
