@@ -19,6 +19,8 @@ public class ConversationState {
     @Builder.Default
     private List<String> pendingMissingFields = new ArrayList<>();
     private ParsedCondition lastFlightCondition;
+    private ParsedCondition activeFlightCondition;
+    private ParsedCondition lastExecutedFlightCondition;
     private String recommendedDestinationCity;
     @Builder.Default
     private List<String> recommendedDestinationCandidates = new ArrayList<>();
@@ -34,5 +36,9 @@ public class ConversationState {
 
     public boolean hasPendingFlightQuery() {
         return pendingMissingFields != null && !pendingMissingFields.isEmpty();
+    }
+
+    public boolean hasActiveFlightQuery() {
+        return activeFlightCondition != null;
     }
 }

@@ -87,7 +87,8 @@ public class DomainIntentRouter {
 
     public RouteResult routeWithState(String message, ConversationState state) {
         LlmEffectiveConfig cfg = configProvider.getConfig();
-        return routeInternal(message, cfg, state != null && state.hasPendingFlightQuery(), state);
+        return routeInternal(message, cfg, state != null
+                && (state.hasPendingFlightQuery() || state.hasActiveFlightQuery()), state);
     }
 
     private RouteResult routeInternal(String message, LlmEffectiveConfig cfg,
@@ -100,6 +101,10 @@ public class DomainIntentRouter {
             DomainIntent explicitNonSearch = explicitNonSearchRoute(text);
             if (explicitNonSearch != null) {
                 return new RouteResult(explicitNonSearch, cfg, false);
+            }
+            ParsedCondition currentCondition = ruleIntentParserService.parse(text);
+            if (currentCondition.getDepartureCity() != null && currentCondition.getArrivalCity() != null) {
+                return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
             }
             if (isContinuationSlotFill(text)) {
                 return new RouteResult(DomainIntent.FLIGHT_QUERY_CONTINUATION, cfg, false);

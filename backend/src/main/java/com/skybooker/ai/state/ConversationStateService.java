@@ -65,6 +65,10 @@ public class ConversationStateService {
         builder.lastIntent(reply.getIntent());
         builder.lastReplyType(reply.getReplyType());
 
+        if (condition != null && reply.getIntent() != null && reply.getIntent().startsWith("FLIGHT_QUERY")) {
+            builder.activeFlightCondition(condition);
+        }
+
         if (AiReplyType.FOLLOW_UP.name().equals(reply.getReplyType())) {
             builder.pendingFlightCondition(condition);
             builder.pendingMissingFields(reply.getMissingFields() == null
@@ -74,6 +78,8 @@ public class ConversationStateService {
             builder.pendingMissingFields(new ArrayList<>());
             if (condition != null && reply.getIntent() != null && reply.getIntent().startsWith("FLIGHT_QUERY")) {
                 builder.lastFlightCondition(condition);
+                ParsedCondition executed = ParsedConditionMaps.fromObject(reply.getAppliedCondition());
+                builder.lastExecutedFlightCondition(executed == null ? condition : executed);
             }
         }
 
@@ -102,6 +108,12 @@ public class ConversationStateService {
                 ? List.of() : state.getPendingMissingFields());
         if (state.getLastFlightCondition() != null) {
             map.put("lastFlightCondition", ParsedConditionMaps.toMap(state.getLastFlightCondition()));
+        }
+        if (state.getActiveFlightCondition() != null) {
+            map.put("activeFlightCondition", ParsedConditionMaps.toMap(state.getActiveFlightCondition()));
+        }
+        if (state.getLastExecutedFlightCondition() != null) {
+            map.put("lastExecutedFlightCondition", ParsedConditionMaps.toMap(state.getLastExecutedFlightCondition()));
         }
         if (state.getRecommendedDestinationCity() != null) {
             map.put("recommendedDestinationCity", state.getRecommendedDestinationCity());
@@ -138,6 +150,8 @@ public class ConversationStateService {
                 .pendingFlightCondition(ParsedConditionMaps.fromObject(map.get("pendingFlightCondition")))
                 .pendingMissingFields(stringList(map.get("pendingMissingFields")))
                 .lastFlightCondition(ParsedConditionMaps.fromObject(map.get("lastFlightCondition")))
+                .activeFlightCondition(ParsedConditionMaps.fromObject(map.get("activeFlightCondition")))
+                .lastExecutedFlightCondition(ParsedConditionMaps.fromObject(map.get("lastExecutedFlightCondition")))
                 .recommendedDestinationCity(string(map.get("recommendedDestinationCity")))
                 .recommendedDestinationCandidates(stringList(map.get("recommendedDestinationCandidates")))
                 .lastIntent(string(map.get("lastIntent")))
@@ -162,6 +176,8 @@ public class ConversationStateService {
             builder.pendingFlightCondition(null);
             builder.pendingMissingFields(new ArrayList<>());
             builder.lastFlightCondition(parsedCondition);
+            builder.activeFlightCondition(parsedCondition);
+            builder.lastExecutedFlightCondition(parsedCondition);
         }
 
         Object travelContext = extra.get(TRAVEL_CONTEXT);

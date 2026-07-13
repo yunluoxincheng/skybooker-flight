@@ -78,6 +78,9 @@ export function useAiChat() {
           missingFields: reply.missingFields,
           followUpQuestion: reply.followUpQuestion,
           searchUrl: reply.searchUrl,
+          matchLevel: reply.matchLevel,
+          relaxedFields: reply.relaxedFields,
+          fallbackReason: reply.fallbackReason,
         })
       } catch (err) {
         setError((err as ApiError).message || "发送失败")
@@ -105,6 +108,9 @@ export function useAiChat() {
         missingFields: m.extra?.missingFields,
         followUpQuestion: m.extra?.followUpQuestion,
         searchUrl: m.extra?.searchUrl,
+        matchLevel: m.extra?.matchLevel,
+        relaxedFields: m.extra?.relaxedFields,
+        fallbackReason: m.extra?.fallbackReason,
         timestamp: new Date(m.createdAt).getTime(),
       }))
       setMessages(chatMsgs)

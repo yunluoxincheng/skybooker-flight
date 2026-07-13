@@ -23,4 +23,8 @@ public class AiChatReplyVO {
     private String searchUrl;
     private List<Map<String, Object>> flights;
     private List<Map<String, String>> quickActions;
+    private String matchLevel;
+    private Map<String, Object> appliedCondition;
+    private List<String> relaxedFields;
+    private String fallbackReason;
 }

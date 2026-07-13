@@ -20,6 +20,8 @@ export interface AiJourneyCardVO extends ItineraryVO {
   detailUrl?: string
 }
 
+export type FlightMatchLevel = "EXACT" | "RELAXED" | "PARTIAL" | "FALLBACK"
+
 /** AI 聊天回复 */
 export interface AiChatReplyVO {
   sessionId: string
@@ -32,6 +34,10 @@ export interface AiChatReplyVO {
   searchUrl?: string
   flights?: AiJourneyCardVO[]
   quickActions?: QuickAction[]
+  matchLevel?: FlightMatchLevel
+  appliedCondition?: Record<string, string>
+  relaxedFields?: string[]
+  fallbackReason?: string
 }
 
 /** AI 历史消息的 extra 字段（后端扁平存储） */
@@ -44,6 +50,10 @@ export interface AiSessionMessageExtra {
   searchUrl?: string
   flights?: AiJourneyCardVO[]
   quickActions?: QuickAction[]
+  matchLevel?: FlightMatchLevel
+  appliedCondition?: Record<string, string>
+  relaxedFields?: string[]
+  fallbackReason?: string
 }
 
 /** AI 对话消息（匹配后端 /api/ai/sessions/:id/messages 返回） */
@@ -74,5 +84,8 @@ export interface ChatMessage {
   missingFields?: string[]
   followUpQuestion?: string
   searchUrl?: string
+  matchLevel?: FlightMatchLevel
+  relaxedFields?: string[]
+  fallbackReason?: string
   timestamp: number
 }
