@@ -66,6 +66,25 @@ class FlightSearchFallbackTest {
     }
 
     @Test
+    void unrecognizedAirlineIsRelaxedInsteadOfReportedAsExact() {
+        FlightRecommendationService service = mock(FlightRecommendationService.class);
+        when(service.recommend(any(), isNull())).thenReturn(List.of(Map.of("id", 4L)));
+        when(service.buildSearchUrl(any(), isNull())).thenReturn("/flights");
+        FlightMapper mapper = mock(FlightMapper.class);
+        when(mapper.findAirlineIdByCodeOrName("不存在航空", "不存在航空")).thenReturn(null);
+        FlightSearchTool tool = new FlightSearchTool(service, mapper, CLOCK);
+
+        FlightSearchResult result = tool.search(ParsedCondition.builder()
+                .departureCity("广州").arrivalCity("北京")
+                .departureDate(LocalDate.of(2026, 7, 14)).airlineRaw("不存在航空").build());
+
+        assertThat(result.matchLevel()).isEqualTo(FlightMatchLevel.RELAXED);
+        assertThat(result.relaxedFields()).containsExactly("airlineRaw");
+        assertThat(result.appliedCondition()).doesNotContainKey("airlineRaw");
+        org.mockito.Mockito.verify(service, org.mockito.Mockito.times(1)).recommend(any(), isNull());
+    }
+
+    @Test
     void explicitDateFallbackStartsAfterTheRequestedDate() {
         FlightRecommendationService service = mock(FlightRecommendationService.class);
         when(service.recommend(any(), isNull()))

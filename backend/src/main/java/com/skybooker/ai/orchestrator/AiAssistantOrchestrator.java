@@ -60,7 +60,8 @@ public class AiAssistantOrchestrator {
         RecommendationLog recommendationLog = null;
         AiChatReplyVO reply;
 
-        if (isResetRequest(message)) {
+        if (isPureResetRequest(message)) {
+            condition = ParsedConditionMaps.recomputeRequiredFields(condition);
             reply = buildFollowUpReply(session.getPublicSessionId(), condition, semantic.intent(),
                     aiReplyComposer.composeResetReply());
         } else if (action.type() == DialogueActionType.RECOMMEND_DESTINATION_AND_FOLLOW_UP) {
@@ -115,7 +116,7 @@ public class AiAssistantOrchestrator {
 
         ConversationState nextState = conversationStateService.nextState(state, reply, condition,
                 destinationRecommendation, travelPlanResult, explicitDestinationCity);
-        if (isResetRequest(message)) {
+        if (isPureResetRequest(message)) {
             nextState = conversationStateService.clearFlightQueryState(nextState);
         }
         Map<String, Object> extraJson = buildExtraJson(reply, nextState);
@@ -166,6 +167,13 @@ public class AiAssistantOrchestrator {
     private boolean isResetRequest(String message) {
         return message != null && (message.contains("清空条件") || message.contains("换个行程")
                 || message.contains("重新查询") || message.contains("重新查一下"));
+    }
+
+    private boolean isPureResetRequest(String message) {
+        if (message == null) return false;
+        String normalized = message.replaceAll("[\\s，。！？,.!?]", "");
+        return normalized.equals("清空条件") || normalized.equals("换个行程")
+                || normalized.equals("重新查询") || normalized.equals("重新查一下");
     }
 
     private ParsedCondition applyBareSlotFill(String message, ParsedCondition condition,

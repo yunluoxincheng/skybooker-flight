@@ -1,6 +1,7 @@
 package com.skybooker.ai.service;
 
 import com.skybooker.ai.parser.ParsedCondition;
+import com.skybooker.ai.parser.ParsedConditionMaps;
 import com.skybooker.ai.tool.FlightSearchResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,8 @@ public class AiReplyComposer {
                 ? "您还没有指定日期，我先按今天查询。" : "";
         String resultText = switch (result.matchLevel()) {
             case EXACT -> "找到了 " + result.flights().size() + " 个符合条件的航班。以下航班均为"
-                    + formatter.summary(requested) + "，您可以继续比较价格和起飞时间。";
+                    + formatter.summary(ParsedConditionMaps.fromObject(result.appliedCondition()))
+                    + "，您可以继续比较价格和起飞时间。";
             case RELAXED -> composeRelaxedReply(requested, result);
             case PARTIAL -> composePartialReply(requested, result);
             case FALLBACK -> "暂时没有查到符合当前路线和日期的航班。下面这些是近期仍有余票的航班，仅供参考，"
@@ -53,7 +55,12 @@ public class AiReplyComposer {
     private String composeRelaxedReply(ParsedCondition requested, FlightSearchResult result) {
         List<String> relaxed = result.relaxedFields().stream().map(this::fieldLabel).toList();
         String fields = quoteJoin(relaxed);
-        return "暂时没有同时满足" + fields + "的航班。我保留了路线和日期等主要条件，为您找到了 "
+        ParsedCondition applied = ParsedConditionMaps.fromObject(result.appliedCondition());
+        String retained = retainedSummary(requested, applied);
+        String retainedText = "当前条件".equals(retained)
+                ? "当前结果未保留其他原始筛选条件"
+                : "我保留了" + retained;
+        return "暂时没有同时满足" + fields + "的航班。" + retainedText + "，并为您找到了 "
                 + result.flights().size() + " 个其他可选航班。";
     }
 
@@ -68,10 +75,10 @@ public class AiReplyComposer {
     private String composeConditionUpdatedReply(ParsedCondition explicit, String message,
                                                 boolean hadActiveCondition) {
         if (!hadActiveCondition) return "";
-        if (message != null && (message.contains("时间不限") || message.contains("时段不限"))) {
-            return "好的，已取消起飞时段限制，路线、日期和其他条件保持不变。";
-        }
         List<String> changes = new ArrayList<>();
+        if (message != null && (message.contains("时间不限") || message.contains("时段不限"))) {
+            changes.add("已取消起飞时段限制");
+        }
         addChange(changes, "出发地", formatter.fieldValue("departureCity", explicit));
         addChange(changes, "目的地", formatter.fieldValue("arrivalCity", explicit));
         addChange(changes, "出发日期", formatter.fieldValue("departureDate", explicit));
@@ -79,11 +86,36 @@ public class AiReplyComposer {
         addChange(changes, "航空公司", formatter.fieldValue("airlineRaw", explicit));
         addChange(changes, "舱位", formatter.fieldValue("cabinClass", explicit));
         if (changes.isEmpty()) return "";
-        return "好的，已将" + String.join("、", changes) + "，其他条件保持不变。";
+        return "好的，" + String.join("，", changes) + "，其他未提及条件保持不变。";
     }
 
     private void addChange(List<String> changes, String label, String value) {
-        if (value != null) changes.add(label + "改为" + value);
+        if (value != null) changes.add("已将" + label + "改为" + value);
+    }
+
+    private String retainedSummary(ParsedCondition requested, ParsedCondition applied) {
+        if (requested == null || applied == null) return "当前条件";
+        ParsedCondition.ParsedConditionBuilder retained = ParsedCondition.builder();
+        if (java.util.Objects.equals(requested.getDepartureCity(), applied.getDepartureCity())) {
+            retained.departureCity(requested.getDepartureCity());
+        }
+        if (java.util.Objects.equals(requested.getArrivalCity(), applied.getArrivalCity())) {
+            retained.arrivalCity(requested.getArrivalCity());
+        }
+        if (requested.getDepartureDate() != null
+                && java.util.Objects.equals(requested.getDepartureDate(), applied.getDepartureDate())) {
+            retained.departureDate(requested.getDepartureDate());
+        }
+        if (requested.getDepartureDateStart() != null && requested.getDepartureDateEnd() != null
+                && java.util.Objects.equals(requested.getDepartureDateStart(), applied.getDepartureDateStart())
+                && java.util.Objects.equals(requested.getDepartureDateEnd(), applied.getDepartureDateEnd())) {
+            retained.departureDateStart(requested.getDepartureDateStart())
+                    .departureDateEnd(requested.getDepartureDateEnd());
+        }
+        if (java.util.Objects.equals(requested.getPassengerCount(), applied.getPassengerCount())) {
+            retained.passengerCount(requested.getPassengerCount());
+        }
+        return formatter.summary(retained.build());
     }
 
     private String naturalQuestion(List<String> missing) {

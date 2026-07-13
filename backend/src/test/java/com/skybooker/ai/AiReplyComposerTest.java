@@ -32,7 +32,7 @@ class AiReplyComposerTest {
     void exactReplyIncludesRouteDateAndCount() {
         ParsedCondition condition = baseCondition().build();
         String reply = composer.composeSearchReply(condition, condition,
-                result(FlightMatchLevel.EXACT, Map.of("departureDate", "2026-07-14"), List.of(), 3),
+                result(FlightMatchLevel.EXACT, appliedBase(), List.of(), 3),
                 "明天广州飞北京", false);
 
         assertThat(reply).contains("3 个", "广州飞往北京", "明天出发").doesNotContain("为你");
@@ -49,26 +49,39 @@ class AiReplyComposerTest {
                 result(FlightMatchLevel.EXACT, Map.of("departureDate", "2026-07-14"), List.of(), 1),
                 "下午的呢", true);
 
-        assertThat(reply).startsWith("好的，已将起飞时间改为下午，其他条件保持不变。");
+        assertThat(reply).startsWith("好的，已将起飞时间改为下午，其他未提及条件保持不变。");
     }
 
     @Test
     void timeClearIsConfirmedWithoutClaimingOtherChanges() {
         String reply = composer.composeSearchReply(baseCondition().build(), ParsedCondition.builder().build(),
-                result(FlightMatchLevel.EXACT, Map.of("departureDate", "2026-07-14"), List.of(), 1),
+                result(FlightMatchLevel.EXACT, appliedBase(), List.of(), 1),
                 "时间不限", true);
 
-        assertThat(reply).startsWith("好的，已取消起飞时段限制，路线、日期和其他条件保持不变。");
+        assertThat(reply).startsWith("好的，已取消起飞时段限制，其他未提及条件保持不变。");
+    }
+
+    @Test
+    void timeClearAndDestinationUpdateAreBothConfirmed() {
+        ParsedCondition requested = baseCondition().arrivalCity("上海").build();
+        ParsedCondition explicit = ParsedCondition.builder().arrivalCity("上海").build();
+        String reply = composer.composeSearchReply(requested, explicit,
+                result(FlightMatchLevel.EXACT, Map.of(
+                        "departureCity", "广州", "arrivalCity", "上海", "departureDate", "2026-07-14"),
+                        List.of(), 1), "时间不限，目的地改成上海", true);
+
+        assertThat(reply).startsWith("好的，已取消起飞时段限制，已将目的地改为上海，")
+                .contains("其他未提及条件保持不变");
     }
 
     @Test
     void relaxedReplyNamesRelaxedFields() {
         ParsedCondition condition = baseCondition().airlineRaw("南方航空").cabinClass("ECONOMY").build();
         String reply = composer.composeSearchReply(condition, condition,
-                result(FlightMatchLevel.RELAXED, Map.of("departureDate", "2026-07-14"),
+                result(FlightMatchLevel.RELAXED, appliedBase(),
                         List.of("airlineRaw", "cabinClass"), 4), "查询", false);
 
-        assertThat(reply).contains("“航空公司”", "“舱位”", "保留了路线和日期", "4 个");
+        assertThat(reply).contains("“航空公司”", "“舱位”", "保留了广州飞往北京、明天出发", "4 个");
     }
 
     @Test
@@ -105,7 +118,9 @@ class AiReplyComposerTest {
         ParsedCondition condition = ParsedCondition.builder()
                 .departureCity("广州").arrivalCity("北京").build();
         String reply = composer.composeSearchReply(condition, condition,
-                result(FlightMatchLevel.EXACT, Map.of("departureDate", "2026-07-13"), List.of(), 1),
+                result(FlightMatchLevel.EXACT, Map.of(
+                        "departureCity", "广州", "arrivalCity", "北京", "departureDate", "2026-07-13"),
+                        List.of(), 1),
                 "广州到北京", false);
 
         assertThat(reply).contains("您还没有指定日期，我先按今天查询");
@@ -126,5 +141,9 @@ class AiReplyComposerTest {
         List<Map<String, Object>> flights = java.util.stream.IntStream.range(0, count)
                 .mapToObj(index -> Map.<String, Object>of("id", index + 1)).toList();
         return new FlightSearchResult(flights, "/flights", level, applied, relaxed, "");
+    }
+
+    private Map<String, Object> appliedBase() {
+        return Map.of("departureCity", "广州", "arrivalCity", "北京", "departureDate", "2026-07-14");
     }
 }

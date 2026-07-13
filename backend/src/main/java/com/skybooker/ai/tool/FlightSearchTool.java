@@ -24,12 +24,14 @@ public class FlightSearchTool {
 
     public FlightSearchResult search(ParsedCondition condition) {
         Long resolvedAirlineId = resolveAirlineId(condition.getAirlineRaw());
+        boolean unresolvedAirline = condition.getAirlineRaw() != null && resolvedAirlineId == null;
         boolean defaultDate = !condition.hasDepartureDateCondition();
         ParsedCondition dated = defaultDate
                 ? condition.toBuilder().departureDate(LocalDate.now(businessClock)).build()
                 : condition;
-        List<Map<String, Object>> flights = recommend(dated, resolvedAirlineId);
-        if (!flights.isEmpty()) {
+        List<Map<String, Object>> flights = unresolvedAirline
+                ? List.of() : recommend(dated, resolvedAirlineId);
+        if (!unresolvedAirline && !flights.isEmpty()) {
             return result(flights, dated, resolvedAirlineId, FlightMatchLevel.EXACT, List.of(), "");
         }
 
