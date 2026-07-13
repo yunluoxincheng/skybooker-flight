@@ -61,7 +61,7 @@ public class AiAssistantOrchestrator {
             destinationRecommendation = destinationRecommendTool.recommend(message);
             condition = withDestination(condition, destinationRecommendation.primaryCity());
             condition = ParsedConditionMaps.recomputeRequiredFields(condition);
-            if (condition.isComplete()) {
+            if (hasSearchableCondition(condition)) {
                 SearchReply searchReply = searchFlights(session.getPublicSessionId(), condition,
                         message, semantic.intent());
                 reply = searchReply.reply();
@@ -117,13 +117,44 @@ public class AiAssistantOrchestrator {
             return null;
         }
 
+        if (isResetRequest(message)) {
+            return ParsedConditionMaps.recomputeRequiredFields(semantic.condition());
+        }
         ParsedCondition condition = applyBareSlotFill(message, semantic.condition(), state, explicitDestinationCity);
         condition = withDestination(condition, explicitDestinationCity);
         condition = withDestination(condition, state.getRecommendedDestinationCity());
-        if (semantic.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION || state.hasPendingFlightQuery()) {
-            condition = ParsedConditionMaps.mergePending(state.getPendingFlightCondition(), condition);
+        ParsedCondition base = state.getActiveFlightCondition() != null
+                ? state.getActiveFlightCondition() : state.getPendingFlightCondition();
+        if (base != null) {
+            condition = ParsedConditionMaps.mergePending(base, condition);
         }
+        condition = applyExplicitClears(message, condition);
         return ParsedConditionMaps.recomputeRequiredFields(condition);
+    }
+
+    private ParsedCondition applyExplicitClears(String message, ParsedCondition condition) {
+        if (condition == null || message == null) return condition;
+        ParsedCondition.ParsedConditionBuilder builder = condition.toBuilder();
+        if (message.contains("日期不限")) {
+            builder.departureDate(null).departureDateStart(null).departureDateEnd(null);
+        }
+        if (message.contains("时间不限") || message.contains("时段不限")) {
+            builder.departureTimeStart(null).departureTimeEnd(null);
+        }
+        if (message.contains("航空公司不限") || message.contains("航司不限")) builder.airlineRaw(null);
+        if (message.contains("不限制价格") || message.contains("价格不限")) builder.minPrice(null).maxPrice(null);
+        return builder.build();
+    }
+
+    private boolean hasSearchableCondition(ParsedCondition condition) {
+        return condition != null && (condition.getDepartureCity() != null
+                || condition.getArrivalCity() != null || condition.hasDepartureDateCondition()
+                || condition.getAirlineRaw() != null || condition.getCabinClass() != null);
+    }
+
+    private boolean isResetRequest(String message) {
+        return message != null && (message.contains("清空条件") || message.contains("换个行程")
+                || message.contains("重新查询") || message.contains("重新查一下"));
     }
 
     private ParsedCondition applyBareSlotFill(String message, ParsedCondition condition,
@@ -200,22 +231,38 @@ public class AiAssistantOrchestrator {
     private AiChatReplyVO buildRecommendationReply(String sessionId, ParsedCondition condition,
                                                    FlightSearchResult result, DomainIntent intent) {
         List<Map<String, String>> quickActions = List.of(
-                Map.of("label", "查看全部航班", "value", "查看全部航班"),
-                Map.of("label", "换个时间", "value", "换个时间")
+                Map.of("label", "凌晨", "value", "凌晨航班"),
+                Map.of("label", "上午", "value", "上午航班"),
+                Map.of("label", "下午", "value", "下午航班"),
+                Map.of("label", "晚间", "value", "晚间航班")
         );
 
         return AiChatReplyVO.builder()
                 .sessionId(sessionId)
                 .replyType(AiReplyType.FLIGHT_RECOMMENDATION.name())
                 .intent(intent.name())
-                .replyText("为您找到 " + result.flights().size() + " 个推荐航班：")
+                .replyText(recommendationText(result))
                 .parsedCondition(ParsedConditionMaps.toMap(condition))
                 .missingFields(Collections.emptyList())
                 .followUpQuestion(null)
                 .searchUrl(result.searchUrl())
                 .flights(result.flights())
                 .quickActions(quickActions)
+                .matchLevel(result.matchLevel().name())
+                .appliedCondition(result.appliedCondition())
+                .relaxedFields(result.relaxedFields())
+                .fallbackReason(result.fallbackReason())
                 .build();
+    }
+
+    private String recommendationText(FlightSearchResult result) {
+        return switch (result.matchLevel()) {
+            case EXACT -> "为您找到 " + result.flights().size() + " 个符合当前条件的航班：";
+            case RELAXED -> "没有找到符合全部筛选条件的航班，已放宽次要条件，为您找到 "
+                    + result.flights().size() + " 个航班：";
+            case PARTIAL -> "以下是最近未来日期的相关航班：";
+            case FALLBACK -> "没有找到符合条件的航班，为你推荐一些可能感兴趣的其他航班。";
+        };
     }
 
     private AiChatReplyVO buildNoResultReply(String sessionId, ParsedCondition condition, DomainIntent intent) {
@@ -279,6 +326,12 @@ public class AiAssistantOrchestrator {
         extra.put("flights", reply.getFlights() == null ? Collections.emptyList() : reply.getFlights());
         extra.put("quickActions", reply.getQuickActions() == null
                 ? Collections.emptyList() : reply.getQuickActions());
+        extra.put("matchLevel", reply.getMatchLevel());
+        extra.put("appliedCondition", reply.getAppliedCondition() == null
+                ? Collections.emptyMap() : reply.getAppliedCondition());
+        extra.put("relaxedFields", reply.getRelaxedFields() == null
+                ? Collections.emptyList() : reply.getRelaxedFields());
+        extra.put("fallbackReason", reply.getFallbackReason());
         Map<String, Object> travelContext = conversationStateService.travelContextMap(state);
         if (!travelContext.isEmpty()) {
             extra.put("travelContext", travelContext);

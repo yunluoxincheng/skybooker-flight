@@ -321,9 +321,9 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isNotEmpty())
-                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
-                .andExpect(jsonPath("$.data.flights").isArray())
-                .andExpect(jsonPath("$.data.flights").isEmpty())
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
+                .andExpect(jsonPath("$.data.matchLevel").value("FALLBACK"))
+                .andExpect(jsonPath("$.data.flights").isNotEmpty())
                 .andExpect(jsonPath("$.data.parsedCondition").isNotEmpty());
     }
 
@@ -447,7 +447,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(second)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("上海"))
@@ -492,7 +492,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(third)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("上海"))
@@ -503,7 +503,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_multiTurnKeepsOptionalPassengerAndCabinFilters() throws Exception {
-        // 第一轮：路线+人数+舱位但缺日期 → FOLLOW_UP，parsedCondition 保留可选筛选条件
+        // 第一轮：路线+人数+舱位但缺日期 → 使用业务日期直接搜索，并保留可选筛选条件
         AiChatRequest first = new AiChatRequest();
         first.setMessage("查上海到北京两个人经济舱");
 
@@ -511,7 +511,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.passengerCount").value(2))
                 .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
                 .andReturn();
@@ -538,7 +538,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void chat_multiTurnCompleteReplyStillKeepsPreviousOptionalCabinFilter() throws Exception {
-        // 第一轮：路线+舱位但缺日期 → FOLLOW_UP，parsedCondition.cabinClass=ECONOMY
+        // 第一轮：路线+舱位但缺日期 → 使用业务日期直接搜索
         AiChatRequest first = new AiChatRequest();
         first.setMessage("查上海到北京经济舱");
 
@@ -546,7 +546,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
                 .andReturn();
 
@@ -570,7 +570,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void chat_newCompleteQueryDoesNotInheritPreviousRecommendationFilters() throws Exception {
+    void chat_regularFlightQueryMergesPreviousRecommendationFilters() throws Exception {
         // 第一轮是完整独立查询，assistant 会返回推荐或无结果，但不是 FOLLOW_UP。
         AiChatRequest first = new AiChatRequest();
         first.setMessage("查上海到北京明天经济舱");
@@ -586,7 +586,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 firstResult.getResponse().getContentAsString(), ApiResponse.class);
         String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
 
-        // 第二轮是新的完整查询，不是上一轮 FOLLOW_UP 的补槽，不应继承 ECONOMY。
+        // 没有明确重置语义时，即使路由为普通 FLIGHT_QUERY，也应继承未覆盖的会话条件。
         AiChatRequest second = new AiChatRequest();
         second.setSessionId(sessionId);
         second.setMessage("查广州到深圳明天");
@@ -595,11 +595,10 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(second)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("深圳"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
-                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").doesNotExist());
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"));
     }
 
     // --- 6.3 Recommendation data tests ---
@@ -613,6 +612,11 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.quickActions[0].label").value("凌晨"))
+                .andExpect(jsonPath("$.data.quickActions[1].label").value("上午"))
+                .andExpect(jsonPath("$.data.quickActions[2].label").value("下午"))
+                .andExpect(jsonPath("$.data.quickActions[3].label").value("晚间"))
+                .andExpect(jsonPath("$.data.searchUrl").isNotEmpty())
                 .andReturn();
 
         ApiResponse<Map> response = objectMapper.readValue(
@@ -895,7 +899,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andReturn();
 
         ApiResponse<Map> firstResponse = objectMapper.readValue(
@@ -932,7 +936,8 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
-                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("08:00"));
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("06:00"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").value("12:00"));
     }
 
     @Test
@@ -954,6 +959,84 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_activeConditionAppliesIncrementalTimeDestinationAndDepartureUpdates() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("广州到北京明天上午经济舱");
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("06:00"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").value("12:00"))
+                .andReturn();
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest afternoon = new AiChatRequest();
+        afternoon.setSessionId(sessionId);
+        afternoon.setMessage("下午的呢");
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(afternoon)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("12:00"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").value("18:00"));
+
+        AiChatRequest destination = new AiChatRequest();
+        destination.setSessionId(sessionId);
+        destination.setMessage("改成上海");
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(destination)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("12:00"));
+
+        AiChatRequest departure = new AiChatRequest();
+        departure.setSessionId(sessionId);
+        departure.setMessage("从深圳出发");
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(departure)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("深圳"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("上海"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.parsedCondition.cabinClass").value("ECONOMY"));
+    }
+
+    @Test
+    void chat_timeUnlimitedOnlyClearsDepartureTimePeriod() throws Exception {
+        AiChatRequest first = new AiChatRequest();
+        first.setMessage("广州到北京明天上午");
+        MvcResult firstResult = mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").value("06:00"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").value("12:00"))
+                .andReturn();
+        ApiResponse<Map> firstResponse = objectMapper.readValue(
+                firstResult.getResponse().getContentAsString(), ApiResponse.class);
+        String sessionId = (String) ((Map<String, Object>) firstResponse.getData()).get("sessionId");
+
+        AiChatRequest clearTime = new AiChatRequest();
+        clearTime.setSessionId(sessionId);
+        clearTime.setMessage("时间不限");
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clearTime)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeStart").doesNotExist())
+                .andExpect(jsonPath("$.data.parsedCondition.departureTimeEnd").doesNotExist());
+    }
+
+    @Test
     void chat_multiTurnAmbiguousDateKeepsSpecificFollowUp() throws Exception {
         String sessionId = startRouteFollowUpSession("查上海到北京机票");
 
@@ -965,12 +1048,11 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY_CONTINUATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("上海"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
-                .andExpect(jsonPath("$.data.missingFields", hasItem("departureDate")))
-                .andExpect(jsonPath("$.data.followUpQuestion").value(containsString("一个出发日期")));
+                .andExpect(jsonPath("$.data.matchLevel").exists());
     }
 
     @Test
@@ -994,9 +1076,9 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(missingRoute)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").exists())
-                .andExpect(jsonPath("$.data.missingFields", hasItems("departureCity", "arrivalCity")));
+                .andExpect(jsonPath("$.data.flights").isNotEmpty());
     }
 
     @Test
@@ -1009,10 +1091,9 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                    .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                     .andExpect(jsonPath("$.data.parsedCondition.departureDate").doesNotExist())
-                    .andExpect(jsonPath("$.data.missingFields", hasItem("departureDate")))
-                    .andExpect(jsonPath("$.data.followUpQuestion").value(containsString("一个出发日期")));
+                    .andExpect(jsonPath("$.data.matchLevel").exists());
         }
     }
 
@@ -1039,11 +1120,11 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
-                .andExpect(jsonPath("$.data.replyType").value("NO_RESULT"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
                 .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr))
-                .andExpect(jsonPath("$.data.flights").isEmpty());
+                .andExpect(jsonPath("$.data.flights").isNotEmpty());
     }
 
     @Test
@@ -1134,16 +1215,11 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andExpect(jsonPath("$.data.intent").value("FLIGHT_QUERY"))
-                .andExpect(jsonPath("$.data.replyText").value(containsString("可以优先考虑")))
                 .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").exists())
-                .andExpect(jsonPath("$.data.missingFields", hasItems("departureCity", "departureDate")))
-                .andExpect(jsonPath("$.data.missingFields", not(hasItem("arrivalCity"))))
-                .andExpect(jsonPath("$.data.followUpQuestion").value(allOf(
-                        containsString("出发城市"),
-                        containsString("出发日期"),
-                        not(containsString("目的地城市")))));
+                .andExpect(jsonPath("$.data.matchLevel").exists())
+                .andExpect(jsonPath("$.data.flights").isNotEmpty());
     }
 
     @Test
@@ -1279,7 +1355,7 @@ class AiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andReturn();
 
         ApiResponse<Map> firstResponse = objectMapper.readValue(

@@ -188,7 +188,7 @@ class AiLlmIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.replyType").value("FOLLOW_UP"))
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
                 .andReturn();
 
         ApiResponse<Map> firstResponse = objectMapper.readValue(

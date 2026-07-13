@@ -38,8 +38,8 @@ public class ItineraryService {
     private final Clock businessClock;
 
     public PageResponse<ItineraryVO> search(FlightSearchDTO dto) {
-        dto.setDepartureCity(cityQueryService.normalizeRequired(dto.getDepartureCity()));
-        dto.setArrivalCity(cityQueryService.normalizeRequired(dto.getArrivalCity()));
+        dto.setDepartureCity(cityQueryService.normalizeOptional(dto.getDepartureCity()));
+        dto.setArrivalCity(cityQueryService.normalizeOptional(dto.getArrivalCity()));
         if (dto.getDepartureDate() == null) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         int page = Math.max(1, dto.getPage() == null ? 1 : dto.getPage());
         int size = Math.min(100, Math.max(1, dto.getSize() == null ? 10 : dto.getSize()));

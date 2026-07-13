@@ -84,6 +84,13 @@ const REPLY_LABELS: Record<string, string> = {
   NO_RESULT: "暂无结果",
 }
 
+const MATCH_LABELS: Record<string, string> = {
+  EXACT: "精确匹配",
+  RELAXED: "已放宽筛选",
+  PARTIAL: "相近日期",
+  FALLBACK: "其他真实航班",
+}
+
 const MISSING_FIELD_PREFIX = /^请补充[:：]\s*(.+)$/
 const TECHNICAL_FIELD_TOKEN = /^[A-Za-z][A-Za-z0-9_]*$/
 
@@ -287,6 +294,11 @@ export default function AiAssistantPage() {
                         {msg.replyType && (
                           <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500">
                             {REPLY_LABELS[msg.replyType] || "助手回复"}
+                          </span>
+                        )}
+                        {msg.matchLevel && (
+                          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-medium text-cyan-800">
+                            {MATCH_LABELS[msg.matchLevel] || msg.matchLevel}
                           </span>
                         )}
                       </div>

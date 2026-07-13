@@ -87,7 +87,8 @@ public class DomainIntentRouter {
 
     public RouteResult routeWithState(String message, ConversationState state) {
         LlmEffectiveConfig cfg = configProvider.getConfig();
-        return routeInternal(message, cfg, state != null && state.hasPendingFlightQuery(), state);
+        return routeInternal(message, cfg, state != null
+                && (state.hasPendingFlightQuery() || state.hasActiveFlightQuery()), state);
     }
 
     private RouteResult routeInternal(String message, LlmEffectiveConfig cfg,
@@ -299,6 +300,9 @@ public class DomainIntentRouter {
         if (text.isBlank()) {
             return false;
         }
+        if (isFlightConditionClear(text)) {
+            return true;
+        }
         if (hasFlightSearchSignal(text)) {
             return true;
         }
@@ -307,6 +311,12 @@ public class DomainIntentRouter {
         return hasParsedSearchSignal(parsed)
                 || ruleIntentParserService.looksLikeSlotFiller(text)
                 || hasSpecificFollowUp(parsed);
+    }
+
+    private boolean isFlightConditionClear(String text) {
+        return text.contains("日期不限") || text.contains("时间不限") || text.contains("时段不限")
+                || text.contains("航空公司不限") || text.contains("航司不限")
+                || text.contains("不限制价格") || text.contains("价格不限");
     }
 
     private boolean hasFlightSearchSignal(String text) {

@@ -34,10 +34,19 @@ public class DialoguePolicy {
                 && (condition == null || condition.getArrivalCity() == null)) {
             return new DialogueAction(DialogueActionType.RECOMMEND_DESTINATION_AND_FOLLOW_UP);
         }
-        if (condition == null || !condition.isComplete()) {
+        if (!hasSearchableCondition(condition)) {
             return new DialogueAction(DialogueActionType.FOLLOW_UP);
         }
         return new DialogueAction(DialogueActionType.SEARCH_FLIGHTS);
+    }
+
+    private boolean hasSearchableCondition(ParsedCondition condition) {
+        return condition != null && (condition.getDepartureCity() != null
+                || condition.getArrivalCity() != null || condition.hasDepartureDateCondition()
+                || condition.getAirlineRaw() != null || condition.getCabinClass() != null
+                || condition.getMinPrice() != null || condition.getMaxPrice() != null
+                || condition.getDepartureTimeStart() != null || condition.getDepartureTimeEnd() != null
+                || condition.getDirectOnly() != null);
     }
 
     private boolean destinationRecommendationRequested(String message) {
