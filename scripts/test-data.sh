@@ -14,7 +14,7 @@ REF="${SKYBOOKER_REF:-$DEFAULT_REF}"
 SOURCE_DIR="${SKYBOOKER_TEST_DATA_SOURCE_DIR:-}"
 PROFILE="dev"
 SEED="20260707"
-BASE_DATE=""
+BASE_DATE="${SKYBOOKER_BASE_DATE:-}"
 COMPONENTS="all"
 SCENARIOS="all"
 SCENARIOS_EXPLICIT="false"
@@ -59,7 +59,7 @@ Common options:
   --source-dir DIR             Local repository root; avoids downloads
   --profile dev|test|perf      Dataset scale (default: dev)
   --seed NUMBER                Deterministic seed (default: 20260707)
-  --base-date YYYY-MM-DD       Flight date base
+  --base-date YYYY-MM-DD       Flight date base (default: today for generate/seed)
   --components LIST            reference,users,flights,orders,refunds,changes,waitlists,ai,all
   --scenarios LIST             direct,connecting,payment,cancel,refund,change,waitlist,sold-out,delayed,near-departure,all
                                (omitted: all applicable scenarios within selected components)
@@ -276,12 +276,13 @@ generate_sql() {
   local summary="$SUMMARY_FILE"
   [[ -n "$summary" ]] || summary="$(data_dir)/seed-$PROFILE.json"
   mkdir -p "$(dirname "$summary")"
-  local generator
+  local generator effective_base_date
   generator="$(python_script generate_test_data.py)"
+  effective_base_date="${BASE_DATE:-$(date +%F)}"
   local args=("$generator" --profile "$PROFILE" --seed "$SEED" --components "$COMPONENTS" --output "$output" --summary-file "$summary")
   [[ "$SCENARIOS_EXPLICIT" == "true" ]] && args+=(--scenarios "$SCENARIOS")
   [[ -n "$RESOLVED_SHA" ]] && args+=(--source-ref "$RESOLVED_SHA")
-  [[ -n "$BASE_DATE" ]] && args+=(--base-date "$BASE_DATE")
+  args+=(--base-date "$effective_base_date")
   [[ "$NO_AUTO_DEPENDENCIES" == "true" ]] && args+=(--no-auto-dependencies)
   python3 "${args[@]}"
   OUTPUT="$output"

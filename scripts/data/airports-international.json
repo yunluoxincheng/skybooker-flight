@@ -1,11 +1,11 @@
 {
   "metadata": {
-    "source": "OurAirports airports.csv (scheduled_service=yes, IATA code present, heliports excluded) plus explicitly curated international hubs",
-    "sourceUrl": "https://ourairports.com/data/",
+    "source": "公开机场资料整理；香港、澳门、台湾地区机场与国际枢纽按测试航线需求维护",
+    "asOf": "2025-12-31",
     "retrievedAt": "2026-07-13",
-    "notes": "IDs for the original catalog are retained; appended rows are assigned monotonically in deterministic order. Mainland China and Hong Kong/Macau/Taiwan are represented separately from international hubs.",
+    "notes": "与大陆颁证运输机场固定快照分开维护；ID 全局唯一且稳定。",
     "scope": "special_region_and_international",
-    "recordCount": 37
+    "recordCount": 41
   },
   "airports": [
     {
@@ -227,8 +227,8 @@
     {
       "id": 285,
       "code": "CYI",
-      "name": "Chiayi Airport",
-      "city": "Shuishang",
+      "name": "嘉义机场",
+      "city": "嘉义市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -236,8 +236,8 @@
     {
       "id": 286,
       "code": "HUN",
-      "name": "Hualien Chiashan Airport",
-      "city": "Hualien City",
+      "name": "花莲机场",
+      "city": "花莲市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -245,8 +245,8 @@
     {
       "id": 287,
       "code": "KHH",
-      "name": "Kaohsiung International Airport",
-      "city": "Kaohsiung (Xiaogang)",
+      "name": "高雄国际机场",
+      "city": "高雄市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -254,8 +254,8 @@
     {
       "id": 288,
       "code": "KNH",
-      "name": "Kinmen Airport",
-      "city": "Shang-I",
+      "name": "金门机场",
+      "city": "金门县",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -263,8 +263,8 @@
     {
       "id": 289,
       "code": "KYD",
-      "name": "Lanyu Airport",
-      "city": "Orchid Island",
+      "name": "兰屿机场",
+      "city": "台东县",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -272,8 +272,8 @@
     {
       "id": 290,
       "code": "LZN",
-      "name": "Matsu Nangan Airport",
-      "city": "Matsu (Nangan)",
+      "name": "马祖南竿机场",
+      "city": "连江县",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -281,8 +281,8 @@
     {
       "id": 291,
       "code": "MFK",
-      "name": "Matsu Beigan Airport",
-      "city": "Matsu (Beigan)",
+      "name": "马祖北竿机场",
+      "city": "连江县",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -290,8 +290,8 @@
     {
       "id": 292,
       "code": "MZG",
-      "name": "Penghu Magong Airport",
-      "city": "Huxi",
+      "name": "澎湖机场",
+      "city": "澎湖县",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -299,8 +299,8 @@
     {
       "id": 293,
       "code": "RMQ",
-      "name": "Taichung International Airport / Ching Chuang Kang Air Base",
-      "city": "Taichung (Qingshui)",
+      "name": "台中国际机场",
+      "city": "台中市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -308,8 +308,8 @@
     {
       "id": 294,
       "code": "TNN",
-      "name": "Tainan International Airport / Tainan Air Base",
-      "city": "Tainan (Rende)",
+      "name": "台南机场",
+      "city": "台南市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -317,8 +317,8 @@
     {
       "id": 295,
       "code": "TPE",
-      "name": "Taiwan Taoyuan International Airport",
-      "city": "Taoyuan",
+      "name": "台湾桃园国际机场",
+      "city": "桃园市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -326,8 +326,8 @@
     {
       "id": 296,
       "code": "TSA",
-      "name": "Taipei Songshan International Airport",
-      "city": "Taipei (Songshan)",
+      "name": "台北松山机场",
+      "city": "台北市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
@@ -335,11 +335,47 @@
     {
       "id": 297,
       "code": "TTT",
-      "name": "Taitung Airport",
-      "city": "Taitung City",
+      "name": "台东机场",
+      "city": "台东市",
       "province": "中国台湾",
       "countryOrRegion": "中国台湾",
       "scope": "special_region"
+    },
+    {
+      "id": 310,
+      "code": "AMS",
+      "name": "阿姆斯特丹史基浦机场",
+      "city": "阿姆斯特丹",
+      "province": "荷兰",
+      "countryOrRegion": "荷兰",
+      "scope": "international"
+    },
+    {
+      "id": 311,
+      "code": "AUH",
+      "name": "阿布扎比扎耶德国际机场",
+      "city": "阿布扎比",
+      "province": "阿联酋",
+      "countryOrRegion": "阿联酋",
+      "scope": "international"
+    },
+    {
+      "id": 312,
+      "code": "YVR",
+      "name": "温哥华国际机场",
+      "city": "温哥华",
+      "province": "加拿大",
+      "countryOrRegion": "加拿大",
+      "scope": "international"
+    },
+    {
+      "id": 313,
+      "code": "YYZ",
+      "name": "多伦多皮尔逊国际机场",
+      "city": "多伦多",
+      "province": "加拿大",
+      "countryOrRegion": "加拿大",
+      "scope": "international"
     }
   ]
 }

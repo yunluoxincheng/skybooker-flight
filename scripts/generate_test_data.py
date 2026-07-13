@@ -9,6 +9,7 @@ AI records from deterministic rules. It does not call external APIs at runtime.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import re
@@ -23,6 +24,9 @@ USER_PASSWORD_HASH = "$2b$12$mxGK3588bVIlwCYgjrqa1.1esZ8vbAKALvroPmpAvJfGt3VO781
 AIRPORT_FEE = Decimal("50.00")
 FUEL_FEE = Decimal("30.00")
 SERVICE_FEE = Decimal("0.00")
+EXPECTED_MAINLAND_AIRPORT_COUNT = 270
+EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256 = "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
+EXPECTED_AIRPORT_CATALOG_AS_OF = "2025-12-31"
 
 COMPONENT_NAMES = (
     "reference", "users", "flights", "orders", "refunds", "changes", "waitlists", "ai", "all"
@@ -298,7 +302,7 @@ PROFILES = {
         cold_frequency_days=7,
     ),
     "test": ProfileConfig(
-        flight_airport_count=300,
+        flight_airport_count=400,
         airline_count=24,
         route_count=320,
         days=30,
@@ -313,7 +317,7 @@ PROFILES = {
         cold_frequency_days=15,
     ),
     "perf": ProfileConfig(
-        flight_airport_count=300,
+        flight_airport_count=400,
         airline_count=36,
         route_count=1_200,
         days=90,
@@ -375,10 +379,32 @@ def _load_airports() -> tuple[list[Airport], dict[str, Any]]:
         raise RuntimeError("airport catalog contains an invalid IATA code")
     if any(airport.scope not in {"mainland", "special_region", "international"} for airport in airports):
         raise RuntimeError("airport catalog contains an invalid scope")
+    mainland_codes = sorted(airport.code for airport in airports if airport.scope == "mainland")
+    mainland_digest = hashlib.sha256(
+        "".join(f"{code}\n" for code in mainland_codes).encode("utf-8")
+    ).hexdigest()
+    mainland_metadata = metadata["airports-cn.json"]
+    if len(mainland_codes) != EXPECTED_MAINLAND_AIRPORT_COUNT:
+        raise RuntimeError(
+            f"mainland airport catalog must contain exactly {EXPECTED_MAINLAND_AIRPORT_COUNT} airports"
+        )
+    if mainland_digest != EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256:
+        raise RuntimeError("mainland airport code set does not match the approved CAAC snapshot")
+    expected_metadata = {
+        "scope": "mainland",
+        "recordCount": EXPECTED_MAINLAND_AIRPORT_COUNT,
+        "asOf": EXPECTED_AIRPORT_CATALOG_AS_OF,
+        "codeSetSha256": EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256,
+    }
+    for key, expected in expected_metadata.items():
+        if mainland_metadata.get(key) != expected:
+            raise RuntimeError(f"mainland airport metadata {key} must be {expected!r}")
     metadata["airportReferenceCount"] = len(airports)
     metadata["domesticAirportCount"] = sum(airport.scope == "mainland" for airport in airports)
     metadata["specialRegionAirportCount"] = sum(airport.scope == "special_region" for airport in airports)
     metadata["internationalAirportCount"] = sum(airport.scope == "international" for airport in airports)
+    metadata["mainlandAirportCodeSetSha256"] = mainland_digest
+    metadata["airportCatalogAsOf"] = mainland_metadata["asOf"]
     return airports, metadata
 
 
@@ -443,6 +469,19 @@ INTERNATIONAL_GATEWAY_PAIRS = (
     ("DOH", "PVG"), ("AMS", "PEK"), ("AUH", "PVG"), ("YVR", "CAN"),
     ("YYZ", "PEK"),
 )
+
+
+def _validate_route_airport_references() -> None:
+    catalog_codes = {airport.code for airport in AIRPORTS}
+    referenced_codes = set(FLIGHT_AIRPORT_PRIORITY)
+    for routes in (FORCED_ROUTES, BIDIRECTIONAL_HUB_PAIRS, INTERNATIONAL_GATEWAY_PAIRS):
+        referenced_codes.update(code for route in routes for code in route)
+    missing = sorted(referenced_codes - catalog_codes)
+    if missing:
+        raise RuntimeError(f"route configuration references airports absent from catalogs: {', '.join(missing)}")
+
+
+_validate_route_airport_references()
 
 def money(value: Decimal | int | float | str) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -2527,7 +2566,9 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "airportsWithoutMainlandGateway": airports_without_mainland_gateway,
         "flightCoverageRequired": flight_coverage_required,
         "airportCatalogSource": airport_catalog_source,
+        "airportCatalogAsOf": AIRPORT_CATALOG_METADATA["airportCatalogAsOf"],
         "airportCatalogRetrievedAt": AIRPORT_CATALOG_METADATA["airports-cn.json"].get("retrievedAt"),
+        "mainlandAirportCodeSetSha256": AIRPORT_CATALOG_METADATA["mainlandAirportCodeSetSha256"],
         "airlines": len(dataset["airlines"]),
         "routes": len({(flight.departure_airport_id, flight.arrival_airport_id) for flight in dataset["flights"]}),
         "flights": len(dataset["flights"]) if include("flights") else 0,

@@ -11,18 +11,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256 = "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
 
 PROFILE_BOUNDS = {
     "dev": {
-        "airportReferenceCount": (250, 400), "flightAirportCount": (20, 40),
+        "airportReferenceCount": (311, 311), "flightAirportCount": (20, 40),
         "airlines": (8, 15), "routes": (80, 200), "users": (20, 50), "orders": (50, 220),
     },
     "test": {
-        "airportReferenceCount": (250, 400), "flightAirportCount": (250, 300),
+        "airportReferenceCount": (311, 311), "flightAirportCount": (311, 311),
         "airlines": (15, 30), "routes": (300, 900), "users": (200, 1000), "orders": (2000, 10000),
     },
     "perf": {
-        "airportReferenceCount": (250, 400), "flightAirportCount": (250, 300),
+        "airportReferenceCount": (311, 311), "flightAirportCount": (311, 311),
         "airlines": (30, 40), "routes": (1000, 1500), "users": (5000, 6000), "orders": (50000, 60000),
     },
 }
@@ -145,6 +146,16 @@ def validate(sql: str) -> tuple[dict, list[str]]:
         )
         if scope_total != summary.get("airportReferenceCount"):
             errors.append("airport scope counts do not add up to airportReferenceCount")
+        if summary.get("domesticAirportCount") != 270:
+            errors.append("domesticAirportCount must match the 270-airport CAAC snapshot")
+        if summary.get("specialRegionAirportCount") != 15:
+            errors.append("specialRegionAirportCount must be 15")
+        if summary.get("internationalAirportCount") != 26:
+            errors.append("internationalAirportCount must be 26")
+        if summary.get("mainlandAirportCodeSetSha256") != EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256:
+            errors.append("mainland airport code set checksum does not match the approved snapshot")
+        if summary.get("airportCatalogAsOf") != "2025-12-31":
+            errors.append("airportCatalogAsOf must be 2025-12-31")
         if not isinstance(summary.get("airportCatalogSource"), str) or not summary.get("airportCatalogSource"):
             errors.append("summary airportCatalogSource is missing")
         if not isinstance(summary.get("airportCatalogRetrievedAt"), str) or not re.fullmatch(

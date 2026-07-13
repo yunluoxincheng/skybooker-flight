@@ -271,11 +271,11 @@ backend/src/main/resources/db/migration/
 
 Flyway 只初始化 schema、默认管理员、默认普通用户和默认乘机人。航司、机场、航班、座位、订单、退票、改签、候补和 AI 演示数据使用可复现 seed 脚本按需生成：
 
-机场参考目录由 `scripts/data/airports-cn.json` 和 `scripts/data/airports-international.json` 维护，当前包含 260 个中国大陆机场、15 个港澳台机场和 22 个国际枢纽；所有 profile 都导入完整参考目录，dev/test/perf 只用 profile 规模控制产生航班的机场数量。生成后会校验每个选中机场的进出港覆盖、国际/特殊地区到中国大陆的连接和主要枢纽双向航线。`seed` 会自动替换同 profile 的旧 ownership 数据，不需要先执行 `clean`；只删除脚本数据时使用 `clean`，不要用 `docker compose down -v` 代替清理。
+机场参考目录由 `scripts/data/airports-cn.json` 和 `scripts/data/airports-international.json` 维护，当前包含民航局口径的 270 个中国大陆颁证运输机场、15 个港澳台机场和 26 个国际枢纽，共 311 个；所有 profile 都导入完整参考目录，dev/test/perf 只用 profile 规模控制产生航班的机场数量。生成后会校验大陆机场精确集合、每个选中机场的进出港覆盖、国际/特殊地区到中国大陆的连接和主要枢纽双向航线。`seed` 会自动替换同 profile 的旧 ownership 数据，不需要先执行 `clean`；只删除脚本数据时使用 `clean`，不要用 `docker compose down -v` 代替清理。
 
 ```bash
 # 统一生成、校验并导入开发数据（按 ownership 批次幂等刷新）
-./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" --profile dev --scenarios all --yes
+./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" --profile dev --base-date "$(date +%F)" --scenarios all --yes
 ./scripts/test-data.sh validate --dir "$PWD" --source-dir "$PWD" --file test-data/seed-dev.sql --database
 ./scripts/test-data.sh status --dir "$PWD" --source-dir "$PWD"
 
@@ -301,7 +301,7 @@ docker exec -i skybooker-mysql sh -c \
 
 ```bash
 curl -fsSL \
-  https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/main/scripts/test-data.sh \
+  https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/<commit-sha>/scripts/test-data.sh \
   -o /tmp/skybooker-test-data.sh
 bash /tmp/skybooker-test-data.sh status \
   --dir /opt/skybooker \
@@ -320,7 +320,7 @@ bash /tmp/skybooker-test-data.sh status \
 管理员资料邮箱：admin@skybooker.local
 ```
 
-首次部署后应修改默认管理员密码。演示日期过期时，请重新运行 `scripts/generate_test_data.py --base-date <YYYY-MM-DD>` 生成新的 seed SQL，再导入数据库。
+首次部署后应修改默认管理员密码。统一入口 `generate/seed` 默认使用当天日期；可复现任务和底层生成器调用应显式传 `--base-date <YYYY-MM-DD>`。
 
 ## 本地开发
 

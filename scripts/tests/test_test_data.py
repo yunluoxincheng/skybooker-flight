@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,24 +30,54 @@ cleaner = load_module("skybooker_clean_test_data", ROOT / "scripts/clean_test_da
 
 class TestDataToolTest(unittest.TestCase):
     def test_reference_catalog_is_complete_and_profiles_do_not_truncate_it(self):
-        self.assertGreaterEqual(len(generator.AIRPORTS), 250)
+        self.assertEqual(len(generator.AIRPORTS), 311)
         self.assertEqual(len(generator.AIRPORTS), len({airport.code for airport in generator.AIRPORTS}))
         self.assertEqual(len(generator.AIRPORTS), len({airport.id for airport in generator.AIRPORTS}))
         self.assertEqual(
             len(generator.AIRPORTS),
             generator.AIRPORT_CATALOG_METADATA["airportReferenceCount"],
         )
-        self.assertGreaterEqual(
-            sum(airport.scope == "mainland" for airport in generator.AIRPORTS), 200
+        self.assertEqual(sum(airport.scope == "mainland" for airport in generator.AIRPORTS), 270)
+        self.assertEqual(sum(airport.scope == "special_region" for airport in generator.AIRPORTS), 15)
+        self.assertEqual(sum(airport.scope == "international" for airport in generator.AIRPORTS), 26)
+        self.assertEqual(
+            generator.AIRPORT_CATALOG_METADATA["mainlandAirportCodeSetSha256"],
+            generator.EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256,
         )
-        self.assertGreater(
-            sum(airport.scope == "international" for airport in generator.AIRPORTS), 10
-        )
+        codes = {airport.code for airport in generator.AIRPORTS}
+        self.assertTrue({"XNT", "EJN", "HSF", "LIJ", "BZJ", "JRJ", "XYI", "AHJ", "DEJ", "ZAT", "APJ", "DHH"} <= codes)
+        self.assertTrue({"AMS", "AUH", "YVR", "YYZ"} <= codes)
+        self.assertTrue({"DAX", "WEN"}.isdisjoint(codes))
+        for airport in generator.AIRPORTS:
+            if airport.scope in {"mainland", "special_region"}:
+                self.assertIsNone(re.search(r"[A-Za-z]", airport.name), airport.code)
+                self.assertIsNone(re.search(r"[A-Za-z]", airport.city), airport.code)
+        configured_codes = set(generator.FLIGHT_AIRPORT_PRIORITY)
+        for routes in (generator.FORCED_ROUTES, generator.BIDIRECTIONAL_HUB_PAIRS, generator.INTERNATIONAL_GATEWAY_PAIRS):
+            configured_codes.update(code for route in routes for code in route)
+        self.assertTrue(configured_codes <= codes)
         for profile, config in generator.PROFILES.items():
             self.assertEqual(generator.selected_airports(config), generator.AIRPORTS, profile)
             flight_airports = generator.selected_flight_airports(config)
             self.assertGreaterEqual(len(flight_airports), 20)
             self.assertLessEqual(len(flight_airports), len(generator.AIRPORTS))
+
+    def test_shell_entrypoint_defaults_base_date_to_today_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "seed.sql"
+            summary_file = Path(directory) / "summary.json"
+            env = os.environ.copy()
+            env["SKYBOOKER_BASE_DATE"] = "2030-01-02"
+            subprocess.run(
+                [
+                    str(ROOT / "scripts/test-data.sh"), "generate",
+                    "--source-dir", str(ROOT), "--profile", "dev",
+                    "--components", "reference", "--output", str(output),
+                    "--summary-file", str(summary_file),
+                ],
+                check=True, text=True, capture_output=True, env=env,
+            )
+            self.assertEqual(validator.extract_summary(output.read_text())["baseDate"], "2030-01-02")
 
     def test_flight_coverage_summary_has_inbound_outbound_and_gateway_routes(self):
         components = generator.resolve_components("flights")

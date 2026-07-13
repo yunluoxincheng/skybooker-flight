@@ -82,8 +82,13 @@ jobs:
           import sys
 
           summary = json.load(open(sys.argv[1], encoding="utf-8"))
-          assert summary["airportReferenceCount"] >= 250
+          assert summary["airportReferenceCount"] == 311
           assert summary["airportReferenceCount"] == len(summary["airportCodes"])
+          assert summary["domesticAirportCount"] == 270
+          assert summary["specialRegionAirportCount"] == 15
+          assert summary["internationalAirportCount"] == 26
+          assert summary["mainlandAirportCodeSetSha256"] == "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
+          assert summary["flightAirportCount"] == 311
           assert summary["flightAirportCount"] == len(summary["flightAirportCodes"])
           assert summary["airportsWithoutOutboundFlights"] == []
           assert summary["airportsWithoutInboundFlights"] == []
