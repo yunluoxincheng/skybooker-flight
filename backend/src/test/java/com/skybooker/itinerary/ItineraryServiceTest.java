@@ -2,6 +2,7 @@ package com.skybooker.itinerary;
 
 import com.skybooker.common.exception.BusinessException;
 import com.skybooker.flight.service.FlightService;
+import com.skybooker.flight.service.CityQueryService;
 import com.skybooker.flight.dto.FlightSearchDTO;
 import com.skybooker.common.response.PageResponse;
 import com.skybooker.flight.vo.FlightVO;
@@ -43,7 +44,7 @@ class ItineraryServiceTest {
         flightService = mock(FlightService.class);
         flightMapper = mock(FlightMapper.class);
         service = new ItineraryService(itineraryMapper, flightMapper,
-                flightService, mock(PassengerMapper.class), clock);
+                flightService, new CityQueryService(), mock(PassengerMapper.class), clock);
     }
 
     @Test void acceptsNinetyMinuteAndSixHourBoundaries() {
@@ -90,7 +91,8 @@ class ItineraryServiceTest {
         when(flightService.searchFlights(any(FlightSearchDTO.class)))
                 .thenReturn(new PageResponse<>(firstHundred, 101, 1, 100))
                 .thenReturn(new PageResponse<>(List.of(last), 101, 2, 100));
-        when(itineraryMapper.findConnectingPairs("上海", "北京", now.toLocalDate().plusDays(1), 1, null))
+        when(itineraryMapper.findConnectingPairs(List.of("上海", "上海市"), List.of("北京", "北京市"),
+                now.toLocalDate().plusDays(1), 1, null))
                 .thenReturn(List.of());
         FlightSearchDTO query = new FlightSearchDTO();
         query.setDepartureCity(" 上海 "); query.setArrivalCity(" 北京 "); query.setDepartureDate(now.toLocalDate().plusDays(1));
@@ -108,7 +110,8 @@ class ItineraryServiceTest {
         when(flightService.searchFlights(any(FlightSearchDTO.class)))
                 .thenReturn(new PageResponse<>(List.of(direct), 1, 1, 100));
         when(flightMapper.countAvailableSeatsByFlightAndCabin(1L, "BUSINESS")).thenReturn(2);
-        when(itineraryMapper.findConnectingPairs("上海", "北京", now.toLocalDate().plusDays(1), 1, "BUSINESS"))
+        when(itineraryMapper.findConnectingPairs(List.of("上海", "上海市"), List.of("北京", "北京市"),
+                now.toLocalDate().plusDays(1), 1, "BUSINESS"))
                 .thenReturn(List.of());
         FlightSearchDTO query = new FlightSearchDTO(); query.setDepartureCity("上海"); query.setArrivalCity("北京");
         query.setDepartureDate(now.toLocalDate().plusDays(1)); query.setCabinClass("BUSINESS");

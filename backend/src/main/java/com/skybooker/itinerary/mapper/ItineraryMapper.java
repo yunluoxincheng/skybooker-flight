@@ -13,8 +13,8 @@ import com.skybooker.itinerary.vo.FareCalendarVO;
 
 @Mapper
 public interface ItineraryMapper {
-    List<ConnectingPairVO> findConnectingPairs(@Param("departureCity") String departureCity,
-                                                @Param("arrivalCity") String arrivalCity,
+    List<ConnectingPairVO> findConnectingPairs(@Param("departureCities") List<String> departureCities,
+                                                @Param("arrivalCities") List<String> arrivalCities,
                                                 @Param("departureDate") LocalDate departureDate,
                                                 @Param("passengerCount") int passengerCount,
                                                 @Param("cabinClass") String cabinClass);
@@ -43,8 +43,8 @@ public interface ItineraryMapper {
                                @Param("departureAirportId") Long departureAirportId,
                                @Param("arrivalAirportId") Long arrivalAirportId,
                                @Param("firstFlightId") Long firstFlightId);
-    List<FareCalendarVO> findFareCalendar(@Param("departureCity") String departureCity,
-                                          @Param("arrivalCity") String arrivalCity,
+    List<FareCalendarVO> findFareCalendar(@Param("departureCities") List<String> departureCities,
+                                          @Param("arrivalCities") List<String> arrivalCities,
                                           @Param("startDate") LocalDate startDate,
                                           @Param("endDate") LocalDate endDate);
 }

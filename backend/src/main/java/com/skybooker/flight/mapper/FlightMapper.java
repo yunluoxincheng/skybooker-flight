@@ -18,8 +18,8 @@ import java.util.List;
 public interface FlightMapper {
 
     List<FlightVO> searchFlights(@Param("flightNo") String flightNo,
-                                 @Param("departureCity") String departureCity,
-                                 @Param("arrivalCity") String arrivalCity,
+                                 @Param("departureCities") List<String> departureCities,
+                                 @Param("arrivalCities") List<String> arrivalCities,
                                  @Param("departureDate") LocalDate departureDate,
                                  @Param("departureDateStart") LocalDate departureDateStart,
                                  @Param("departureDateEnd") LocalDate departureDateEnd,
@@ -27,15 +27,15 @@ public interface FlightMapper {
                                  @Param("size") int size);
 
     long countFlights(@Param("flightNo") String flightNo,
-                      @Param("departureCity") String departureCity,
-                      @Param("arrivalCity") String arrivalCity,
+                      @Param("departureCities") List<String> departureCities,
+                      @Param("arrivalCities") List<String> arrivalCities,
                       @Param("departureDate") LocalDate departureDate,
                       @Param("departureDateStart") LocalDate departureDateStart,
                       @Param("departureDateEnd") LocalDate departureDateEnd);
 
     List<FlightVO> searchFlightsAdvanced(@Param("flightNo") String flightNo,
-                                          @Param("departureCity") String departureCity,
-                                          @Param("arrivalCity") String arrivalCity,
+                                          @Param("departureCities") List<String> departureCities,
+                                          @Param("arrivalCities") List<String> arrivalCities,
                                           @Param("departureDate") LocalDate departureDate,
                                           @Param("departureDateStart") LocalDate departureDateStart,
                                           @Param("departureDateEnd") LocalDate departureDateEnd,
@@ -55,8 +55,8 @@ public interface FlightMapper {
                                           @Param("size") int size);
 
     long countFlightsAdvanced(@Param("flightNo") String flightNo,
-                               @Param("departureCity") String departureCity,
-                               @Param("arrivalCity") String arrivalCity,
+                               @Param("departureCities") List<String> departureCities,
+                               @Param("arrivalCities") List<String> arrivalCities,
                                @Param("departureDate") LocalDate departureDate,
                                @Param("departureDateStart") LocalDate departureDateStart,
                                @Param("departureDateEnd") LocalDate departureDateEnd,
@@ -72,8 +72,8 @@ public interface FlightMapper {
                                @Param("cabinClass") String cabinClass,
                                @Param("includeSoldOut") Boolean includeSoldOut);
 
-    List<FlightVO> searchRecommendationFlights(@Param("departureCity") String departureCity,
-                                                @Param("arrivalCity") String arrivalCity,
+    List<FlightVO> searchRecommendationFlights(@Param("departureCities") List<String> departureCities,
+                                                @Param("arrivalCities") List<String> arrivalCities,
                                                 @Param("departureDate") LocalDate departureDate,
                                                 @Param("departureDateStart") LocalDate departureDateStart,
                                                 @Param("departureDateEnd") LocalDate departureDateEnd,
