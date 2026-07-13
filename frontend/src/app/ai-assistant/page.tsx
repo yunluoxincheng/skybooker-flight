@@ -53,7 +53,7 @@ const FIELD_LABELS: Record<string, string> = {
 }
 
 const FIELD_HINTS: Record<string, string> = {
-  departureCity: "你从哪里出发？",
+  departureCity: "您从哪里出发？",
   arrivalCity: "想飞到哪里？",
   destinationCity: "想去哪个城市？",
   departureDate: "哪一天出发？",
@@ -136,7 +136,7 @@ function formatAssistantContent(content: string, missingFields?: string[]) {
     return cleaned
   }
   if (missingFields?.length) {
-    return "我还需要一点行程信息，才能继续帮你查。"
+    return "我还需要一点行程信息，才能继续为您查询。"
   }
   if (technicalFields.length) {
     const labels = Array.from(new Set(technicalFields.map(getFieldLabel)))

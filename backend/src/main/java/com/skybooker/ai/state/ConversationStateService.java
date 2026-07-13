@@ -129,6 +129,17 @@ public class ConversationStateService {
         return map;
     }
 
+    public ConversationState clearFlightQueryState(ConversationState state) {
+        ConversationState source = state == null ? ConversationState.empty() : state;
+        return source.toBuilder()
+                .pendingFlightCondition(null)
+                .pendingMissingFields(new ArrayList<>())
+                .lastFlightCondition(null)
+                .activeFlightCondition(null)
+                .lastExecutedFlightCondition(null)
+                .build();
+    }
+
     public Map<String, Object> travelContextMap(ConversationState state) {
         if (state == null || state.getRecommendedDestinationCity() == null) {
             return Collections.emptyMap();
