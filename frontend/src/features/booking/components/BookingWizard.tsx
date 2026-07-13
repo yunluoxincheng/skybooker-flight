@@ -8,9 +8,12 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  IdCard,
   Loader2,
   Plane,
+  Phone,
   Plus,
+  UserRound,
   UserPlus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -47,6 +52,7 @@ import * as flightApi from "@/services/flightApi";
 import * as passengerApi from "@/services/passengerApi";
 import * as orderApi from "@/services/orderApi";
 import type { ApiError } from "@/lib/request";
+import { PASSENGER_TYPE_LABEL } from "@/lib/passenger-utils";
 import { validatePassengerForm } from "@/features/booking/passengerValidation";
 
 const STEPS = [
@@ -475,57 +481,101 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
         </Card>
       )}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新增乘机人</DialogTitle>
+        <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="border-b bg-slate-50/80 px-6 py-5 pr-14">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <UserPlus className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <DialogTitle className="text-lg">新增乘机人</DialogTitle>
+                <DialogDescription>
+                  请填写与有效身份证件一致的信息
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="space-y-3">
-            <Label>
-              姓名
-              <Input
-                value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-              />
-            </Label>
-            {formErrors.name && (
-              <p className="text-xs text-destructive">{formErrors.name}</p>
-            )}
-            <Label>
-              身份证号
-              <Input
-                value={form.idCardNo}
-                onChange={(event) =>
-                  setForm({ ...form, idCardNo: event.target.value })
-                }
-              />
-            </Label>
-            {formErrors.idCardNo && (
-              <p className="text-xs text-destructive">{formErrors.idCardNo}</p>
-            )}
-            <Label>
-              手机号
-              <Input
-                value={form.phone}
-                onChange={(event) =>
-                  setForm({ ...form, phone: event.target.value })
-                }
-              />
-            </Label>
-            {formErrors.phone && (
-              <p className="text-xs text-destructive">{formErrors.phone}</p>
-            )}
-            <Label>
-              乘机人类型
+          <div className="space-y-5 px-6 py-1">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="passenger-name">姓名</Label>
+                <div className="relative">
+                  <UserRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="passenger-name"
+                    className="h-10 pl-9"
+                    placeholder="请输入证件姓名"
+                    autoComplete="name"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm({ ...form, name: event.target.value })
+                    }
+                  />
+                </div>
+                {formErrors.name && (
+                  <p className="text-xs text-destructive">{formErrors.name}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="passenger-phone">手机号</Label>
+                <div className="relative">
+                  <Phone className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="passenger-phone"
+                    className="h-10 pl-9"
+                    placeholder="用于接收行程通知"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={form.phone}
+                    onChange={(event) =>
+                      setForm({ ...form, phone: event.target.value })
+                    }
+                  />
+                </div>
+                {formErrors.phone && (
+                  <p className="text-xs text-destructive">{formErrors.phone}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="passenger-id-card">身份证号</Label>
+              <div className="relative">
+                <IdCard className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="passenger-id-card"
+                  className="h-10 pl-9 font-mono tracking-wide"
+                  placeholder="请输入 18 位身份证号码"
+                  autoComplete="off"
+                  value={form.idCardNo}
+                  onChange={(event) =>
+                    setForm({ ...form, idCardNo: event.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+              {formErrors.idCardNo && (
+                <p className="text-xs text-destructive">{formErrors.idCardNo}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="passenger-type">乘机人类型</Label>
               <Select
                 value={form.passengerType}
                 onValueChange={(value) =>
                   setForm({ ...form, passengerType: value as PassengerType })
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger
+                  id="passenger-type"
+                  className="h-10 w-full bg-background"
+                >
+                  <SelectValue>
+                    {(value) =>
+                      PASSENGER_TYPE_LABEL[value as PassengerType] ??
+                      "请选择乘机人类型"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ADULT">成人</SelectItem>
@@ -533,15 +583,23 @@ export function BookingWizard({ journey }: { journey: ItineraryVO }) {
                   <SelectItem value="INFANT">婴儿</SelectItem>
                 </SelectContent>
               </Select>
-            </Label>
+              <p className="text-xs leading-5 text-muted-foreground">
+                儿童与婴儿票价及乘机规则以航司实际规定为准
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="mx-0 mb-0 px-6 py-4">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              取消
+            </Button>
             <Button
-              className="w-full"
               onClick={addPassenger}
               disabled={submitting || !passengerFormValid}
             >
+              {submitting && <Loader2 className="size-4 animate-spin" />}
               确认添加
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
