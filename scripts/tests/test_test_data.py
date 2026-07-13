@@ -106,6 +106,13 @@ class TestDataToolTest(unittest.TestCase):
         sql = generator.render_sql(dataset)
         self.assertIn("INSERT INTO airport(code, name, city, province, status)", sql)
         self.assertIn("INSERT INTO airline(code, name, logo_url, status)", sql)
+        self.assertIn("UPDATE airport a SET a.status='DISABLED' WHERE a.code IN ('DAX', 'WEN')", sql)
+        self.assertIn("DELETE a FROM airport a WHERE a.code IN ('DAX', 'WEN')", sql)
+        self.assertEqual(summary := validator.extract_summary(sql), validator.validate(sql)[0])
+        self.assertEqual(summary["legacyManagedAirportCodes"], ["DAX", "WEN"])
+        reference_checks = dict(validator.database_reference_checks(summary))
+        self.assertIn("airport_catalog_fields_mismatch", reference_checks)
+        self.assertIn("legacy_managed_airports_still_enabled", reference_checks)
         first_flight = dataset["flights"][0]
         airport_by_id = {airport.id: airport for airport in dataset["airports"]}
         airline_by_id = {airline.id: airline for airline in dataset["airlines"]}

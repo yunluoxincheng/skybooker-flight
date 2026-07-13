@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256 = "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
+EXPECTED_LEGACY_MANAGED_AIRPORT_CODES = ["DAX", "WEN"]
 
 PROFILE_BOUNDS = {
     "dev": {
@@ -156,6 +157,12 @@ def validate(sql: str) -> tuple[dict, list[str]]:
             errors.append("mainland airport code set checksum does not match the approved snapshot")
         if summary.get("airportCatalogAsOf") != "2025-12-31":
             errors.append("airportCatalogAsOf must be 2025-12-31")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(summary.get("airportCatalogFingerprintSha256", ""))):
+            errors.append("airportCatalogFingerprintSha256 is invalid")
+        if summary.get("legacyManagedAirportCodes") != EXPECTED_LEGACY_MANAGED_AIRPORT_CODES:
+            errors.append("legacyManagedAirportCodes does not match the approved retirement list")
+        if "a.code IN ('DAX', 'WEN')" not in sql:
+            errors.append("seed SQL does not safely retire legacy managed airports")
         if not isinstance(summary.get("airportCatalogSource"), str) or not summary.get("airportCatalogSource"):
             errors.append("summary airportCatalogSource is missing")
         if not isinstance(summary.get("airportCatalogRetrievedAt"), str) or not re.fullmatch(
@@ -472,6 +479,38 @@ def database_coverage_checks(summary: dict, batch: str) -> list[tuple[str, str]]
     return checks
 
 
+def database_reference_checks(summary: dict) -> list[tuple[str, str]]:
+    airport_codes = summary.get("airportCodes")
+    fingerprint = summary.get("airportCatalogFingerprintSha256")
+    legacy_codes = summary.get("legacyManagedAirportCodes")
+    if not isinstance(airport_codes, list) or any(
+        not isinstance(code, str) or not re.fullmatch(r"[A-Z]{3}", code) for code in airport_codes
+    ):
+        raise ValueError("invalid airportCodes")
+    if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+        raise ValueError("invalid airportCatalogFingerprintSha256")
+    if legacy_codes != EXPECTED_LEGACY_MANAGED_AIRPORT_CODES:
+        raise ValueError("invalid legacyManagedAirportCodes")
+    quoted_catalog = ", ".join(f"'{code}'" for code in sorted(set(airport_codes)))
+    quoted_legacy = ", ".join(f"'{code}'" for code in legacy_codes)
+    return [
+        (
+            "airport_catalog_rows_missing_or_disabled",
+            f"SELECT {len(airport_codes)} - COUNT(*) FROM airport WHERE code IN ({quoted_catalog}) AND status='ENABLED'",
+        ),
+        (
+            "airport_catalog_fields_mismatch",
+            "SET SESSION group_concat_max_len=1048576; "
+            f"SELECT CASE WHEN LOWER(SHA2(GROUP_CONCAT(CONCAT_WS(CHAR(9), code, name, city, province, status) ORDER BY code SEPARATOR '\\n'), 256))='{fingerprint}' THEN 0 ELSE 1 END "
+            f"FROM airport WHERE code IN ({quoted_catalog})",
+        ),
+        (
+            "legacy_managed_airports_still_enabled",
+            f"SELECT COUNT(*) FROM airport WHERE code IN ({quoted_legacy}) AND status <> 'DISABLED'",
+        ),
+    ]
+
+
 def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
     batch = summary.get("batchKey")
     if not isinstance(batch, str) or not re.fullmatch(r"skybooker:(dev|test|perf)", batch):
@@ -491,6 +530,10 @@ def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
     except ValueError as exc:
         return [f"database metadata check cannot be built: {exc}"]
     checks.extend(DATABASE_CHECKS.items())
+    try:
+        checks.extend(database_reference_checks(summary))
+    except ValueError as exc:
+        return [f"database reference check cannot be built: {exc}"]
     try:
         checks.extend(database_coverage_checks(summary, batch))
     except ValueError as exc:

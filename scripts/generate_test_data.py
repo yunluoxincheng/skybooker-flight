@@ -27,6 +27,7 @@ SERVICE_FEE = Decimal("0.00")
 EXPECTED_MAINLAND_AIRPORT_COUNT = 270
 EXPECTED_MAINLAND_AIRPORT_CODE_SET_SHA256 = "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
 EXPECTED_AIRPORT_CATALOG_AS_OF = "2025-12-31"
+LEGACY_MANAGED_AIRPORT_CODES = ("DAX", "WEN")
 
 COMPONENT_NAMES = (
     "reference", "users", "flights", "orders", "refunds", "changes", "waitlists", "ai", "all"
@@ -482,6 +483,15 @@ def _validate_route_airport_references() -> None:
 
 
 _validate_route_airport_references()
+
+
+def airport_catalog_fingerprint(airports: list[Airport]) -> str:
+    rows = "\n".join(
+        f"{airport.code}\t{airport.name}\t{airport.city}\t{airport.province}\tENABLED"
+        for airport in sorted(airports, key=lambda item: item.code)
+    )
+    return hashlib.sha256(rows.encode("utf-8")).hexdigest()
+
 
 def money(value: Decimal | int | float | str) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -2140,6 +2150,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
     airport_rows = [(a.code, a.name, a.city, a.province, "ENABLED") for a in dataset["airports"]]
     airline_rows = [(a.code, a.name, None, "ENABLED") for a in dataset["airlines"]]
     if include("reference"):
+        legacy_codes = ", ".join(sql_string(code) for code in LEGACY_MANAGED_AIRPORT_CODES)
+        statements.extend([
+            "-- Retire only explicitly known legacy seed airports; preserve arbitrary catalog-external rows.",
+            f"UPDATE airport a SET a.status='DISABLED' WHERE a.code IN ({legacy_codes}) ",
+            "AND EXISTS (SELECT 1 FROM flight f WHERE f.departure_airport_id=a.id OR f.arrival_airport_id=a.id);",
+            f"DELETE a FROM airport a WHERE a.code IN ({legacy_codes}) ",
+            "AND NOT EXISTS (SELECT 1 FROM flight f WHERE f.departure_airport_id=a.id OR f.arrival_airport_id=a.id);",
+        ])
         statements.extend(
             upsert_statement("airline", ["code", "name", "logo_url", "status"], airline_rows, ["name", "logo_url", "status"])
         )
@@ -2569,6 +2587,8 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "airportCatalogAsOf": AIRPORT_CATALOG_METADATA["airportCatalogAsOf"],
         "airportCatalogRetrievedAt": AIRPORT_CATALOG_METADATA["airports-cn.json"].get("retrievedAt"),
         "mainlandAirportCodeSetSha256": AIRPORT_CATALOG_METADATA["mainlandAirportCodeSetSha256"],
+        "airportCatalogFingerprintSha256": airport_catalog_fingerprint(reference_airports),
+        "legacyManagedAirportCodes": list(LEGACY_MANAGED_AIRPORT_CODES),
         "airlines": len(dataset["airlines"]),
         "routes": len({(flight.departure_airport_id, flight.arrival_airport_id) for flight in dataset["flights"]}),
         "flights": len(dataset["flights"]) if include("flights") else 0,

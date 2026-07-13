@@ -22,6 +22,12 @@ When refreshing a catalog, update the metadata date/source, preserve existing
 IDs and codes, run the generator and static validation matrix, and review the
 coverage summary before committing the change.
 
+Known codes retired from an older generated catalog are maintained explicitly
+in `LEGACY_MANAGED_AIRPORT_CODES`. A seed deletes only an unreferenced airport
+on that list; if a flight still references it, the airport is retained as
+`DISABLED`. Arbitrary codes outside the catalog are treated as user-managed and
+are never removed by catalog synchronization.
+
 Official mainland references:
 
 - CAAC 2025 statistics bulletin: <http://fuwu.caacnews.com.cn/1/1/202602/t20260226_1393527.html>

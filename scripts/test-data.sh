@@ -300,8 +300,8 @@ database_validate() {
   local output
   local coverage_output coverage_sql
   local batch_key profile seed source_ref source_condition coverage_required
-  local flight_codes mainland_codes non_mainland_codes required_routes
-  IFS=$'\t' read -r batch_key profile seed source_ref coverage_required flight_codes mainland_codes non_mainland_codes required_routes <<< "$(python3 - "$file" <<'PY'
+  local flight_codes mainland_codes non_mainland_codes required_routes reference_codes legacy_codes catalog_fingerprint
+  IFS=$'\x1f' read -r batch_key profile seed source_ref coverage_required flight_codes mainland_codes non_mainland_codes required_routes reference_codes legacy_codes catalog_fingerprint <<< "$(python3 - "$file" <<'PY'
 import json
 import re
 import sys
@@ -329,11 +329,18 @@ def codes(name):
     if not isinstance(values, list) or any(not isinstance(value, str) or not re.fullmatch(r"[A-Z]{3}", value) for value in values):
         raise SystemExit(1)
     return ",".join(sorted(set(values)))
-print("\t".join([
+def quoted_codes(name):
+    values = codes(name).split(",")
+    return ",".join(f"'{value}'" for value in values if value)
+fingerprint = summary.get("airportCatalogFingerprintSha256")
+if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+    raise SystemExit(1)
+print("\x1f".join([
     batch, profile, str(seed), source_ref or "NULL",
     str(bool(summary.get("flightCoverageRequired"))).lower(),
     codes("flightAirportCodes"), codes("mainlandFlightAirportCodes"),
     codes("nonMainlandFlightAirportCodes"), json.dumps(summary.get("requiredBidirectionalRoutes", []), separators=(",", ":")),
+    quoted_codes("airportCodes"), quoted_codes("legacyManagedAirportCodes"), fingerprint,
 ]))
 PY
   )" || fail "Could not read ownership batch metadata from $file."
@@ -357,6 +364,10 @@ SELECT 'locked_seats_have_order_and_expiry', COUNT(*) FROM flight_seat s WHERE E
 SELECT 'connecting_orders_have_two_segments', COUNT(*) FROM ticket_order o WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='ticket_order' AND own.row_id=o.id) AND o.journey_type='CONNECTING' AND (SELECT COUNT(*) FROM ticket_order_segment s WHERE s.order_id=o.id) <> 2;
 SELECT 'connecting_passengers_match', COUNT(*) FROM ticket_order o WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='ticket_order' AND own.row_id=o.id) AND o.journey_type='CONNECTING' AND (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=1) <> (SELECT GROUP_CONCAT(DISTINCT p.passenger_id ORDER BY p.passenger_id) FROM order_segment_passenger p JOIN ticket_order_segment s ON s.id=p.order_segment_id WHERE s.order_id=o.id AND s.segment_no=2);
 SELECT 'connecting_change_snapshots_complete', COUNT(*) FROM connecting_change_record c WHERE EXISTS (SELECT 1 FROM test_data_ownership own WHERE own.batch_key='${batch_key}' AND own.table_name='connecting_change_record' AND own.row_id=c.id) AND (SELECT COUNT(*) FROM connecting_change_segment s WHERE s.change_record_id=c.id) <> 4;
+SELECT 'airport_catalog_rows_missing_or_disabled', 311 - COUNT(*) FROM airport WHERE code IN (${reference_codes}) AND status='ENABLED';
+SET SESSION group_concat_max_len=1048576;
+SELECT 'airport_catalog_fields_mismatch', CASE WHEN LOWER(SHA2(GROUP_CONCAT(CONCAT_WS(CHAR(9), code, name, city, province, status) ORDER BY code SEPARATOR '\n'), 256))='${catalog_fingerprint}' THEN 0 ELSE 1 END FROM airport WHERE code IN (${reference_codes});
+SELECT 'legacy_managed_airports_still_enabled', COUNT(*) FROM airport WHERE code IN (${legacy_codes}) AND status <> 'DISABLED';
 SQL
 )"
   local failed="false"

@@ -123,10 +123,32 @@ jobs:
           set -euo pipefail
           tmp_dir="$(mktemp -d)"
           trap 'rm -rf "$tmp_dir"' EXIT
+          MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names <<'SQL'
+          INSERT INTO airline(code, name, status) VALUES ('ZZ', '手工测试航司', 'ENABLED');
+          INSERT INTO airport(code, name, city, province, status) VALUES
+            ('WEN', '旧 Seed 温州机场', '温州', '浙江', 'ENABLED'),
+            ('DAX', '旧 Seed 达州河市机场', '达州', '四川', 'ENABLED'),
+            ('ZZZ', '手工测试机场', '测试市', '测试省', 'ENABLED');
+          INSERT INTO flight(
+            id, flight_no, airline_id, departure_airport_id, arrival_airport_id,
+            departure_time, arrival_time, duration_minutes, base_price
+          ) VALUES (
+            99000001, 'ZZ9001',
+            (SELECT id FROM airline WHERE code='ZZ'),
+            (SELECT id FROM airport WHERE code='DAX'),
+            (SELECT id FROM airport WHERE code='ZZZ'),
+            '2030-01-02 08:00:00', '2030-01-02 09:00:00', 60, 100.00
+          );
+          SQL
           ./scripts/test-data.sh seed \
             --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
             --profile dev --components flights --scenarios direct \
             --host 127.0.0.1 --port 3306 --user root --db flight_booking_test --yes
+          legacy_and_manual_state="$(MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "SELECT CONCAT((SELECT COUNT(*) FROM airport WHERE code='WEN'), ',', (SELECT COUNT(*) FROM airport WHERE code='DAX' AND status='DISABLED'), ',', (SELECT COUNT(*) FROM airport WHERE code='ZZZ' AND status='ENABLED'), ',', (SELECT COUNT(*) FROM flight WHERE id=99000001));")"
+          test "$legacy_and_manual_state" = "0,1,1,1"
           ./scripts/test-data.sh seed \
             --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
             --profile dev --components orders --scenarios direct \
