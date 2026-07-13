@@ -18,30 +18,34 @@ public class AiReplyComposer {
     public String composeSearchReply(ParsedCondition requested, ParsedCondition explicit,
                                      FlightSearchResult result, String message,
                                      boolean hadActiveCondition) {
-        String prefix = composeConditionUpdatedReply(explicit, message, hadActiveCondition);
+        String update = composeConditionUpdate(explicit, requested, message, hadActiveCondition);
         String defaultNotice = requested != null && !requested.hasDepartureDateCondition()
-                ? "您还没有指定日期，我先按今天查询。" : "";
+                ? "您未指定日期，已按今天查询" : "";
+        String context = joinClauses(update, defaultNotice);
         String resultText = switch (result.matchLevel()) {
-            case EXACT -> "找到了 " + result.flights().size() + " 个符合条件的航班。以下航班均为"
-                    + formatter.summary(ParsedConditionMaps.fromObject(result.appliedCondition()))
-                    + "，您可以继续比较价格和起飞时间。";
+            case EXACT -> withContext(context, "找到 " + result.flights().size() + " 个"
+                    + (update.contains("当前条件") ? "" : formatter.summary(
+                            ParsedConditionMaps.fromObject(result.appliedCondition())) + "的") + "航班。");
             case RELAXED -> composeRelaxedReply(requested, result);
             case PARTIAL -> composePartialReply(requested, result);
-            case FALLBACK -> "暂时没有查到符合当前路线和日期的航班。下面这些是近期仍有余票的航班，仅供参考，"
-                    + "与您刚才的查询条件不完全一致。您也可以修改日期或目的地后重新查询。";
+            case FALLBACK -> (requested != null && !requested.hasDepartureDateCondition()
+                    ? "按默认的今天查询后，仍未找到符合当前条件的航班"
+                    : "未找到符合当前条件的航班") + "，下面推荐 " + result.flights().size()
+                    + " 个近期其他航班，路线和日期可能不同。";
         };
-        return join(prefix, defaultNotice, resultText);
+        return resultText;
     }
 
     public String composeMissingFieldsReply(ParsedCondition condition, ParsedCondition explicit,
                                             String message, boolean hadActiveCondition) {
-        String prefix = composeConditionUpdatedReply(explicit, message, hadActiveCondition);
+        String prefix = composeConditionUpdate(explicit, condition, message, hadActiveCondition);
         List<String> missing = condition == null || condition.getMissingFields() == null
                 ? List.of() : condition.getMissingFields();
         String known = formatter.summary(condition);
         String question = naturalQuestion(missing);
         if ("当前条件".equals(known)) return question;
-        return join(prefix, "好的，当前条件是" + known + "。" + question);
+        return (prefix.isBlank() ? "当前条件是" : prefix + "；当前条件是")
+                + known + "。" + question;
     }
 
     public String composeResetReply() {
@@ -53,36 +57,32 @@ public class AiReplyComposer {
     }
 
     private String composeRelaxedReply(ParsedCondition requested, FlightSearchResult result) {
-        List<String> relaxed = result.relaxedFields().stream().map(this::fieldLabel).toList();
-        String fields = quoteJoin(relaxed);
+        String fields = relaxedDescription(result.relaxedFields(), null);
         ParsedCondition applied = ParsedConditionMaps.fromObject(result.appliedCondition());
         String retained = retainedSummary(requested, applied);
-        String retainedText = "当前条件".equals(retained)
-                ? "当前结果未保留其他原始筛选条件"
-                : "我保留了" + retained;
-        return "暂时没有同时满足" + fields + "的航班。" + retainedText + "，并为您找到了 "
-                + result.flights().size() + " 个其他可选航班。";
+        String retainedText = "当前条件".equals(retained) ? "" : retained + "的";
+        String defaultPrefix = requested != null && !requested.hasDepartureDateCondition()
+                ? "按默认的今天查询后，" : "";
+        return defaultPrefix + "当前筛选暂时没有完全匹配，下面是 " + result.flights().size() + " 个"
+                + retainedText + "可选航班；已放宽" + fields + "。";
     }
 
     private String composePartialReply(ParsedCondition requested, FlightSearchResult result) {
         String requestedDate = formatter.date(requested);
         String appliedDate = formatter.appliedDate(result.appliedCondition());
         String route = route(requested);
-        List<String> otherRelaxedFields = result.relaxedFields().stream()
-                .filter(field -> !"departureDate".equals(field))
-                .map(this::fieldLabel)
-                .distinct()
-                .toList();
+        String otherRelaxedFields = relaxedDescription(result.relaxedFields(), "departureDate");
         String otherRelaxedNotice = otherRelaxedFields.isEmpty()
                 ? ""
-                : "同时还放宽了" + quoteJoin(otherRelaxedFields) + "限制。";
-        return (requestedDate == null ? "原查询日期" : requestedDate) + "暂时没有" + route
-                + "的可售航班。最近有航班的日期是 " + appliedDate + "，我先为您列出当天的选择。"
+                : "同时放宽了" + otherRelaxedFields + "。";
+        return (requestedDate == null ? "按默认的今天查询时，" : requestedDate) + route
+                + "暂无可售航班，最近有航班的日期是 " + appliedDate + "，下面列出当天 "
+                + result.flights().size() + " 个选择。"
                 + otherRelaxedNotice;
     }
 
-    private String composeConditionUpdatedReply(ParsedCondition explicit, String message,
-                                                boolean hadActiveCondition) {
+    private String composeConditionUpdate(ParsedCondition explicit, ParsedCondition active, String message,
+                                          boolean hadActiveCondition) {
         if (!hadActiveCondition) return "";
         List<String> changes = new ArrayList<>();
         if (message != null && (message.contains("时间不限") || message.contains("时段不限"))) {
@@ -95,7 +95,12 @@ public class AiReplyComposer {
         addChange(changes, "航空公司", formatter.fieldValue("airlineRaw", explicit));
         addChange(changes, "舱位", formatter.fieldValue("cabinClass", explicit));
         if (changes.isEmpty()) return "";
-        return "好的，" + String.join("，", changes) + "，其他未提及条件保持不变。";
+        if (changes.size() == 1) return changes.getFirst();
+        String summary = formatter.summary(active);
+        if (changes.getFirst().equals("已取消起飞时段限制")) {
+            return "已取消起飞时段限制，当前条件更新为" + summary;
+        }
+        return "当前条件已更新为" + summary;
     }
 
     private void addChange(List<String> changes, String label, String value) {
@@ -158,13 +163,29 @@ public class AiReplyComposer {
         };
     }
 
-    private String quoteJoin(List<String> values) {
-        return values.stream().distinct().map(value -> "“" + value + "”").reduce((a, b) -> a + "和" + b)
-                .orElse("全部筛选条件");
+    private String relaxedDescription(List<String> fields, String excludedField) {
+        List<String> labels = fields.stream()
+                .filter(field -> !field.equals(excludedField))
+                .filter(field -> !"sort".equals(field))
+                .map(this::fieldLabel)
+                .distinct()
+                .toList();
+        if (labels.isEmpty()) return "";
+        if (labels.size() > 2) return "部分筛选条件";
+        return String.join("和", labels) + "条件";
     }
 
     private String join(String... parts) {
         return java.util.Arrays.stream(parts).filter(value -> value != null && !value.isBlank())
                 .reduce((a, b) -> a + b).orElse("");
+    }
+
+    private String joinClauses(String... parts) {
+        return java.util.Arrays.stream(parts).filter(value -> value != null && !value.isBlank())
+                .reduce((a, b) -> a + "；" + b).orElse("");
+    }
+
+    private String withContext(String context, String result) {
+        return context == null || context.isBlank() ? result : context + "；" + result;
     }
 }

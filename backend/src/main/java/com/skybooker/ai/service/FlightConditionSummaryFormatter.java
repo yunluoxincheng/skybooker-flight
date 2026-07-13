@@ -34,9 +34,14 @@ public class FlightConditionSummaryFormatter {
             parts.add("飞往" + condition.getArrivalCity());
         }
         String date = date(condition);
-        if (date != null) parts.add(date + "出发");
         String time = time(condition.getDepartureTimeStart(), condition.getDepartureTimeEnd());
-        if (time != null) parts.add(time + "起飞");
+        if (date != null && time != null) {
+            parts.add(date + time + "起飞");
+        } else if (date != null) {
+            parts.add(date + "出发");
+        } else if (time != null) {
+            parts.add(time + "起飞");
+        }
         if (condition.getCabinClass() != null) parts.add(cabin(condition.getCabinClass()));
         if (condition.getAirlineRaw() != null) parts.add(condition.getAirlineRaw());
         if (condition.getPassengerCount() != null && condition.getPassengerCount() > 1) {

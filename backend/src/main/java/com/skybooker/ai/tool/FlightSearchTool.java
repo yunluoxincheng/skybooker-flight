@@ -92,7 +92,7 @@ public class FlightSearchTool {
     private ParsedCondition removeSecondaryFilters(ParsedCondition value) {
         return value.toBuilder().airlineRaw(null).cabinClass(null).minPrice(null).maxPrice(null)
                 .departureTimeStart(null).departureTimeEnd(null).maxDurationMinutes(null)
-                .directOnly(null).sort(null).build();
+                .directOnly(null).build();
     }
 
     private List<String> secondaryFields(ParsedCondition value) {
@@ -103,7 +103,6 @@ public class FlightSearchTool {
         if (value.getDepartureTimeStart() != null || value.getDepartureTimeEnd() != null) fields.add("departureTime");
         if (value.getMaxDurationMinutes() != null) fields.add("maxDurationMinutes");
         if (value.getDirectOnly() != null) fields.add("directOnly");
-        if (value.getSort() != null) fields.add("sort");
         return fields;
     }
 

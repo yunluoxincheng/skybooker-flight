@@ -46,10 +46,12 @@ class AiReplyComposerTest {
                 .departureTimeStart(LocalTime.NOON).departureTimeEnd(LocalTime.of(18, 0)).build();
 
         String reply = composer.composeSearchReply(active, explicit,
-                result(FlightMatchLevel.EXACT, Map.of("departureDate", "2026-07-14"), List.of(), 1),
+                result(FlightMatchLevel.EXACT, Map.of(
+                        "departureCity", "广州", "arrivalCity", "北京", "departureDate", "2026-07-14",
+                        "departureTimeStart", "12:00", "departureTimeEnd", "18:00"), List.of(), 1),
                 "下午的呢", true);
 
-        assertThat(reply).startsWith("好的，已将起飞时间改为下午，其他未提及条件保持不变。");
+        assertThat(reply).isEqualTo("已将起飞时间改为下午；找到 1 个广州飞往北京、明天下午起飞的航班。");
     }
 
     @Test
@@ -58,7 +60,7 @@ class AiReplyComposerTest {
                 result(FlightMatchLevel.EXACT, appliedBase(), List.of(), 1),
                 "时间不限", true);
 
-        assertThat(reply).startsWith("好的，已取消起飞时段限制，其他未提及条件保持不变。");
+        assertThat(reply).isEqualTo("已取消起飞时段限制；找到 1 个广州飞往北京、明天出发的航班。");
     }
 
     @Test
@@ -70,8 +72,8 @@ class AiReplyComposerTest {
                         "departureCity", "广州", "arrivalCity", "上海", "departureDate", "2026-07-14"),
                         List.of(), 1), "时间不限，目的地改成上海", true);
 
-        assertThat(reply).startsWith("好的，已取消起飞时段限制，已将目的地改为上海，")
-                .contains("其他未提及条件保持不变");
+        assertThat(reply).isEqualTo("已取消起飞时段限制，当前条件更新为广州飞往上海、明天出发；"
+                + "找到 1 个航班。");
     }
 
     @Test
@@ -81,7 +83,8 @@ class AiReplyComposerTest {
                 result(FlightMatchLevel.RELAXED, appliedBase(),
                         List.of("airlineRaw", "cabinClass"), 4), "查询", false);
 
-        assertThat(reply).contains("“航空公司”", "“舱位”", "保留了广州飞往北京、明天出发", "4 个");
+        assertThat(reply).isEqualTo("当前筛选暂时没有完全匹配，下面是 4 个广州飞往北京、明天出发的可选航班；"
+                + "已放宽航空公司和舱位条件。");
     }
 
     @Test
@@ -90,7 +93,7 @@ class AiReplyComposerTest {
                 result(FlightMatchLevel.PARTIAL, Map.of("departureDate", "2026-07-15"),
                         List.of("departureDate"), 2), "查询", false);
 
-        assertThat(reply).contains("明天暂时没有广州飞往北京", "最近有航班的日期是 7 月 15 日")
+        assertThat(reply).contains("明天广州飞往北京暂无可售航班", "最近有航班的日期是 7 月 15 日")
                 .doesNotContain("符合条件");
     }
 
@@ -104,8 +107,8 @@ class AiReplyComposerTest {
 
         assertThat(reply)
                 .contains("最近有航班的日期是 7 月 15 日")
-                .contains("同时还放宽了“航空公司”和“舱位”限制")
-                .doesNotContain("“出发日期”限制");
+                .contains("同时放宽了航空公司和舱位条件")
+                .doesNotContain("出发日期条件");
     }
 
     @Test
@@ -114,7 +117,7 @@ class AiReplyComposerTest {
                 result(FlightMatchLevel.FALLBACK, Map.of("departureDate", "2026-07-15"), List.of(), 2),
                 "查询", false);
 
-        assertThat(reply).contains("仅供参考", "与您刚才的查询条件不完全一致");
+        assertThat(reply).isEqualTo("未找到符合当前条件的航班，下面推荐 2 个近期其他航班，路线和日期可能不同。");
     }
 
     @Test
@@ -137,7 +140,16 @@ class AiReplyComposerTest {
                         List.of(), 1),
                 "广州到北京", false);
 
-        assertThat(reply).contains("您还没有指定日期，我先按今天查询");
+        assertThat(reply).contains("您未指定日期，已按今天查询");
+    }
+
+    @Test
+    void relaxedReplyCapsLongFieldListsAndOmitsSort() {
+        String reply = composer.composeSearchReply(baseCondition().build(), baseCondition().build(),
+                result(FlightMatchLevel.RELAXED, appliedBase(),
+                        List.of("cabinClass", "departureTime", "directOnly", "sort"), 3), "查询", false);
+
+        assertThat(reply).contains("已放宽部分筛选条件").doesNotContain("排序");
     }
 
     @Test

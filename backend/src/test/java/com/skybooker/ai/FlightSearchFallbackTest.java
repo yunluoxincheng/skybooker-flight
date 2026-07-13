@@ -85,6 +85,29 @@ class FlightSearchFallbackTest {
     }
 
     @Test
+    void relaxationKeepsSortAndDoesNotReportItAsRelaxed() {
+        FlightRecommendationService service = mock(FlightRecommendationService.class);
+        when(service.recommend(any(), org.mockito.ArgumentMatchers.nullable(Long.class)))
+                .thenReturn(List.of()).thenReturn(List.of(Map.of("id", 5L)));
+        when(service.buildSearchUrl(any(), org.mockito.ArgumentMatchers.nullable(Long.class)))
+                .thenReturn("/flights");
+        FlightMapper mapper = mock(FlightMapper.class);
+        when(mapper.findAirlineIdByCodeOrName("南方航空", "南方航空")).thenReturn(7L);
+        FlightSearchTool tool = new FlightSearchTool(service, mapper, CLOCK);
+
+        FlightSearchResult result = tool.search(ParsedCondition.builder()
+                .departureCity("广州").arrivalCity("北京").departureDate(LocalDate.of(2026, 7, 14))
+                .airlineRaw("南方航空").sort("PRICE_ASC").build());
+
+        ArgumentCaptor<ParsedCondition> captor = ArgumentCaptor.forClass(ParsedCondition.class);
+        org.mockito.Mockito.verify(service, org.mockito.Mockito.times(2))
+                .recommend(captor.capture(), org.mockito.ArgumentMatchers.nullable(Long.class));
+        assertThat(captor.getAllValues().get(1).getSort()).isEqualTo("PRICE_ASC");
+        assertThat(result.appliedCondition()).containsEntry("sort", "PRICE_ASC");
+        assertThat(result.relaxedFields()).containsExactly("airlineRaw");
+    }
+
+    @Test
     void explicitDateFallbackStartsAfterTheRequestedDate() {
         FlightRecommendationService service = mock(FlightRecommendationService.class);
         when(service.recommend(any(), isNull()))
