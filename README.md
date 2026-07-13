@@ -271,6 +271,8 @@ backend/src/main/resources/db/migration/
 
 Flyway 只初始化 schema、默认管理员、默认普通用户和默认乘机人。航司、机场、航班、座位、订单、退票、改签、候补和 AI 演示数据使用可复现 seed 脚本按需生成：
 
+机场参考目录由 `scripts/data/airports-cn.json` 和 `scripts/data/airports-international.json` 维护，当前包含 260 个中国大陆机场、15 个港澳台机场和 22 个国际枢纽；所有 profile 都导入完整参考目录，dev/test/perf 只用 profile 规模控制产生航班的机场数量。生成后会校验每个选中机场的进出港覆盖、国际/特殊地区到中国大陆的连接和主要枢纽双向航线。`seed` 会自动替换同 profile 的旧 ownership 数据，不需要先执行 `clean`；只删除脚本数据时使用 `clean`，不要用 `docker compose down -v` 代替清理。
+
 ```bash
 # 统一生成、校验并导入开发数据（按 ownership 批次幂等刷新）
 ./scripts/test-data.sh seed --dir "$PWD" --source-dir "$PWD" --profile dev --scenarios all --yes

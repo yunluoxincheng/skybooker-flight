@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate reproducible SkyBooker test seed SQL.
 
-The generator intentionally keeps aviation reference data small and readable,
-then creates flights, seats, orders, refunds, changes, waitlists and AI records
-from deterministic rules. It does not call external APIs.
+Reference catalogs live in scripts/data and are loaded deterministically. The
+generator then creates flights, seats, orders, refunds, changes, waitlists and
+AI records from deterministic rules. It does not call external APIs at runtime.
 """
 
 from __future__ import annotations
@@ -64,6 +64,8 @@ class Airport:
     name: str
     city: str
     province: str
+    country_or_region: str
+    scope: str
 
 
 @dataclass(frozen=True)
@@ -74,8 +76,13 @@ class Airline:
 
 
 @dataclass(frozen=True)
+class SqlExpression:
+    value: str
+
+
+@dataclass(frozen=True)
 class ProfileConfig:
-    airport_count: int
+    flight_airport_count: int
     airline_count: int
     route_count: int
     days: int
@@ -276,7 +283,7 @@ class Ids:
 
 PROFILES = {
     "dev": ProfileConfig(
-        airport_count=24,
+        flight_airport_count=24,
         airline_count=13,
         route_count=90,
         days=7,
@@ -291,7 +298,7 @@ PROFILES = {
         cold_frequency_days=7,
     ),
     "test": ProfileConfig(
-        airport_count=60,
+        flight_airport_count=300,
         airline_count=24,
         route_count=320,
         days=30,
@@ -306,7 +313,7 @@ PROFILES = {
         cold_frequency_days=15,
     ),
     "perf": ProfileConfig(
-        airport_count=100,
+        flight_airport_count=300,
         airline_count=36,
         route_count=1_200,
         days=90,
@@ -323,153 +330,76 @@ PROFILES = {
 }
 
 
-AIRLINES = [
-    Airline(1, "MU", "中国东方航空"),
-    Airline(2, "CZ", "中国南方航空"),
-    Airline(3, "CA", "中国国际航空"),
-    Airline(4, "HU", "海南航空"),
-    Airline(5, "ZH", "深圳航空"),
-    Airline(6, "MF", "厦门航空"),
-    Airline(7, "3U", "四川航空"),
-    Airline(8, "9C", "春秋航空"),
-    Airline(9, "HO", "吉祥航空"),
-    Airline(10, "CX", "国泰航空"),
-    Airline(11, "SQ", "新加坡航空"),
-    Airline(12, "NH", "全日空"),
-    Airline(13, "KE", "大韩航空"),
-    Airline(14, "FM", "上海航空"),
-    Airline(15, "SC", "山东航空"),
-    Airline(16, "JD", "首都航空"),
-    Airline(17, "GS", "天津航空"),
-    Airline(18, "KN", "中国联合航空"),
-    Airline(19, "EU", "成都航空"),
-    Airline(20, "PN", "西部航空"),
-    Airline(21, "GJ", "长龙航空"),
-    Airline(22, "NS", "河北航空"),
-    Airline(23, "TV", "西藏航空"),
-    Airline(24, "OQ", "重庆航空"),
-    Airline(25, "BK", "奥凯航空"),
-    Airline(26, "GX", "北部湾航空"),
-    Airline(27, "RY", "江西航空"),
-    Airline(28, "8L", "祥鹏航空"),
-    Airline(29, "Y8", "金鹏航空"),
-    Airline(30, "KY", "昆明航空"),
-    Airline(31, "JL", "日本航空"),
-    Airline(32, "TG", "泰国国际航空"),
-    Airline(33, "MH", "马来西亚航空"),
-    Airline(34, "UA", "美国联合航空"),
-    Airline(35, "BA", "英国航空"),
-    Airline(36, "EK", "阿联酋航空"),
-    Airline(37, "QR", "卡塔尔航空"),
-    Airline(38, "LH", "德国汉莎航空"),
-]
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
-AIRPORTS = [
-    Airport(1, "SHA", "上海虹桥国际机场", "上海", "上海"),
-    Airport(2, "PVG", "上海浦东国际机场", "上海", "上海"),
-    Airport(3, "PEK", "北京首都国际机场", "北京", "北京"),
-    Airport(4, "PKX", "北京大兴国际机场", "北京", "北京"),
-    Airport(5, "CAN", "广州白云国际机场", "广州", "广东"),
-    Airport(6, "SZX", "深圳宝安国际机场", "深圳", "广东"),
-    Airport(7, "CTU", "成都双流国际机场", "成都", "四川"),
-    Airport(8, "TFU", "成都天府国际机场", "成都", "四川"),
-    Airport(9, "CKG", "重庆江北国际机场", "重庆", "重庆"),
-    Airport(10, "HGH", "杭州萧山国际机场", "杭州", "浙江"),
-    Airport(11, "NKG", "南京禄口国际机场", "南京", "江苏"),
-    Airport(12, "WUH", "武汉天河国际机场", "武汉", "湖北"),
-    Airport(13, "XIY", "西安咸阳国际机场", "西安", "陕西"),
-    Airport(14, "KMG", "昆明长水国际机场", "昆明", "云南"),
-    Airport(15, "XMN", "厦门高崎国际机场", "厦门", "福建"),
-    Airport(16, "HAK", "海口美兰国际机场", "海口", "海南"),
-    Airport(17, "SYX", "三亚凤凰国际机场", "三亚", "海南"),
-    Airport(18, "HKG", "香港国际机场", "香港", "香港"),
-    Airport(19, "MFM", "澳门国际机场", "澳门", "澳门"),
-    Airport(20, "SIN", "新加坡樟宜机场", "新加坡", "新加坡"),
-    Airport(21, "HND", "东京羽田机场", "东京", "日本"),
-    Airport(22, "NRT", "东京成田机场", "东京", "日本"),
-    Airport(23, "ICN", "首尔仁川机场", "首尔", "韩国"),
-    Airport(24, "BKK", "曼谷素万那普机场", "曼谷", "泰国"),
-    Airport(25, "TAO", "青岛胶东国际机场", "青岛", "山东"),
-    Airport(26, "TNA", "济南遥墙国际机场", "济南", "山东"),
-    Airport(27, "CSX", "长沙黄花国际机场", "长沙", "湖南"),
-    Airport(28, "CGO", "郑州新郑国际机场", "郑州", "河南"),
-    Airport(29, "TSN", "天津滨海国际机场", "天津", "天津"),
-    Airport(30, "SHE", "沈阳桃仙国际机场", "沈阳", "辽宁"),
-    Airport(31, "DLC", "大连周水子国际机场", "大连", "辽宁"),
-    Airport(32, "HRB", "哈尔滨太平国际机场", "哈尔滨", "黑龙江"),
-    Airport(33, "CGQ", "长春龙嘉国际机场", "长春", "吉林"),
-    Airport(34, "HET", "呼和浩特白塔国际机场", "呼和浩特", "内蒙古"),
-    Airport(35, "URC", "乌鲁木齐地窝堡国际机场", "乌鲁木齐", "新疆"),
-    Airport(36, "LHW", "兰州中川国际机场", "兰州", "甘肃"),
-    Airport(37, "INC", "银川河东国际机场", "银川", "宁夏"),
-    Airport(38, "XNN", "西宁曹家堡国际机场", "西宁", "青海"),
-    Airport(39, "TYN", "太原武宿国际机场", "太原", "山西"),
-    Airport(40, "KHN", "南昌昌北国际机场", "南昌", "江西"),
-    Airport(41, "NGB", "宁波栎社国际机场", "宁波", "浙江"),
-    Airport(42, "WEN", "温州龙湾国际机场", "温州", "浙江"),
-    Airport(43, "HFE", "合肥新桥国际机场", "合肥", "安徽"),
-    Airport(44, "NNG", "南宁吴圩国际机场", "南宁", "广西"),
-    Airport(45, "KWE", "贵阳龙洞堡国际机场", "贵阳", "贵州"),
-    Airport(46, "KWL", "桂林两江国际机场", "桂林", "广西"),
-    Airport(47, "LJG", "丽江三义国际机场", "丽江", "云南"),
-    Airport(48, "DYG", "张家界荷花国际机场", "张家界", "湖南"),
-    Airport(49, "ZUH", "珠海金湾机场", "珠海", "广东"),
-    Airport(50, "SWA", "揭阳潮汕国际机场", "揭阳", "广东"),
-    Airport(51, "JHG", "西双版纳嘎洒国际机场", "西双版纳", "云南"),
-    Airport(52, "LXA", "拉萨贡嘎国际机场", "拉萨", "西藏"),
-    Airport(53, "KHG", "喀什徕宁国际机场", "喀什", "新疆"),
-    Airport(54, "YNT", "烟台蓬莱国际机场", "烟台", "山东"),
-    Airport(55, "WEH", "威海大水泊机场", "威海", "山东"),
-    Airport(56, "NTG", "南通兴东国际机场", "南通", "江苏"),
-    Airport(57, "LYI", "临沂启阳国际机场", "临沂", "山东"),
-    Airport(58, "YIW", "义乌机场", "义乌", "浙江"),
-    Airport(59, "JJN", "泉州晋江国际机场", "泉州", "福建"),
-    Airport(60, "HSN", "舟山普陀山机场", "舟山", "浙江"),
-    Airport(61, "YNZ", "盐城南洋国际机场", "盐城", "江苏"),
-    Airport(62, "CZX", "常州奔牛国际机场", "常州", "江苏"),
-    Airport(63, "YIH", "宜昌三峡机场", "宜昌", "湖北"),
-    Airport(64, "XUZ", "徐州观音国际机场", "徐州", "江苏"),
-    Airport(65, "WUS", "武夷山机场", "武夷山", "福建"),
-    Airport(66, "AQG", "安庆天柱山机场", "安庆", "安徽"),
-    Airport(67, "JDZ", "景德镇罗家机场", "景德镇", "江西"),
-    Airport(68, "JIQ", "黔江武陵山机场", "重庆", "重庆"),
-    Airport(69, "DSN", "鄂尔多斯伊金霍洛国际机场", "鄂尔多斯", "内蒙古"),
-    Airport(70, "BAV", "包头东河机场", "包头", "内蒙古"),
-    Airport(71, "MDG", "牡丹江海浪国际机场", "牡丹江", "黑龙江"),
-    Airport(72, "JMU", "佳木斯东郊机场", "佳木斯", "黑龙江"),
-    Airport(73, "NDG", "齐齐哈尔三家子机场", "齐齐哈尔", "黑龙江"),
-    Airport(74, "YNJ", "延吉朝阳川国际机场", "延吉", "吉林"),
-    Airport(75, "TEN", "铜仁凤凰机场", "铜仁", "贵州"),
-    Airport(76, "LZH", "柳州白莲机场", "柳州", "广西"),
-    Airport(77, "LZO", "泸州云龙机场", "泸州", "四川"),
-    Airport(78, "MIG", "绵阳南郊机场", "绵阳", "四川"),
-    Airport(79, "YBP", "宜宾五粮液机场", "宜宾", "四川"),
-    Airport(80, "NAO", "南充高坪机场", "南充", "四川"),
-    Airport(81, "WXN", "万州五桥机场", "重庆", "重庆"),
-    Airport(82, "ENH", "恩施许家坪机场", "恩施", "湖北"),
-    Airport(83, "LLV", "吕梁大武机场", "吕梁", "山西"),
-    Airport(84, "CIH", "长治王村机场", "长治", "山西"),
-    Airport(85, "HDG", "邯郸机场", "邯郸", "河北"),
-    Airport(86, "BPE", "秦皇岛北戴河机场", "秦皇岛", "河北"),
-    Airport(87, "KUL", "吉隆坡国际机场", "吉隆坡", "马来西亚"),
-    Airport(88, "SGN", "胡志明市新山一国际机场", "胡志明市", "越南"),
-    Airport(89, "HAN", "河内内排国际机场", "河内", "越南"),
-    Airport(90, "DAD", "岘港国际机场", "岘港", "越南"),
-    Airport(91, "MNL", "马尼拉尼诺伊阿基诺国际机场", "马尼拉", "菲律宾"),
-    Airport(92, "CGK", "雅加达苏加诺-哈达国际机场", "雅加达", "印度尼西亚"),
-    Airport(93, "DPS", "巴厘岛伍拉赖国际机场", "巴厘岛", "印度尼西亚"),
-    Airport(94, "SYD", "悉尼金斯福德·史密斯机场", "悉尼", "澳大利亚"),
-    Airport(95, "MEL", "墨尔本机场", "墨尔本", "澳大利亚"),
-    Airport(96, "LAX", "洛杉矶国际机场", "洛杉矶", "美国"),
-    Airport(97, "SFO", "旧金山国际机场", "旧金山", "美国"),
-    Airport(98, "JFK", "纽约肯尼迪国际机场", "纽约", "美国"),
-    Airport(99, "LHR", "伦敦希思罗机场", "伦敦", "英国"),
-    Airport(100, "CDG", "巴黎戴高乐机场", "巴黎", "法国"),
-    Airport(101, "FRA", "法兰克福机场", "法兰克福", "德国"),
-    Airport(102, "DXB", "迪拜国际机场", "迪拜", "阿联酋"),
-    Airport(103, "DOH", "多哈哈马德国际机场", "多哈", "卡塔尔"),
-]
+def _load_json_catalog(filename: str, key: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    path = DATA_DIR / filename
+    if not path.is_file():
+        raise RuntimeError(f"missing catalog file: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get(key), list):
+        raise RuntimeError(f"invalid catalog format: {path}")
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        raise RuntimeError(f"catalog metadata is missing: {path}")
+    return payload[key], metadata
+
+
+def _load_airports() -> tuple[list[Airport], dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    metadata: dict[str, Any] = {}
+    for filename in ("airports-cn.json", "airports-international.json"):
+        catalog_rows, catalog_metadata = _load_json_catalog(filename, "airports")
+        rows.extend(catalog_rows)
+        metadata[filename] = catalog_metadata
+    airports = [
+        Airport(
+            id=int(row["id"]),
+            code=str(row["code"]),
+            name=str(row["name"]),
+            city=str(row["city"]),
+            province=str(row["province"]),
+            country_or_region=str(row["countryOrRegion"]),
+            scope=str(row["scope"]),
+        )
+        for row in rows
+    ]
+    codes = [airport.code for airport in airports]
+    ids = [airport.id for airport in airports]
+    if len(codes) != len(set(codes)):
+        raise RuntimeError("airport catalog contains duplicate IATA codes")
+    if len(ids) != len(set(ids)):
+        raise RuntimeError("airport catalog contains duplicate IDs")
+    if any(not re.fullmatch(r"[A-Z]{3}", code) for code in codes):
+        raise RuntimeError("airport catalog contains an invalid IATA code")
+    if any(airport.scope not in {"mainland", "special_region", "international"} for airport in airports):
+        raise RuntimeError("airport catalog contains an invalid scope")
+    metadata["airportReferenceCount"] = len(airports)
+    metadata["domesticAirportCount"] = sum(airport.scope == "mainland" for airport in airports)
+    metadata["specialRegionAirportCount"] = sum(airport.scope == "special_region" for airport in airports)
+    metadata["internationalAirportCount"] = sum(airport.scope == "international" for airport in airports)
+    return airports, metadata
+
+
+def _load_airlines() -> tuple[list[Airline], dict[str, Any]]:
+    rows, metadata = _load_json_catalog("airlines.json", "airlines")
+    airlines = [
+        Airline(id=int(row["id"]), code=str(row["code"]), name=str(row["name"]))
+        for row in rows
+    ]
+    codes = [airline.code for airline in airlines]
+    ids = [airline.id for airline in airlines]
+    if len(codes) != len(set(codes)) or len(ids) != len(set(ids)):
+        raise RuntimeError("airline catalog contains duplicate codes or IDs")
+    if any(not re.fullmatch(r"[A-Z0-9]{2}", code) for code in codes):
+        raise RuntimeError("airline catalog contains an invalid IATA code")
+    metadata["airlineReferenceCount"] = len(airlines)
+    return airlines, metadata
+
+
+AIRPORTS, AIRPORT_CATALOG_METADATA = _load_airports()
+AIRLINES, AIRLINE_CATALOG_METADATA = _load_airlines()
 
 
 FORCED_ROUTES = [
@@ -491,14 +421,28 @@ FORCED_ROUTES = [
     ("TFU", "SHA"),
 ]
 
-CHINA_PROVINCES = {
-    "北京", "上海", "广东", "四川", "重庆", "浙江", "江苏", "湖北", "陕西", "云南", "福建",
-    "海南", "山东", "湖南", "河南", "天津", "辽宁", "黑龙江", "吉林", "内蒙古", "新疆",
-    "甘肃", "宁夏", "青海", "山西", "江西", "安徽", "广西", "贵州", "西藏", "河北",
-    "香港", "澳门",
-}
-LONG_HAUL_PROVINCES = {"澳大利亚", "美国", "英国", "法国", "德国", "阿联酋", "卡塔尔"}
+FLIGHT_AIRPORT_PRIORITY = (
+    "PEK", "PKX", "PVG", "SHA", "CAN", "SZX", "CTU", "TFU", "CKG", "HGH", "NKG", "WUH",
+    "XIY", "KMG", "XMN", "HAK", "SYX", "TAO", "CSX", "CGO", "TSN", "SHE", "DLC", "HRB",
+    "HKG", "SIN", "HND", "ICN", "BKK", "KUL", "SGN", "HAN", "MNL", "SYD", "MEL", "LAX",
+    "SFO", "JFK", "LHR", "CDG", "FRA", "DXB", "DOH", "AMS", "AUH", "YVR", "YYZ",
+)
 
+BIDIRECTIONAL_HUB_PAIRS = (
+    ("PEK", "PVG"), ("PEK", "CAN"), ("PVG", "CAN"), ("SZX", "PVG"),
+    ("CTU", "PVG"), ("CKG", "PEK"), ("HGH", "PVG"), ("XIY", "PEK"),
+    ("KMG", "CAN"), ("XMN", "CAN"),
+)
+
+INTERNATIONAL_GATEWAY_PAIRS = (
+    ("HKG", "CAN"), ("HKG", "PVG"), ("SIN", "PVG"), ("HND", "PVG"),
+    ("NRT", "NKG"), ("ICN", "PEK"), ("BKK", "CAN"), ("KUL", "SZX"),
+    ("SGN", "SZX"), ("HAN", "CAN"), ("MNL", "SZX"), ("SYD", "PVG"),
+    ("MEL", "CAN"), ("LAX", "PEK"), ("SFO", "PVG"), ("JFK", "PEK"),
+    ("LHR", "PEK"), ("CDG", "PVG"), ("FRA", "PEK"), ("DXB", "CAN"),
+    ("DOH", "PVG"), ("AMS", "PEK"), ("AUH", "PVG"), ("YVR", "CAN"),
+    ("YYZ", "PEK"),
+)
 
 def money(value: Decimal | int | float | str) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -515,6 +459,8 @@ def sql_string(value: str | None) -> str:
 
 
 def sql_value(value: Any) -> str:
+    if isinstance(value, SqlExpression):
+        return value.value
     if value is None:
         return "NULL"
     if isinstance(value, Decimal):
@@ -573,7 +519,22 @@ def parse_base_date(seed: int, explicit: str | None) -> date:
 
 
 def selected_airports(cfg: ProfileConfig) -> list[Airport]:
-    return AIRPORTS[: min(cfg.airport_count, len(AIRPORTS))]
+    # Every profile imports the complete reference catalog. The profile size
+    # only controls which airports receive generated flight traffic.
+    return list(AIRPORTS)
+
+
+def selected_flight_airports(cfg: ProfileConfig) -> list[Airport]:
+    by_code = {airport.code: airport for airport in AIRPORTS}
+    ordered: list[Airport] = []
+    seen: set[str] = set()
+    for code in FLIGHT_AIRPORT_PRIORITY:
+        airport = by_code.get(code)
+        if airport is not None:
+            ordered.append(airport)
+            seen.add(code)
+    ordered.extend(airport for airport in AIRPORTS if airport.code not in seen)
+    return ordered[: min(cfg.flight_airport_count, len(ordered))]
 
 
 def selected_airlines(cfg: ProfileConfig) -> list[Airline]:
@@ -581,9 +542,9 @@ def selected_airlines(cfg: ProfileConfig) -> list[Airline]:
 
 
 def estimate_duration(dep: Airport, arr: Airport, rng: random.Random) -> int:
-    if dep.province in LONG_HAUL_PROVINCES or arr.province in LONG_HAUL_PROVINCES:
+    if dep.scope == "international" or arr.scope == "international":
         return rng.randint(520, 780)
-    if dep.province not in CHINA_PROVINCES or arr.province not in CHINA_PROVINCES:
+    if dep.scope != "mainland" or arr.scope != "mainland":
         return rng.randint(180, 360)
     if dep.province == arr.province:
         return rng.randint(70, 120)
@@ -611,10 +572,31 @@ def build_routes(airports: list[Airport], cfg: ProfileConfig, rng: random.Random
     routes: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
 
-    for dep, arr in FORCED_ROUTES:
-        if dep in by_code and arr in by_code and dep != arr:
+    def add_route(dep: str, arr: str) -> None:
+        if dep in by_code and arr in by_code and dep != arr and (dep, arr) not in seen:
             seen.add((dep, arr))
             routes.append((dep, arr))
+
+    # First build a directed cycle so every airport used by the profile has
+    # at least one outbound and one inbound route.
+    for index, airport in enumerate(airports):
+        add_route(airport.code, airports[(index + 1) % len(airports)].code)
+
+    for dep, arr in FORCED_ROUTES:
+        add_route(dep, arr)
+    for dep, arr in BIDIRECTIONAL_HUB_PAIRS + INTERNATIONAL_GATEWAY_PAIRS:
+        add_route(dep, arr)
+        add_route(arr, dep)
+    mainland_hubs = [
+        airport.code for airport in airports
+        if airport.scope == "mainland" and airport.code in {"PEK", "PVG", "CAN", "SZX", "CTU"}
+    ]
+    if mainland_hubs:
+        for airport in airports:
+            if airport.scope != "mainland":
+                hub = mainland_hubs[airport.id % len(mainland_hubs)]
+                add_route(airport.code, hub)
+                add_route(hub, airport.code)
 
     candidates = [
         (dep.code, arr.code)
@@ -623,12 +605,11 @@ def build_routes(airports: list[Airport], cfg: ProfileConfig, rng: random.Random
         if dep.code != arr.code and dep.city != arr.city
     ]
     rng.shuffle(candidates)
+    target_count = max(cfg.route_count, len(airports))
     for dep, arr in candidates:
-        if len(routes) >= cfg.route_count:
+        if len(routes) >= target_count:
             break
-        if (dep, arr) not in seen:
-            seen.add((dep, arr))
-            routes.append((dep, arr))
+        add_route(dep, arr)
 
     result: list[tuple[str, str, str]] = []
     for index, (dep, arr) in enumerate(routes):
@@ -1631,6 +1612,7 @@ def validate_dataset(
     segment_passengers: list[dict[str, Any]] | None = None,
     connecting_changes: list[dict[str, Any]] | None = None,
     connecting_change_segments: list[dict[str, Any]] | None = None,
+    flight_airports: list[Airport] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     orders_by_id = {order["id"]: order for order in orders}
@@ -1661,6 +1643,25 @@ def validate_dataset(
                     errors.append(f"seat {seat.id}: LOCKED without order or expiry")
                 elif seat.locked_by_order_id not in orders_by_id:
                     errors.append(f"seat {seat.id}: LOCKED order missing")
+    if flight_airports:
+        outbound = {flight.departure_airport_id for flight in flights}
+        inbound = {flight.arrival_airport_id for flight in flights}
+        for airport in flight_airports:
+            if airport.id not in outbound:
+                errors.append(f"airport {airport.code}: no outbound flight coverage")
+            if airport.id not in inbound:
+                errors.append(f"airport {airport.code}: no inbound flight coverage")
+        mainland_ids = {airport.id for airport in flight_airports if airport.scope == "mainland"}
+        for airport in flight_airports:
+            if airport.scope == "mainland":
+                continue
+            connected_to_mainland = any(
+                (flight.departure_airport_id == airport.id and flight.arrival_airport_id in mainland_ids)
+                or (flight.arrival_airport_id == airport.id and flight.departure_airport_id in mainland_ids)
+                for flight in flights
+            )
+            if not connected_to_mainland:
+                errors.append(f"airport {airport.code}: no mainland gateway route")
     for order in orders:
         if order["status"] in {"CANCELLED", "REFUNDED"}:
             for flight in flights:
@@ -1837,6 +1838,7 @@ def build_dataset(
     rng = random.Random(seed)
     ids = Ids(cfg.id_base, cfg.id_range)
     airports = selected_airports(cfg)
+    flight_airports = selected_flight_airports(cfg)
     airlines = selected_airlines(cfg)
     users: list[dict[str, Any]] = []
     passengers: list[dict[str, Any]] = []
@@ -1848,11 +1850,11 @@ def build_dataset(
         "delayed", "near-departure",
     }
     should_generate_flights = "flights" in selected_components and bool(selected_scenarios & (direct_scenario_names | {"connecting"}))
-    flights = generate_flights(ids, rng, cfg, base_date, airports, airlines, selected_scenarios) if should_generate_flights else []
+    flights = generate_flights(ids, rng, cfg, base_date, flight_airports, airlines, selected_scenarios) if should_generate_flights else []
     connecting_flights: list[Flight] = []
     connecting_itineraries: list[dict[str, Any]] = []
     if "connecting" in selected_scenarios and "flights" in selected_components:
-        connecting_flights, connecting_itineraries = generate_connecting_itineraries(ids, rng, base_date, airports, airlines)
+        connecting_flights, connecting_itineraries = generate_connecting_itineraries(ids, rng, base_date, flight_airports, airlines)
         flights.extend(connecting_flights)
     base_dt = datetime.combine(base_date, time(9, 0))
     orders: list[dict[str, Any]] = []
@@ -1913,6 +1915,7 @@ def build_dataset(
         "base_date": base_date,
         "cfg": cfg,
         "airports": airports,
+        "flight_airports": flight_airports if should_generate_flights else [],
         "airlines": airlines,
         "users": users,
         "passengers": passengers,
@@ -1937,6 +1940,7 @@ def build_dataset(
     errors = validate_dataset(
         flights, orders, order_passengers, waitlists, connecting_itineraries,
         order_segments, segment_passengers, connecting_changes, connecting_change_segments,
+        flight_airports if should_generate_flights and selected_scenarios.intersection(direct_scenario_names) else [],
     )
     errors.extend(validate_generated_id_ranges(dataset))
     if errors:
@@ -2094,14 +2098,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "",
     ])
 
-    airport_rows = [(a.id, a.code, a.name, a.city, a.province, "ENABLED") for a in dataset["airports"]]
-    airline_rows = [(a.id, a.code, a.name, None, "ENABLED") for a in dataset["airlines"]]
+    airport_rows = [(a.code, a.name, a.city, a.province, "ENABLED") for a in dataset["airports"]]
+    airline_rows = [(a.code, a.name, None, "ENABLED") for a in dataset["airlines"]]
     if include("reference"):
         statements.extend(
-            upsert_statement("airline", ["id", "code", "name", "logo_url", "status"], airline_rows, ["name", "logo_url", "status"])
+            upsert_statement("airline", ["code", "name", "logo_url", "status"], airline_rows, ["name", "logo_url", "status"])
         )
         statements.extend(
-            upsert_statement("airport", ["id", "code", "name", "city", "province", "status"], airport_rows, ["name", "city", "province", "status"])
+            upsert_statement("airport", ["code", "name", "city", "province", "status"], airport_rows, ["name", "city", "province", "status"])
         )
 
     if include("users"):
@@ -2123,9 +2127,14 @@ def render_sql(dataset: dict[str, Any]) -> str:
             )
         )
 
+    airports_by_id = {airport.id: airport for airport in dataset["airports"]}
+    airlines_by_id = {airline.id: airline for airline in dataset["airlines"]}
     flight_rows = [
         (
-            flight.id, flight.flight_no, flight.airline_id, flight.departure_airport_id, flight.arrival_airport_id,
+            flight.id, flight.flight_no,
+            SqlExpression("(SELECT id FROM airline WHERE code=" + sql_string(airlines_by_id[flight.airline_id].code) + ")"),
+            SqlExpression("(SELECT id FROM airport WHERE code=" + sql_string(airports_by_id[flight.departure_airport_id].code) + ")"),
+            SqlExpression("(SELECT id FROM airport WHERE code=" + sql_string(airports_by_id[flight.arrival_airport_id].code) + ")"),
             flight.departure_time, flight.arrival_time, flight.duration_minutes, flight.base_price,
             flight.remaining_seats, flight.total_seats, flight.status, flight.publish_status, flight.direct_flag,
             flight.baggage_allowance, flight.punctuality_rate,
@@ -2447,6 +2456,45 @@ def render_sql(dataset: dict[str, Any]) -> str:
     )
     statements.extend(["DROP TEMPORARY TABLE tmp_skybooker_seed_rows;", ""])
 
+    reference_airports: list[Airport] = dataset["airports"]
+    flight_airports: list[Airport] = dataset.get("flight_airports", [])
+    outbound_ids = {flight.departure_airport_id for flight in dataset["flights"]}
+    inbound_ids = {flight.arrival_airport_id for flight in dataset["flights"]}
+    airports_without_outbound = [airport.code for airport in flight_airports if airport.id not in outbound_ids]
+    airports_without_inbound = [airport.code for airport in flight_airports if airport.id not in inbound_ids]
+    mainland_ids = {airport.id for airport in flight_airports if airport.scope == "mainland"}
+    airports_without_mainland_gateway = [
+        airport.code
+        for airport in flight_airports
+        if airport.scope != "mainland"
+        and not any(
+            (flight.departure_airport_id == airport.id and flight.arrival_airport_id in mainland_ids)
+            or (flight.arrival_airport_id == airport.id and flight.departure_airport_id in mainland_ids)
+            for flight in dataset["flights"]
+        )
+    ]
+    flight_coverage_required = bool(
+        include("flights")
+        and set(dataset["scenarios"]).intersection({
+            "direct", "payment", "cancel", "refund", "change", "waitlist", "sold-out",
+            "delayed", "near-departure",
+        })
+    )
+    airport_codes = sorted(airport.code for airport in reference_airports)
+    flight_airport_codes = sorted(airport.code for airport in flight_airports)
+    mainland_flight_airport_codes = sorted(
+        airport.code for airport in flight_airports if airport.scope == "mainland"
+    )
+    non_mainland_flight_airport_codes = sorted(
+        airport.code for airport in flight_airports if airport.scope != "mainland"
+    )
+    required_bidirectional_routes = [
+        [dep, arr]
+        for dep, arr in BIDIRECTIONAL_HUB_PAIRS
+        if dep in set(flight_airport_codes) and arr in set(flight_airport_codes)
+    ]
+    airport_catalog_source = AIRPORT_CATALOG_METADATA["airports-cn.json"].get("source")
+
     summary = {
         "profile": profile,
         "seed": seed,
@@ -2459,7 +2507,27 @@ def render_sql(dataset: dict[str, Any]) -> str:
         "seedIdRange": f"{start_id}-{end_id}",
         "generatedIdMin": generated_id_min,
         "generatedIdMax": generated_id_max,
-        "airports": len(dataset["airports"]),
+        "airports": len(reference_airports),
+        "airportReferenceCount": len(reference_airports),
+        "flightAirportCount": len(flight_airports),
+        "domesticAirportCount": sum(airport.scope == "mainland" for airport in reference_airports),
+        "specialRegionAirportCount": sum(airport.scope == "special_region" for airport in reference_airports),
+        "internationalAirportCount": sum(airport.scope == "international" for airport in reference_airports),
+        "countriesCovered": len({airport.country_or_region for airport in reference_airports}),
+        "regionsCovered": sorted({airport.province for airport in reference_airports}),
+        "airportCodes": airport_codes,
+        "flightAirportCodes": flight_airport_codes,
+        "mainlandFlightAirportCodes": mainland_flight_airport_codes,
+        "nonMainlandFlightAirportCodes": non_mainland_flight_airport_codes,
+        "requiredBidirectionalRoutes": required_bidirectional_routes,
+        "airportsWithOutboundFlights": len(outbound_ids.intersection({airport.id for airport in flight_airports})),
+        "airportsWithInboundFlights": len(inbound_ids.intersection({airport.id for airport in flight_airports})),
+        "airportsWithoutOutboundFlights": airports_without_outbound,
+        "airportsWithoutInboundFlights": airports_without_inbound,
+        "airportsWithoutMainlandGateway": airports_without_mainland_gateway,
+        "flightCoverageRequired": flight_coverage_required,
+        "airportCatalogSource": airport_catalog_source,
+        "airportCatalogRetrievedAt": AIRPORT_CATALOG_METADATA["airports-cn.json"].get("retrievedAt"),
         "airlines": len(dataset["airlines"]),
         "routes": len({(flight.departure_airport_id, flight.arrival_airport_id) for flight in dataset["flights"]}),
         "flights": len(dataset["flights"]) if include("flights") else 0,
@@ -2488,6 +2556,13 @@ def render_sql(dataset: dict[str, Any]) -> str:
             "lockedSeatsHaveOrderAndExpiry": True,
             "successWaitlistsHaveTicketOrder": True,
             "generatedIdsWithinProfileRange": True,
+            "airportCodesUnique": len(airport_codes) == len(set(airport_codes)),
+            "flightCoverageComplete": not flight_coverage_required or (
+                not airports_without_outbound
+                and not airports_without_inbound
+                and not airports_without_mainland_gateway
+            ),
+            "internationalGatewaysConnected": not flight_coverage_required or not airports_without_mainland_gateway,
         },
     }
     statements.extend(

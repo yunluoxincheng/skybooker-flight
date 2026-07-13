@@ -186,17 +186,26 @@ source_file() {
     return
   fi
   resolve_remote_ref
-  local destination="$SOURCE_CACHE/$(basename "$relative")"
+  local destination="$SOURCE_CACHE/$relative"
   if [[ ! -f "$destination" ]]; then
     require_command curl
-    mkdir -p "$SOURCE_CACHE"
+    mkdir -p "$(dirname "$destination")"
     curl -fsSL "https://raw.githubusercontent.com/$REPO/$RESOLVED_SHA/$relative" -o "$destination"
   fi
   printf '%s\n' "$destination"
 }
 
 python_script() {
-  source_file "scripts/$1"
+  local script="$1"
+  if [[ "$script" == "generate_test_data.py" ]]; then
+    # The generator loads versioned catalogs relative to its own path. Fetch
+    # them into the same ref/SHA cache before running a remotely downloaded
+    # generator.
+    source_file "scripts/data/airports-cn.json" >/dev/null
+    source_file "scripts/data/airports-international.json" >/dev/null
+    source_file "scripts/data/airlines.json" >/dev/null
+  fi
+  source_file "scripts/$script"
 }
 
 data_dir() {
@@ -288,8 +297,10 @@ static_validate() {
 database_validate() {
   local file="$1"
   local output
-  local batch_key profile seed source_ref source_condition
-  IFS=$'\t' read -r batch_key profile seed source_ref <<< "$(python3 - "$file" <<'PY'
+  local coverage_output coverage_sql
+  local batch_key profile seed source_ref source_condition coverage_required
+  local flight_codes mainland_codes non_mainland_codes required_routes
+  IFS=$'\t' read -r batch_key profile seed source_ref coverage_required flight_codes mainland_codes non_mainland_codes required_routes <<< "$(python3 - "$file" <<'PY'
 import json
 import re
 import sys
@@ -312,7 +323,17 @@ if profile not in {"dev", "test", "perf"} or not isinstance(seed, int) or isinst
     raise SystemExit(1)
 if source_ref is not None and not re.fullmatch(r"[0-9a-fA-F]{40}", str(source_ref)):
     raise SystemExit(1)
-print("\t".join([batch, profile, str(seed), source_ref or "NULL"]))
+def codes(name):
+    values = summary.get(name, [])
+    if not isinstance(values, list) or any(not isinstance(value, str) or not re.fullmatch(r"[A-Z]{3}", value) for value in values):
+        raise SystemExit(1)
+    return ",".join(sorted(set(values)))
+print("\t".join([
+    batch, profile, str(seed), source_ref or "NULL",
+    str(bool(summary.get("flightCoverageRequired"))).lower(),
+    codes("flightAirportCodes"), codes("mainlandFlightAirportCodes"),
+    codes("nonMainlandFlightAirportCodes"), json.dumps(summary.get("requiredBidirectionalRoutes", []), separators=(",", ":")),
+]))
 PY
   )" || fail "Could not read ownership batch metadata from $file."
   [[ "$batch_key" == "skybooker:$profile" ]] || fail "Seed summary batch/profile metadata is inconsistent."
@@ -347,6 +368,54 @@ SQL
       printf '[%s] OK %s\n' "$APP_NAME" "$name"
     fi
   done <<< "$output"
+  if [[ "$coverage_required" == "true" ]]; then
+    coverage_sql="$(python3 - "$file" "$batch_key" <<'PY'
+import json
+import re
+import sys
+
+text = open(sys.argv[1], encoding="utf-8").read()
+batch = sys.argv[2]
+match = re.search(
+    r"-- SKYBOOKER_SEED_SUMMARY_BEGIN\s*\n-- (?P<json>\{.*?\})\s*\n-- SKYBOOKER_SEED_SUMMARY_END",
+    text,
+    re.DOTALL,
+)
+if not match:
+    raise SystemExit(1)
+summary = json.loads(match.group("json"))
+
+def codes(name):
+    values = summary.get(name, [])
+    if not isinstance(values, list) or any(not isinstance(value, str) or not re.fullmatch(r"[A-Z]{3}", value) for value in values):
+        raise SystemExit(1)
+    return ", ".join("'" + value + "'" for value in sorted(set(values)))
+
+flight_codes = codes("flightAirportCodes")
+mainland_codes = codes("mainlandFlightAirportCodes")
+external_codes = codes("nonMainlandFlightAirportCodes")
+print(f"SELECT 'airport_outbound_coverage', COUNT(*) FROM airport a WHERE a.code IN ({flight_codes}) AND NOT EXISTS (SELECT 1 FROM flight f JOIN test_data_ownership o ON o.batch_key='{batch}' AND o.table_name='flight' AND o.row_id=f.id WHERE f.departure_airport_id=a.id);")
+print(f"SELECT 'airport_inbound_coverage', COUNT(*) FROM airport a WHERE a.code IN ({flight_codes}) AND NOT EXISTS (SELECT 1 FROM flight f JOIN test_data_ownership o ON o.batch_key='{batch}' AND o.table_name='flight' AND o.row_id=f.id WHERE f.arrival_airport_id=a.id);")
+if mainland_codes and external_codes:
+    print(f"SELECT 'international_gateway_coverage', COUNT(*) FROM airport external_airport WHERE external_airport.code IN ({external_codes}) AND NOT EXISTS (SELECT 1 FROM flight f JOIN test_data_ownership o ON o.batch_key='{batch}' AND o.table_name='flight' AND o.row_id=f.id JOIN airport departure ON departure.id=f.departure_airport_id JOIN airport arrival ON arrival.id=f.arrival_airport_id WHERE (departure.id=external_airport.id AND arrival.code IN ({mainland_codes})) OR (arrival.id=external_airport.id AND departure.code IN ({mainland_codes})));")
+for index, pair in enumerate(summary.get("requiredBidirectionalRoutes", [])):
+    if not isinstance(pair, list) or len(pair) != 2 or any(not isinstance(code, str) or not re.fullmatch(r"[A-Z]{3}", code) for code in pair):
+        raise SystemExit(1)
+    departure, arrival = pair
+    print(f"SELECT 'bidirectional_route_{index}_{departure}_{arrival}', CASE WHEN EXISTS (SELECT 1 FROM flight f JOIN test_data_ownership o ON o.batch_key='{batch}' AND o.table_name='flight' AND o.row_id=f.id JOIN airport d ON d.id=f.departure_airport_id JOIN airport a ON a.id=f.arrival_airport_id WHERE d.code='{departure}' AND a.code='{arrival}') AND EXISTS (SELECT 1 FROM flight f JOIN test_data_ownership o ON o.batch_key='{batch}' AND o.table_name='flight' AND o.row_id=f.id JOIN airport d ON d.id=f.departure_airport_id JOIN airport a ON a.id=f.arrival_airport_id WHERE d.code='{arrival}' AND a.code='{departure}') THEN 0 ELSE 1 END;")
+PY
+    )" || fail "Could not build airport coverage checks from $file."
+    coverage_output="$(run_mysql <<< "$coverage_sql")"
+    while IFS=$'\t' read -r name count; do
+      [[ -z "$name" ]] && continue
+      if [[ "$count" != "0" ]]; then
+        printf '[%s] FAIL %s: %s\n' "$APP_NAME" "$name" "$count" >&2
+        failed="true"
+      else
+        printf '[%s] OK %s\n' "$APP_NAME" "$name"
+      fi
+    done <<< "$coverage_output"
+  fi
   [[ "$failed" == "false" ]] || return 1
 }
 

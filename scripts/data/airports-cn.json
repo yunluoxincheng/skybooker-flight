@@ -1,0 +1,2352 @@
+{
+  "metadata": {
+    "source": "OurAirports airports.csv (scheduled_service=yes, IATA code present, heliports excluded) plus explicitly curated international hubs",
+    "sourceUrl": "https://ourairports.com/data/",
+    "retrievedAt": "2026-07-13",
+    "notes": "IDs for the original catalog are retained; appended rows are assigned monotonically in deterministic order. Mainland China and Hong Kong/Macau/Taiwan are represented separately from international hubs.",
+    "scope": "mainland",
+    "recordCount": 260
+  },
+  "airports": [
+    {
+      "id": 1,
+      "code": "SHA",
+      "name": "上海虹桥国际机场",
+      "city": "上海",
+      "province": "上海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 2,
+      "code": "PVG",
+      "name": "上海浦东国际机场",
+      "city": "上海",
+      "province": "上海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 3,
+      "code": "PEK",
+      "name": "北京首都国际机场",
+      "city": "北京",
+      "province": "北京",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 4,
+      "code": "PKX",
+      "name": "北京大兴国际机场",
+      "city": "北京",
+      "province": "北京",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 5,
+      "code": "CAN",
+      "name": "广州白云国际机场",
+      "city": "广州",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 6,
+      "code": "SZX",
+      "name": "深圳宝安国际机场",
+      "city": "深圳",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 7,
+      "code": "CTU",
+      "name": "成都双流国际机场",
+      "city": "成都",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 8,
+      "code": "TFU",
+      "name": "成都天府国际机场",
+      "city": "成都",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 9,
+      "code": "CKG",
+      "name": "重庆江北国际机场",
+      "city": "重庆",
+      "province": "重庆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 10,
+      "code": "HGH",
+      "name": "杭州萧山国际机场",
+      "city": "杭州",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 11,
+      "code": "NKG",
+      "name": "南京禄口国际机场",
+      "city": "南京",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 12,
+      "code": "WUH",
+      "name": "武汉天河国际机场",
+      "city": "武汉",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 13,
+      "code": "XIY",
+      "name": "西安咸阳国际机场",
+      "city": "西安",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 14,
+      "code": "KMG",
+      "name": "昆明长水国际机场",
+      "city": "昆明",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 15,
+      "code": "XMN",
+      "name": "厦门高崎国际机场",
+      "city": "厦门",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 16,
+      "code": "HAK",
+      "name": "海口美兰国际机场",
+      "city": "海口",
+      "province": "海南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 17,
+      "code": "SYX",
+      "name": "三亚凤凰国际机场",
+      "city": "三亚",
+      "province": "海南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 25,
+      "code": "TAO",
+      "name": "青岛胶东国际机场",
+      "city": "青岛",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 26,
+      "code": "TNA",
+      "name": "济南遥墙国际机场",
+      "city": "济南",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 27,
+      "code": "CSX",
+      "name": "长沙黄花国际机场",
+      "city": "长沙",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 28,
+      "code": "CGO",
+      "name": "郑州新郑国际机场",
+      "city": "郑州",
+      "province": "河南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 29,
+      "code": "TSN",
+      "name": "天津滨海国际机场",
+      "city": "天津",
+      "province": "天津",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 30,
+      "code": "SHE",
+      "name": "沈阳桃仙国际机场",
+      "city": "沈阳",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 31,
+      "code": "DLC",
+      "name": "大连周水子国际机场",
+      "city": "大连",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 32,
+      "code": "HRB",
+      "name": "哈尔滨太平国际机场",
+      "city": "哈尔滨",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 33,
+      "code": "CGQ",
+      "name": "长春龙嘉国际机场",
+      "city": "长春",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 34,
+      "code": "HET",
+      "name": "呼和浩特白塔国际机场",
+      "city": "呼和浩特",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 35,
+      "code": "URC",
+      "name": "乌鲁木齐地窝堡国际机场",
+      "city": "乌鲁木齐",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 36,
+      "code": "LHW",
+      "name": "兰州中川国际机场",
+      "city": "兰州",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 37,
+      "code": "INC",
+      "name": "银川河东国际机场",
+      "city": "银川",
+      "province": "宁夏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 38,
+      "code": "XNN",
+      "name": "西宁曹家堡国际机场",
+      "city": "西宁",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 39,
+      "code": "TYN",
+      "name": "太原武宿国际机场",
+      "city": "太原",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 40,
+      "code": "KHN",
+      "name": "南昌昌北国际机场",
+      "city": "南昌",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 41,
+      "code": "NGB",
+      "name": "宁波栎社国际机场",
+      "city": "宁波",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 42,
+      "code": "WEN",
+      "name": "温州龙湾国际机场",
+      "city": "温州",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 43,
+      "code": "HFE",
+      "name": "合肥新桥国际机场",
+      "city": "合肥",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 44,
+      "code": "NNG",
+      "name": "南宁吴圩国际机场",
+      "city": "南宁",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 45,
+      "code": "KWE",
+      "name": "贵阳龙洞堡国际机场",
+      "city": "贵阳",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 46,
+      "code": "KWL",
+      "name": "桂林两江国际机场",
+      "city": "桂林",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 47,
+      "code": "LJG",
+      "name": "丽江三义国际机场",
+      "city": "丽江",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 48,
+      "code": "DYG",
+      "name": "张家界荷花国际机场",
+      "city": "张家界",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 49,
+      "code": "ZUH",
+      "name": "珠海金湾机场",
+      "city": "珠海",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 50,
+      "code": "SWA",
+      "name": "揭阳潮汕国际机场",
+      "city": "揭阳",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 51,
+      "code": "JHG",
+      "name": "西双版纳嘎洒国际机场",
+      "city": "西双版纳",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 52,
+      "code": "LXA",
+      "name": "拉萨贡嘎国际机场",
+      "city": "拉萨",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 53,
+      "code": "KHG",
+      "name": "喀什徕宁国际机场",
+      "city": "喀什",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 54,
+      "code": "YNT",
+      "name": "烟台蓬莱国际机场",
+      "city": "烟台",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 55,
+      "code": "WEH",
+      "name": "威海大水泊机场",
+      "city": "威海",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 56,
+      "code": "NTG",
+      "name": "南通兴东国际机场",
+      "city": "南通",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 57,
+      "code": "LYI",
+      "name": "临沂启阳国际机场",
+      "city": "临沂",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 58,
+      "code": "YIW",
+      "name": "义乌机场",
+      "city": "义乌",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 59,
+      "code": "JJN",
+      "name": "泉州晋江国际机场",
+      "city": "泉州",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 60,
+      "code": "HSN",
+      "name": "舟山普陀山机场",
+      "city": "舟山",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 61,
+      "code": "YNZ",
+      "name": "盐城南洋国际机场",
+      "city": "盐城",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 62,
+      "code": "CZX",
+      "name": "常州奔牛国际机场",
+      "city": "常州",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 63,
+      "code": "YIH",
+      "name": "宜昌三峡机场",
+      "city": "宜昌",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 64,
+      "code": "XUZ",
+      "name": "徐州观音国际机场",
+      "city": "徐州",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 65,
+      "code": "WUS",
+      "name": "武夷山机场",
+      "city": "武夷山",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 66,
+      "code": "AQG",
+      "name": "安庆天柱山机场",
+      "city": "安庆",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 67,
+      "code": "JDZ",
+      "name": "景德镇罗家机场",
+      "city": "景德镇",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 68,
+      "code": "JIQ",
+      "name": "黔江武陵山机场",
+      "city": "重庆",
+      "province": "重庆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 69,
+      "code": "DSN",
+      "name": "鄂尔多斯伊金霍洛国际机场",
+      "city": "鄂尔多斯",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 70,
+      "code": "BAV",
+      "name": "包头东河机场",
+      "city": "包头",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 71,
+      "code": "MDG",
+      "name": "牡丹江海浪国际机场",
+      "city": "牡丹江",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 72,
+      "code": "JMU",
+      "name": "佳木斯东郊机场",
+      "city": "佳木斯",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 73,
+      "code": "NDG",
+      "name": "齐齐哈尔三家子机场",
+      "city": "齐齐哈尔",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 74,
+      "code": "YNJ",
+      "name": "延吉朝阳川国际机场",
+      "city": "延吉",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 75,
+      "code": "TEN",
+      "name": "铜仁凤凰机场",
+      "city": "铜仁",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 76,
+      "code": "LZH",
+      "name": "柳州白莲机场",
+      "city": "柳州",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 77,
+      "code": "LZO",
+      "name": "泸州云龙机场",
+      "city": "泸州",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 78,
+      "code": "MIG",
+      "name": "绵阳南郊机场",
+      "city": "绵阳",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 79,
+      "code": "YBP",
+      "name": "宜宾五粮液机场",
+      "city": "宜宾",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 80,
+      "code": "NAO",
+      "name": "南充高坪机场",
+      "city": "南充",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 81,
+      "code": "WXN",
+      "name": "万州五桥机场",
+      "city": "重庆",
+      "province": "重庆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 82,
+      "code": "ENH",
+      "name": "恩施许家坪机场",
+      "city": "恩施",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 83,
+      "code": "LLV",
+      "name": "吕梁大武机场",
+      "city": "吕梁",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 84,
+      "code": "CIH",
+      "name": "长治王村机场",
+      "city": "长治",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 85,
+      "code": "HDG",
+      "name": "邯郸机场",
+      "city": "邯郸",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 86,
+      "code": "BPE",
+      "name": "秦皇岛北戴河机场",
+      "city": "秦皇岛",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 104,
+      "code": "AAT",
+      "name": "Altay Xuedu Airport",
+      "city": "Altay",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 105,
+      "code": "ACF",
+      "name": "Aral Tarim Airport",
+      "city": "Aral",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 106,
+      "code": "ACX",
+      "name": "Xingyi Wanfenglin Airport",
+      "city": "Xingyi",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 107,
+      "code": "AEB",
+      "name": "Baise (Bose) Bama Airport",
+      "city": "Baise (Tianyang)",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 108,
+      "code": "AKA",
+      "name": "Ankang Fuqiang Airport",
+      "city": "Ankang (Hanbin)",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 109,
+      "code": "AKU",
+      "name": "Aksu Hongqipo Airport",
+      "city": "Aksu (Onsu)",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 110,
+      "code": "AOG",
+      "name": "Anshan Teng'ao Airport / Anshan Air Base",
+      "city": "Anshan",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 111,
+      "code": "AVA",
+      "name": "Anshun Huangguoshu Airport",
+      "city": "Anshun (Xixiu)",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 112,
+      "code": "AXF",
+      "name": "Alxa Left Banner Bayanhot Airport",
+      "city": "Bayanhot",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 113,
+      "code": "BAR",
+      "name": "Qionghai Bo'ao Airport",
+      "city": "Qionghai (Basuo)",
+      "province": "海南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 114,
+      "code": "BFJ",
+      "name": "Bijie Feixiong Airport",
+      "city": "Bijie",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 115,
+      "code": "BFY",
+      "name": "Bengbu Tenghu Airport",
+      "city": "Bengbu",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 116,
+      "code": "BHY",
+      "name": "Beihai Fucheng Airport",
+      "city": "Beihai",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 117,
+      "code": "BPL",
+      "name": "Bole Alashankou Airport",
+      "city": "Bole",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 118,
+      "code": "BPX",
+      "name": "Qamdo Bangda Airport",
+      "city": "Bangda",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 119,
+      "code": "BSD",
+      "name": "Baoshan Yunrui Airport",
+      "city": "Baoshan (Longyang)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 120,
+      "code": "BZX",
+      "name": "Bazhong Enyang Airport",
+      "city": "Bazhong",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 121,
+      "code": "CDE",
+      "name": "Chengde Puning Airport",
+      "city": "Chengde",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 122,
+      "code": "CGD",
+      "name": "Changde Taohuayuan Airport",
+      "city": "Changde (Dingcheng)",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 123,
+      "code": "CHG",
+      "name": "Chaoyang Airport",
+      "city": "Shuangta, Chaoyang",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 124,
+      "code": "CIF",
+      "name": "Chifeng Yulong Airport",
+      "city": "Chifeng",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 125,
+      "code": "CNI",
+      "name": "Changhai Dachangshandao Airport",
+      "city": "Dalian (Changhai)",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 126,
+      "code": "CQW",
+      "name": "Chongqing Xiannüshan Airport",
+      "city": "Wulong",
+      "province": "重庆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 127,
+      "code": "CWJ",
+      "name": "Cangyuan Washan Airport",
+      "city": "Lincang (Cangyuan)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 128,
+      "code": "DAT",
+      "name": "Datong Yungang International Airport",
+      "city": "Datong",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 129,
+      "code": "DAX",
+      "name": "Dachuan Airport",
+      "city": "Dazhou (Daxian)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 130,
+      "code": "DBC",
+      "name": "Baicheng Chang'an Airport",
+      "city": "Baicheng",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 131,
+      "code": "DCY",
+      "name": "Daocheng Yading Airport",
+      "city": "Garzê (Daocheng)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 132,
+      "code": "DDG",
+      "name": "Dandong Langtou International Airport",
+      "city": "Dandong (Zhenxing)",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 133,
+      "code": "DDR",
+      "name": "Shigatse Tingri Airport",
+      "city": "Xigazê (Dingri)",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 134,
+      "code": "DIG",
+      "name": "Diqing Shangri-La Airport",
+      "city": "Diqing (Shangri-La)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 135,
+      "code": "DLU",
+      "name": "Dali Fengyi Airport",
+      "city": "Dali (Xiaguan)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 136,
+      "code": "DNH",
+      "name": "Dunhuang Mogao International Airport",
+      "city": "Dunhuang",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 137,
+      "code": "DOY",
+      "name": "Dongying Shengli Airport",
+      "city": "Dongying (Kenli)",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 138,
+      "code": "DQA",
+      "name": "Daqing Sartu Airport",
+      "city": "Daqing",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 139,
+      "code": "DTU",
+      "name": "Wudalianchi Dedu Airport",
+      "city": "Heihe",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 140,
+      "code": "DXJ",
+      "name": "Xiangxi Biancheng Airport",
+      "city": "Xiangxi",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 141,
+      "code": "DZH",
+      "name": "Dazhou Jinya Airport",
+      "city": "Dazhou (Dachuan)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 142,
+      "code": "EHU",
+      "name": "Ezhou Huahu International Airport",
+      "city": "Ezhou",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 143,
+      "code": "ENY",
+      "name": "Yan'an Nanniwan Airport",
+      "city": "Yan'an (Baota)",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 144,
+      "code": "ERL",
+      "name": "Erenhot Saiwusu International Airport",
+      "city": "Erenhot",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 145,
+      "code": "FOC",
+      "name": "Fuzhou Changle International Airport",
+      "city": "Fuzhou (Changle)",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 146,
+      "code": "FUG",
+      "name": "Fuyang Xiguan Airport",
+      "city": "Yingzhou, Fuyang",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 147,
+      "code": "FUO",
+      "name": "Foshan Shadi Airport",
+      "city": "Foshan (Nanhai)",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 148,
+      "code": "FYJ",
+      "name": "Fuyuan Dongji Airport",
+      "city": "Fuyuan",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 149,
+      "code": "FYN",
+      "name": "Fuyun Koktokay Airport",
+      "city": "Fuyun",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 150,
+      "code": "GMQ",
+      "name": "Golog Maqên Airport",
+      "city": "Golog (Maqên)",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 151,
+      "code": "GOQ",
+      "name": "Golmud Airport",
+      "city": "Golmud",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 152,
+      "code": "GXH",
+      "name": "Gannan Xiahe Airport",
+      "city": "Gannan (Xiahe)",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 153,
+      "code": "GYS",
+      "name": "Guangyuan Panlong Airport",
+      "city": "Guangyuan (Lizhou)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 154,
+      "code": "GYU",
+      "name": "Guyuan Liupanshan Airport",
+      "city": "Guyuan (Yuanzhou)",
+      "province": "宁夏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 155,
+      "code": "GZG",
+      "name": "Garze Gesar Airport",
+      "city": "Garzê (Garzê)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 156,
+      "code": "HBQ",
+      "name": "Haibei Qilian Airport",
+      "city": "Haibei (Qilian)",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 157,
+      "code": "HCJ",
+      "name": "Hechi Jinchengjiang Airport",
+      "city": "Hechi (Jinchengjiang)",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 158,
+      "code": "HCZ",
+      "name": "Chenzhou Beihu Airport",
+      "city": "Chenzhou",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 159,
+      "code": "HEK",
+      "name": "Heihe Aihui Airport",
+      "city": "Heihe",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 160,
+      "code": "HIA",
+      "name": "Huai'an Lianshui Airport",
+      "city": "Huai'an",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 161,
+      "code": "HJB",
+      "name": "Hejing Bayinbuluke Airport",
+      "city": "Hejing",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 162,
+      "code": "HJJ",
+      "name": "Huaihua Zhijiang Airport",
+      "city": "Huaihua",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 163,
+      "code": "HLD",
+      "name": "Hulunbuir Hailar Airport",
+      "city": "Hailar",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 164,
+      "code": "HLH",
+      "name": "Ulanhot Yilelite Airport",
+      "city": "Ulanhot",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 165,
+      "code": "HMI",
+      "name": "Hami Airport",
+      "city": "Hami",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 166,
+      "code": "HNY",
+      "name": "Hengyang Nanyue Airport",
+      "city": "Hengyang",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 167,
+      "code": "HPG",
+      "name": "Shennongjia Hongping Airport",
+      "city": "Shennongjia (Hongping)",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 168,
+      "code": "HQL",
+      "name": "Tashikuergan Hongqilafu Airport",
+      "city": "Tashikuergan",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 169,
+      "code": "HQQ",
+      "name": "Anyang Hongqiqu Airport",
+      "city": "Anyang",
+      "province": "河南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 170,
+      "code": "HSC",
+      "name": "Shaoguan Danxia Airport",
+      "city": "Shaoguan",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 171,
+      "code": "HTN",
+      "name": "Hotan Airport",
+      "city": "Hotan",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 172,
+      "code": "HTT",
+      "name": "Huatugou Airport",
+      "city": "Mengnai",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 173,
+      "code": "HUO",
+      "name": "Holingol Huolinhe Airport",
+      "city": "Holingol",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 174,
+      "code": "HUZ",
+      "name": "Huizhou Pingtan Airport",
+      "city": "Huizhou (Pingtan)",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 175,
+      "code": "HXD",
+      "name": "Haixi Delingha Airport",
+      "city": "Delingha",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 176,
+      "code": "HYN",
+      "name": "Taizhou Luqiao Airport",
+      "city": "Taizhou (Luqiao)",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 177,
+      "code": "HZA",
+      "name": "Heze Mudan Airport",
+      "city": "Heze (Dingtao)",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 178,
+      "code": "HZG",
+      "name": "Hanzhong Chenggu Airport",
+      "city": "Hanzhong (Chenggu)",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 179,
+      "code": "HZH",
+      "name": "Liping Airport",
+      "city": "Liping",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 180,
+      "code": "IQM",
+      "name": "Qiemo Yudu Airport",
+      "city": "Qiemo",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 181,
+      "code": "IQN",
+      "name": "Qingyang Xifeng Airport",
+      "city": "Qingyang (Xifeng)",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 182,
+      "code": "JBK",
+      "name": "Qitai Jiangbulake Airport",
+      "city": "Qitai",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 183,
+      "code": "JGD",
+      "name": "Daxing'anling Elunchun Airport",
+      "city": "Jiagedaqi",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 184,
+      "code": "JGN",
+      "name": "Jiayuguan International Airport",
+      "city": "Jiayuguan",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 185,
+      "code": "JGS",
+      "name": "Jinggangshan Airport",
+      "city": "Ji'an",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 186,
+      "code": "JIC",
+      "name": "Jinchang Jinchuan Airport",
+      "city": "Jinchang",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 187,
+      "code": "JIU",
+      "name": "Jiujiang Lushan Airport",
+      "city": "Jiujiang",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 188,
+      "code": "JMJ",
+      "name": "Lancang Jingmai Airport",
+      "city": "Pu'er (Lancang)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 189,
+      "code": "JNG",
+      "name": "Jining Da'an Airport",
+      "city": "Jining",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 190,
+      "code": "JNH",
+      "name": "Jiaxing Nanhu Airport",
+      "city": "Xiuzhou, Hangzhou",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 191,
+      "code": "JNZ",
+      "name": "Jinzhou Bay Airport",
+      "city": "Jinzhou (Linghai)",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 192,
+      "code": "JSJ",
+      "name": "Jiansanjiang Shidi Airport",
+      "city": "Jiansanjiang",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 193,
+      "code": "JUH",
+      "name": "Chizhou Jiuhuashan Airport",
+      "city": "Chizhou",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 194,
+      "code": "JUZ",
+      "name": "Quzhou Airport",
+      "city": "Quzhou (Kezheng)",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 195,
+      "code": "JXA",
+      "name": "Jixi Xingkaihu Airport",
+      "city": "Jixi",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 196,
+      "code": "JZH",
+      "name": "Jiuzhai Huanglong Airport",
+      "city": "Ngawa (Songpan)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 197,
+      "code": "KCA",
+      "name": "Kuqa Qiuci Airport",
+      "city": "Kuqa",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 198,
+      "code": "KGT",
+      "name": "Kangding Airport",
+      "city": "Garzê (Kangding)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 199,
+      "code": "KJH",
+      "name": "Kaili Huangping Airport",
+      "city": "Kaili  (Huangping)",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 200,
+      "code": "KJI",
+      "name": "Burqin Kanas Airport",
+      "city": "Burqin",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 201,
+      "code": "KOW",
+      "name": "Ganzhou Huangjin Airport",
+      "city": "Ganzhou",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 202,
+      "code": "KRL",
+      "name": "Korla Licheng Airport",
+      "city": "Korla",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 203,
+      "code": "KRY",
+      "name": "Karamay Airport",
+      "city": "Karamay",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 204,
+      "code": "LCX",
+      "name": "Liancheng Guanzhishan Airport",
+      "city": "Longyan (Liancheng)",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 205,
+      "code": "LDS",
+      "name": "Yichun Lindu Airport",
+      "city": "Yichun",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 206,
+      "code": "LFQ",
+      "name": "Linfen Yaodu Airport",
+      "city": "Linfen (Yaodu)",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 207,
+      "code": "LGZ",
+      "name": "Shannan Longzi Airport",
+      "city": "Shannan",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 208,
+      "code": "LLB",
+      "name": "Libo Airport",
+      "city": "Qiannan (Libo)",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 209,
+      "code": "LLF",
+      "name": "Yongzhou Lingling Airport",
+      "city": "Yongzhou",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 210,
+      "code": "LNJ",
+      "name": "Lincang Boshang Airport",
+      "city": "Lincang",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 211,
+      "code": "LNL",
+      "name": "Longnan Chengzhou Airport",
+      "city": "Longnan (Cheng)",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 212,
+      "code": "LPF",
+      "name": "Liupanshui Yuezhao Airport",
+      "city": "Liupanshui (Zhongshan)",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 213,
+      "code": "LUM",
+      "name": "Dehong Mangshi International Airport",
+      "city": "Dehong (Mangshi)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 214,
+      "code": "LYA",
+      "name": "Luoyang Beijiao Airport",
+      "city": "Luoyang (Laocheng)",
+      "province": "河南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 215,
+      "code": "LYG",
+      "name": "Lianyungang Huaguoshan International Airport",
+      "city": "Lianyungang",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 216,
+      "code": "LZG",
+      "name": "Langzhong Gucheng Airport",
+      "city": "Nanchong (Langzhong)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 217,
+      "code": "LZY",
+      "name": "Nyingchi Mainling Airport",
+      "city": "Nyingchi (Mainling)",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 218,
+      "code": "MXZ",
+      "name": "Meizhou Meixian Changgangji International Airport",
+      "city": "Meizhou (Meixian)",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 219,
+      "code": "NBS",
+      "name": "Changbaishan Airport",
+      "city": "Baishan",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 220,
+      "code": "NGQ",
+      "name": "Ngari Gunsa Airport",
+      "city": "Shiquanhe",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 221,
+      "code": "NLH",
+      "name": "Ninglang Luguhu Airport",
+      "city": "Ninglang",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 222,
+      "code": "NLT",
+      "name": "Xinyuan Nalati Airport",
+      "city": "Xinyuan",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 223,
+      "code": "NNY",
+      "name": "Nanyang Jiangying Airport",
+      "city": "Nanyang (Wancheng)",
+      "province": "河南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 224,
+      "code": "NZH",
+      "name": "Manzhouli Xijiao Airport",
+      "city": "Manzhouli",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 225,
+      "code": "NZL",
+      "name": "Zhalantun Genghis Khan Airport",
+      "city": "Zhalantun",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 226,
+      "code": "OHE",
+      "name": "Mohe Gulian Airport",
+      "city": "Mohe",
+      "province": "黑龙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 227,
+      "code": "PZI",
+      "name": "Panzhihua Bao'anying Airport",
+      "city": "Panzhihua (Renhe)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 228,
+      "code": "QSZ",
+      "name": "Shache Airport",
+      "city": "Shache",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 229,
+      "code": "RHT",
+      "name": "Alxa Right Banner Badanjilin Airport",
+      "city": "Badanjilin",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 230,
+      "code": "RIZ",
+      "name": "Rizhao Shanzihe Airport",
+      "city": "Rizhao (Donggang)",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 231,
+      "code": "RKZ",
+      "name": "Xigaze Peace Airport / Shigatse Air Base",
+      "city": "Xigazê (Samzhubzê)",
+      "province": "西藏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 232,
+      "code": "RLK",
+      "name": "Bayannur Tianjitai Airport",
+      "city": "Bayannur",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 233,
+      "code": "RQA",
+      "name": "Ruoqiang Loulan Airport",
+      "city": "Ruoqiang Town",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 234,
+      "code": "SHF",
+      "name": "Shihezi Huayuan Airport",
+      "city": "Shihezi",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 235,
+      "code": "SHS",
+      "name": "Jingzhou Shashi Airport",
+      "city": "Jingzhou (Shashi)",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 236,
+      "code": "SJW",
+      "name": "Shijiazhuang Zhengding International Airport",
+      "city": "Shijiazhuang",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 237,
+      "code": "SQD",
+      "name": "Shangrao Sanqingshan Airport",
+      "city": "Shangrao (Hengfeng)",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 238,
+      "code": "SQJ",
+      "name": "Sanming Shaxian Airport",
+      "city": "Sanming (Sha)",
+      "province": "福建",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 239,
+      "code": "SYM",
+      "name": "Pu'er Simao Airport",
+      "city": "Pu'er",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 240,
+      "code": "SZH",
+      "name": "Shuozhou Zirun Airport",
+      "city": "Shuozhou",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 241,
+      "code": "TCG",
+      "name": "Tacheng Qianquan Airport",
+      "city": "Tacheng",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 242,
+      "code": "TCZ",
+      "name": "Tengchong Tuofeng Airport",
+      "city": "Baoshan (Tengchong)",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 243,
+      "code": "TGO",
+      "name": "Tongliao Airport",
+      "city": "Tongliao",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 244,
+      "code": "THQ",
+      "name": "Tianshui Maijishan Airport",
+      "city": "Tianshui (Maiji)",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 245,
+      "code": "TLQ",
+      "name": "Turpan Jiaohe Airport",
+      "city": "Turpan",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 246,
+      "code": "TNH",
+      "name": "Tonghua Sanyuanpu Airport",
+      "city": "Tonghua",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 247,
+      "code": "TVS",
+      "name": "Tangshan Sannühe Airport",
+      "city": "Tangshan (Fengrun)",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 248,
+      "code": "TWC",
+      "name": "Tumxuk Tangwangcheng Airport",
+      "city": "Tumxuk",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 249,
+      "code": "TXN",
+      "name": "Huangshan Tunxi International Airport",
+      "city": "Huangshan",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 250,
+      "code": "UCB",
+      "name": "Ulanqab Jining Airport",
+      "city": "Ulanqab",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 251,
+      "code": "UYN",
+      "name": "Yulin Yuyang Airport",
+      "city": "Yulin",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 252,
+      "code": "WDS",
+      "name": "Shiyan Wudangshan Airport",
+      "city": "Shiyan (Maojian)",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 253,
+      "code": "WEF",
+      "name": "Weifang Nanyuan Airport",
+      "city": "Weifang (Kuiwen)",
+      "province": "山东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 254,
+      "code": "WGN",
+      "name": "Shaoyang Wugang Airport",
+      "city": "Shaoyang (Wugang)",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 255,
+      "code": "WHA",
+      "name": "Wuhu Xuanzhou Airport",
+      "city": "Wuhu",
+      "province": "安徽",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 256,
+      "code": "WMT",
+      "name": "Zunyi Maotai Airport",
+      "city": "Zunyi",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 257,
+      "code": "WNH",
+      "name": "Wenshan Puzhehei Airport",
+      "city": "Wenshan",
+      "province": "云南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 258,
+      "code": "WNZ",
+      "name": "Wenzhou Longwan International Airport",
+      "city": "Wenzhou (Longwan)",
+      "province": "浙江",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 259,
+      "code": "WSK",
+      "name": "Chongqing Wushan Airport",
+      "city": "Wushan",
+      "province": "重庆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 260,
+      "code": "WUA",
+      "name": "Wuhai Airport",
+      "city": "Wuhai",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 261,
+      "code": "WUT",
+      "name": "Xinzhou Wutaishan Airport",
+      "city": "Xinzhou",
+      "province": "山西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 262,
+      "code": "WUX",
+      "name": "Sunan Shuofang International Airport",
+      "city": "Wuxi",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 263,
+      "code": "WUZ",
+      "name": "Wuzhou Xijiang Airport",
+      "city": "Tangbu",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 264,
+      "code": "XAI",
+      "name": "Xinyang Minggang Airport",
+      "city": "Xinyang",
+      "province": "河南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 265,
+      "code": "XFN",
+      "name": "Xiangyang Liuji Airport",
+      "city": "Xiangyang (Xiangzhou)",
+      "province": "湖北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 266,
+      "code": "XIC",
+      "name": "Xichang Qingshan Airport",
+      "city": "Liangshan (Xichang)",
+      "province": "四川",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 267,
+      "code": "XIL",
+      "name": "Xilinhot Airport",
+      "city": "Xilinhot",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 268,
+      "code": "YCU",
+      "name": "Yuncheng Yanhu International Airport",
+      "city": "Yuncheng (Yanhu)",
+      "province": "陕西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 269,
+      "code": "YIC",
+      "name": "Yichun Mingyueshan Airport",
+      "city": "Yichun",
+      "province": "江西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 270,
+      "code": "YIE",
+      "name": "Arxan Yi'ershi Airport",
+      "city": "Arxan",
+      "province": "内蒙古",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 271,
+      "code": "YIN",
+      "name": "Ili Yining International Airport",
+      "city": "Ili (Yining / Ghulja)",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 272,
+      "code": "YKH",
+      "name": "Yingkou Lanqi Airport",
+      "city": "Yingkou (Laobian)",
+      "province": "辽宁",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 273,
+      "code": "YLX",
+      "name": "Yulin Fumian Airport",
+      "city": "Yulin",
+      "province": "广西",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 274,
+      "code": "YSQ",
+      "name": "Songyuan Chaganhu Airport",
+      "city": "Qian Gorlos Mongol Autonomous County",
+      "province": "吉林",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 275,
+      "code": "YTW",
+      "name": "Yutian Wanfang Airport",
+      "city": "Hotan (Yutian)",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 276,
+      "code": "YTY",
+      "name": "Yangzhou Taizhou Airport",
+      "city": "Yangzhou",
+      "province": "江苏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 277,
+      "code": "YUS",
+      "name": "Yushu Batang Airport",
+      "city": "Yushu (Batang)",
+      "province": "青海",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 278,
+      "code": "YYA",
+      "name": "Yueyang Sanhe Airport",
+      "city": "Yueyang (Yueyanglou)",
+      "province": "湖南",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 279,
+      "code": "YZY",
+      "name": "Zhangye Ganzhou Airport",
+      "city": "Zhangye (Ganzhou)",
+      "province": "甘肃",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 280,
+      "code": "ZFL",
+      "name": "Zhaosu Tianma Airport",
+      "city": "Zhaosu",
+      "province": "新疆",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 281,
+      "code": "ZHA",
+      "name": "Zhanjiang Wuchuan International Airport",
+      "city": "Zhanjiang",
+      "province": "广东",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 282,
+      "code": "ZHY",
+      "name": "Zhongwei Shapotou Airport",
+      "city": "Zhongwei (Shapotou)",
+      "province": "宁夏",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 283,
+      "code": "ZQZ",
+      "name": "Zhangjiakou Ningyuan Airport",
+      "city": "Zhangjiakou",
+      "province": "河北",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    },
+    {
+      "id": 284,
+      "code": "ZYI",
+      "name": "Zunyi Xinzhou Airport",
+      "city": "Zunyi",
+      "province": "贵州",
+      "countryOrRegion": "中国大陆",
+      "scope": "mainland"
+    }
+  ]
+}

@@ -27,6 +27,65 @@ cleaner = load_module("skybooker_clean_test_data", ROOT / "scripts/clean_test_da
 
 
 class TestDataToolTest(unittest.TestCase):
+    def test_reference_catalog_is_complete_and_profiles_do_not_truncate_it(self):
+        self.assertGreaterEqual(len(generator.AIRPORTS), 250)
+        self.assertEqual(len(generator.AIRPORTS), len({airport.code for airport in generator.AIRPORTS}))
+        self.assertEqual(len(generator.AIRPORTS), len({airport.id for airport in generator.AIRPORTS}))
+        self.assertEqual(
+            len(generator.AIRPORTS),
+            generator.AIRPORT_CATALOG_METADATA["airportReferenceCount"],
+        )
+        self.assertGreaterEqual(
+            sum(airport.scope == "mainland" for airport in generator.AIRPORTS), 200
+        )
+        self.assertGreater(
+            sum(airport.scope == "international" for airport in generator.AIRPORTS), 10
+        )
+        for profile, config in generator.PROFILES.items():
+            self.assertEqual(generator.selected_airports(config), generator.AIRPORTS, profile)
+            flight_airports = generator.selected_flight_airports(config)
+            self.assertGreaterEqual(len(flight_airports), 20)
+            self.assertLessEqual(len(flight_airports), len(generator.AIRPORTS))
+
+    def test_flight_coverage_summary_has_inbound_outbound_and_gateway_routes(self):
+        components = generator.resolve_components("flights")
+        dataset = generator.build_dataset(
+            "test", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("direct")
+        )
+        summary, errors = validator.validate(generator.render_sql(dataset))
+        self.assertEqual(errors, [])
+        self.assertTrue(summary["flightCoverageRequired"])
+        self.assertEqual(summary["airportsWithoutOutboundFlights"], [])
+        self.assertEqual(summary["airportsWithoutInboundFlights"], [])
+        self.assertEqual(summary["airportsWithoutMainlandGateway"], [])
+        self.assertEqual(summary["airportsWithOutboundFlights"], summary["flightAirportCount"])
+        self.assertEqual(summary["airportsWithInboundFlights"], summary["flightAirportCount"])
+        coverage_checks = validator.database_coverage_checks(summary, summary["batchKey"])
+        check_names = {name for name, _ in coverage_checks}
+        self.assertIn("airport_outbound_coverage", check_names)
+        self.assertIn("airport_inbound_coverage", check_names)
+        self.assertIn("international_gateway_coverage", check_names)
+
+    def test_reference_rows_resolve_database_ids_by_code(self):
+        components = generator.resolve_components("flights")
+        dataset = generator.build_dataset(
+            "dev", 20260707, date(2026, 7, 7), components, generator.resolve_scenarios("direct")
+        )
+        sql = generator.render_sql(dataset)
+        self.assertIn("INSERT INTO airport(code, name, city, province, status)", sql)
+        self.assertIn("INSERT INTO airline(code, name, logo_url, status)", sql)
+        first_flight = dataset["flights"][0]
+        airport_by_id = {airport.id: airport for airport in dataset["airports"]}
+        airline_by_id = {airline.id: airline for airline in dataset["airlines"]}
+        self.assertIn(
+            f"(SELECT id FROM airport WHERE code='{airport_by_id[first_flight.departure_airport_id].code}')",
+            sql,
+        )
+        self.assertIn(
+            f"(SELECT id FROM airline WHERE code='{airline_by_id[first_flight.airline_id].code}')",
+            sql,
+        )
+
     def generate_cli_summary(self, arguments):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "seed.sql"

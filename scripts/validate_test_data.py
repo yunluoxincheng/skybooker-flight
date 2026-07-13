@@ -13,9 +13,18 @@ from pathlib import Path
 
 
 PROFILE_BOUNDS = {
-    "dev": {"airports": (20, 40), "airlines": (8, 15), "routes": (80, 200), "users": (20, 50), "orders": (50, 220)},
-    "test": {"airports": (50, 100), "airlines": (15, 30), "routes": (300, 900), "users": (200, 1000), "orders": (2000, 10000)},
-    "perf": {"airports": (100, 120), "airlines": (30, 40), "routes": (1000, 1500), "users": (5000, 6000), "orders": (50000, 60000)},
+    "dev": {
+        "airportReferenceCount": (250, 400), "flightAirportCount": (20, 40),
+        "airlines": (8, 15), "routes": (80, 200), "users": (20, 50), "orders": (50, 220),
+    },
+    "test": {
+        "airportReferenceCount": (250, 400), "flightAirportCount": (250, 300),
+        "airlines": (15, 30), "routes": (300, 900), "users": (200, 1000), "orders": (2000, 10000),
+    },
+    "perf": {
+        "airportReferenceCount": (250, 400), "flightAirportCount": (250, 300),
+        "airlines": (30, 40), "routes": (1000, 1500), "users": (5000, 6000), "orders": (50000, 60000),
+    },
 }
 
 TABLES_BY_COMPONENT = {
@@ -118,6 +127,59 @@ def validate(sql: str) -> tuple[dict, list[str]]:
     ):
         errors.append("summary sourceRef must be null or a 40-character commit SHA")
 
+    airport_codes = summary.get("airportCodes")
+    if "reference" in components:
+        if not isinstance(airport_codes, list) or not airport_codes:
+            errors.append("summary airportCodes must be a non-empty list")
+        else:
+            invalid_codes = [code for code in airport_codes if not isinstance(code, str) or not re.fullmatch(r"[A-Z]{3}", code)]
+            if invalid_codes:
+                errors.append("summary airportCodes contains invalid IATA codes")
+            if len(airport_codes) != len(set(airport_codes)):
+                errors.append("summary airportCodes contains duplicates")
+            if summary.get("airportReferenceCount") != len(airport_codes):
+                errors.append("airportReferenceCount does not match airportCodes")
+        scope_total = sum(
+            int(summary.get(name, 0) or 0)
+            for name in ("domesticAirportCount", "specialRegionAirportCount", "internationalAirportCount")
+        )
+        if scope_total != summary.get("airportReferenceCount"):
+            errors.append("airport scope counts do not add up to airportReferenceCount")
+        if not isinstance(summary.get("airportCatalogSource"), str) or not summary.get("airportCatalogSource"):
+            errors.append("summary airportCatalogSource is missing")
+        if not isinstance(summary.get("airportCatalogRetrievedAt"), str) or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}", summary.get("airportCatalogRetrievedAt", "")
+        ):
+            errors.append("summary airportCatalogRetrievedAt is invalid")
+
+    flight_airport_codes = summary.get("flightAirportCodes")
+    if "flights" in components:
+        if not isinstance(flight_airport_codes, list):
+            errors.append("summary flightAirportCodes must be a list")
+        else:
+            if len(flight_airport_codes) != len(set(flight_airport_codes)):
+                errors.append("summary flightAirportCodes contains duplicates")
+            if airport_codes and not set(flight_airport_codes).issubset(set(airport_codes)):
+                errors.append("flightAirportCodes contains an airport outside the reference catalog")
+            if summary.get("flightAirportCount") != len(flight_airport_codes):
+                errors.append("flightAirportCount does not match flightAirportCodes")
+            if summary.get("flightCoverageRequired"):
+                for key in ("airportsWithoutOutboundFlights", "airportsWithoutInboundFlights", "airportsWithoutMainlandGateway"):
+                    if summary.get(key) != []:
+                        errors.append(f"{key} must be empty when flight coverage is required")
+                if summary.get("airportsWithOutboundFlights") != summary.get("flightAirportCount"):
+                    errors.append("outbound flight coverage is incomplete")
+                if summary.get("airportsWithInboundFlights") != summary.get("flightAirportCount"):
+                    errors.append("inbound flight coverage is incomplete")
+        required_routes = summary.get("requiredBidirectionalRoutes", [])
+        if not isinstance(required_routes, list) or any(
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or any(not isinstance(code, str) or not re.fullmatch(r"[A-Z]{3}", code) for code in pair)
+            for pair in required_routes
+        ):
+            errors.append("summary requiredBidirectionalRoutes is invalid")
+
     if summary.get("scenariosExplicit", True):
         for scenario in sorted(scenarios):
             missing = SCENARIO_COMPONENT_DEPENDENCIES.get(scenario, set()) - components
@@ -162,7 +224,10 @@ def validate(sql: str) -> tuple[dict, list[str]]:
         errors.append("missing seed_id_range comment")
 
     bounds = PROFILE_BOUNDS.get(profile)
-    bound_components = {"airports": "reference", "airlines": "reference", "routes": "flights", "users": "users", "orders": "orders"}
+    bound_components = {
+        "airportReferenceCount": "reference", "flightAirportCount": "flights",
+        "airlines": "reference", "routes": "flights", "users": "users", "orders": "orders",
+    }
     direct_scenarios = {
         "direct", "payment", "cancel", "refund", "change", "waitlist", "sold-out",
         "delayed", "near-departure",
@@ -289,6 +354,113 @@ def database_metadata_query(summary: dict) -> str:
     """
 
 
+def database_coverage_checks(summary: dict, batch: str) -> list[tuple[str, str]]:
+    if not summary.get("flightCoverageRequired"):
+        return []
+
+    def codes(name: str) -> list[str]:
+        values = summary.get(name)
+        if not isinstance(values, list) or any(
+            not isinstance(value, str) or not re.fullmatch(r"[A-Z]{3}", value)
+            for value in values
+        ):
+            raise ValueError(f"invalid {name}")
+        return sorted(set(values))
+
+    flight_codes = codes("flightAirportCodes")
+    mainland_codes = codes("mainlandFlightAirportCodes")
+    non_mainland_codes = codes("nonMainlandFlightAirportCodes")
+    if not flight_codes:
+        raise ValueError("flightAirportCodes is empty")
+
+    def quoted(values: list[str]) -> str:
+        return ", ".join("'" + value + "'" for value in values)
+
+    checks: list[tuple[str, str]] = [
+        (
+            "airport_outbound_coverage",
+            f"""
+                SELECT COUNT(*) FROM airport a
+                WHERE a.code IN ({quoted(flight_codes)})
+                  AND NOT EXISTS (
+                    SELECT 1 FROM flight f
+                    JOIN test_data_ownership o ON o.batch_key='{batch}'
+                      AND o.table_name='flight' AND o.row_id=f.id
+                    WHERE f.departure_airport_id=a.id
+                  )
+            """,
+        ),
+        (
+            "airport_inbound_coverage",
+            f"""
+                SELECT COUNT(*) FROM airport a
+                WHERE a.code IN ({quoted(flight_codes)})
+                  AND NOT EXISTS (
+                    SELECT 1 FROM flight f
+                    JOIN test_data_ownership o ON o.batch_key='{batch}'
+                      AND o.table_name='flight' AND o.row_id=f.id
+                    WHERE f.arrival_airport_id=a.id
+                  )
+            """,
+        ),
+    ]
+    if mainland_codes and non_mainland_codes:
+        checks.append(
+            (
+                "international_gateway_coverage",
+                f"""
+                    SELECT COUNT(*) FROM airport external_airport
+                    WHERE external_airport.code IN ({quoted(non_mainland_codes)})
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM flight f
+                        JOIN test_data_ownership o ON o.batch_key='{batch}'
+                          AND o.table_name='flight' AND o.row_id=f.id
+                        JOIN airport departure ON departure.id=f.departure_airport_id
+                        JOIN airport arrival ON arrival.id=f.arrival_airport_id
+                        WHERE (departure.id=external_airport.id AND arrival.code IN ({quoted(mainland_codes)}))
+                           OR (arrival.id=external_airport.id AND departure.code IN ({quoted(mainland_codes)}))
+                      )
+                """,
+            )
+        )
+    required_routes = summary.get("requiredBidirectionalRoutes", [])
+    if not isinstance(required_routes, list):
+        raise ValueError("invalid requiredBidirectionalRoutes")
+    for index, pair in enumerate(required_routes):
+        if not isinstance(pair, list) or len(pair) != 2 or any(
+            not isinstance(code, str) or not re.fullmatch(r"[A-Z]{3}", code) for code in pair
+        ):
+            raise ValueError("invalid requiredBidirectionalRoutes")
+        departure, arrival = pair
+        checks.append(
+            (
+                f"bidirectional_route_{index}_{departure}_{arrival}",
+                f"""
+                    SELECT CASE WHEN
+                      EXISTS (
+                        SELECT 1 FROM flight f
+                        JOIN test_data_ownership o ON o.batch_key='{batch}'
+                          AND o.table_name='flight' AND o.row_id=f.id
+                        JOIN airport departure ON departure.id=f.departure_airport_id
+                        JOIN airport arrival ON arrival.id=f.arrival_airport_id
+                        WHERE departure.code='{departure}' AND arrival.code='{arrival}'
+                      )
+                      AND EXISTS (
+                        SELECT 1 FROM flight f
+                        JOIN test_data_ownership o ON o.batch_key='{batch}'
+                          AND o.table_name='flight' AND o.row_id=f.id
+                        JOIN airport departure ON departure.id=f.departure_airport_id
+                        JOIN airport arrival ON arrival.id=f.arrival_airport_id
+                        WHERE departure.code='{arrival}' AND arrival.code='{departure}'
+                      )
+                    THEN 0 ELSE 1 END
+                """,
+            )
+        )
+    return checks
+
+
 def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
     batch = summary.get("batchKey")
     if not isinstance(batch, str) or not re.fullmatch(r"skybooker:(dev|test|perf)", batch):
@@ -308,6 +480,10 @@ def database_validate(summary: dict, args: argparse.Namespace) -> list[str]:
     except ValueError as exc:
         return [f"database metadata check cannot be built: {exc}"]
     checks.extend(DATABASE_CHECKS.items())
+    try:
+        checks.extend(database_coverage_checks(summary, batch))
+    except ValueError as exc:
+        return [f"database coverage check cannot be built: {exc}"]
     for name, template in checks:
         query = template.format(batch=batch)
         result = subprocess.run(command, input=query, text=True, capture_output=True, env=env)

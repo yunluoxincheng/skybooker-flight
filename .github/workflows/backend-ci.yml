@@ -70,6 +70,28 @@ jobs:
               --components "$components" --output "$output"
             python3 scripts/validate_test_data.py --file "$output"
           done
+          coverage_sql="$tmp_dir/test-airport-coverage.sql"
+          coverage_summary="$tmp_dir/test-airport-coverage.json"
+          python3 scripts/generate_test_data.py \
+            --profile test --seed 20260707 --base-date 2026-07-07 \
+            --components reference,flights --scenarios direct \
+            --output "$coverage_sql" --summary-file "$coverage_summary"
+          python3 scripts/validate_test_data.py --file "$coverage_sql"
+          python3 - "$coverage_summary" <<'PY'
+          import json
+          import sys
+
+          summary = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert summary["airportReferenceCount"] >= 250
+          assert summary["airportReferenceCount"] == len(summary["airportCodes"])
+          assert summary["flightAirportCount"] == len(summary["flightAirportCodes"])
+          assert summary["airportsWithoutOutboundFlights"] == []
+          assert summary["airportsWithoutInboundFlights"] == []
+          assert summary["airportsWithoutMainlandGateway"] == []
+          assert summary["airportsWithOutboundFlights"] == summary["flightAirportCount"]
+          assert summary["airportsWithInboundFlights"] == summary["flightAirportCount"]
+          assert summary["validation"]["flightCoverageComplete"] is True
+          PY
 
       - name: Set up Java
         uses: actions/setup-java@v4
