@@ -4,6 +4,7 @@ openspec/
 AGENTS.md
 CLAUDE.md
 backend/target/
+__pycache__/
 .env
 .codegraph/
 reports/
