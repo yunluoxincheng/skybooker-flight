@@ -1,6 +1,6 @@
 import { JourneyCard } from "@/components/journey/JourneyCard";
-import type { ItineraryVO } from "@/types/flight";
+import type { CabinClass, ItineraryVO } from "@/types/flight";
 
-export function ItineraryCard({ itinerary }: { itinerary: ItineraryVO }) {
-  return <JourneyCard journey={itinerary} />;
+export function ItineraryCard({ itinerary, cabinClass }: { itinerary: ItineraryVO; cabinClass?: CabinClass }) {
+  return <JourneyCard journey={itinerary} cabinClass={cabinClass} />;
 }

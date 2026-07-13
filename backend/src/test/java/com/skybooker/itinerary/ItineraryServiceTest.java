@@ -123,6 +123,24 @@ class ItineraryServiceTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, captor.getValue().getPassengerCount());
     }
 
+    @Test void unifiedSearchPassesIncludeSoldOutToDirectFlightSearch() {
+        when(flightService.searchFlights(any(FlightSearchDTO.class)))
+                .thenReturn(new PageResponse<>(List.of(), 0, 1, 100));
+        when(itineraryMapper.findConnectingPairs(List.of("上海", "上海市"), List.of("北京", "北京市"),
+                now.toLocalDate().plusDays(1), 1, "ECONOMY"))
+                .thenReturn(List.of());
+        FlightSearchDTO query = new FlightSearchDTO();
+        query.setDepartureCity("上海"); query.setArrivalCity("北京");
+        query.setDepartureDate(now.toLocalDate().plusDays(1)); query.setCabinClass("ECONOMY");
+        query.setIncludeSoldOut(true);
+
+        service.search(query);
+
+        org.mockito.ArgumentCaptor<FlightSearchDTO> captor = org.mockito.ArgumentCaptor.forClass(FlightSearchDTO.class);
+        org.mockito.Mockito.verify(flightService).searchFlights(captor.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().getIncludeSoldOut());
+    }
+
     @Test void publishedConnectingDetailReturnsSoldOutReasonInsteadOfFailing() {
         ConnectingItinerary managed = new ConnectingItinerary(); managed.setId(9L); managed.setPublishStatus("PUBLISHED");
         managed.setFirstFlightId(1L); managed.setSecondFlightId(2L);

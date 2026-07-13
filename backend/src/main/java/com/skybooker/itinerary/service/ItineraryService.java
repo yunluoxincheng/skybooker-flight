@@ -212,7 +212,8 @@ public class ItineraryService {
         d.setAirlineId(source.getAirlineId()); d.setMinPrice(source.getMinPrice()); d.setMaxPrice(source.getMaxPrice());
         d.setDepartureTimeStart(source.getDepartureTimeStart()); d.setDepartureTimeEnd(source.getDepartureTimeEnd());
         d.setMaxDurationMinutes(source.getMaxDurationMinutes()); d.setDirectOnly(true); d.setStatus(source.getStatus());
-        d.setSort(source.getSort()); d.setPassengerCount(source.getPassengerCount()); d.setCabinClass(source.getCabinClass()); d.setIncludeSoldOut(false);
+        d.setSort(source.getSort()); d.setPassengerCount(source.getPassengerCount()); d.setCabinClass(source.getCabinClass());
+        d.setIncludeSoldOut(source.getIncludeSoldOut());
         return d;
     }
 }
