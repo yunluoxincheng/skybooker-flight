@@ -95,6 +95,20 @@ class AiReplyComposerTest {
     }
 
     @Test
+    void partialReplyAlsoNamesRelaxedAirlineAndCabin() {
+        ParsedCondition condition = baseCondition().airlineRaw("南方航空").cabinClass("ECONOMY").build();
+        String reply = composer.composeSearchReply(condition, condition,
+                result(FlightMatchLevel.PARTIAL, Map.of(
+                                "departureCity", "广州", "arrivalCity", "北京", "departureDate", "2026-07-15"),
+                        List.of("airlineRaw", "cabinClass", "departureDate"), 2), "查询", false);
+
+        assertThat(reply)
+                .contains("最近有航班的日期是 7 月 15 日")
+                .contains("同时还放宽了“航空公司”和“舱位”限制")
+                .doesNotContain("“出发日期”限制");
+    }
+
+    @Test
     void fallbackExplicitlyWarnsThatResultsDoNotMatch() {
         String reply = composer.composeSearchReply(baseCondition().build(), baseCondition().build(),
                 result(FlightMatchLevel.FALLBACK, Map.of("departureDate", "2026-07-15"), List.of(), 2),

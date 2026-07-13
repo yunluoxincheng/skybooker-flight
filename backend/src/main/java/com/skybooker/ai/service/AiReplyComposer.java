@@ -68,8 +68,17 @@ public class AiReplyComposer {
         String requestedDate = formatter.date(requested);
         String appliedDate = formatter.appliedDate(result.appliedCondition());
         String route = route(requested);
+        List<String> otherRelaxedFields = result.relaxedFields().stream()
+                .filter(field -> !"departureDate".equals(field))
+                .map(this::fieldLabel)
+                .distinct()
+                .toList();
+        String otherRelaxedNotice = otherRelaxedFields.isEmpty()
+                ? ""
+                : "同时还放宽了" + quoteJoin(otherRelaxedFields) + "限制。";
         return (requestedDate == null ? "原查询日期" : requestedDate) + "暂时没有" + route
-                + "的可售航班。最近有航班的日期是 " + appliedDate + "，我先为您列出当天的选择。";
+                + "的可售航班。最近有航班的日期是 " + appliedDate + "，我先为您列出当天的选择。"
+                + otherRelaxedNotice;
     }
 
     private String composeConditionUpdatedReply(ParsedCondition explicit, String message,
