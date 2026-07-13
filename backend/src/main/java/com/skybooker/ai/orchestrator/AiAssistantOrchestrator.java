@@ -256,7 +256,7 @@ public class AiAssistantOrchestrator {
             case EXACT -> "为您找到 " + result.flights().size() + " 个符合当前条件的航班：";
             case RELAXED -> "没有找到符合全部筛选条件的航班，已放宽次要条件，为您找到 "
                     + result.flights().size() + " 个航班：";
-            case PARTIAL -> "没有找到完全符合条件的航班，以下是最近未来日期的相关航班（日期已调整）：";
+            case PARTIAL -> "以下是最近未来日期的相关航班：";
             case FALLBACK -> "没有找到符合条件的航班，为你推荐一些可能感兴趣的其他航班。";
         };
     }
