@@ -1,0 +1,199 @@
+{
+  "metadata": {
+    "source": "SkyBooker maintained seed carrier catalog, based on stable IATA airline codes",
+    "retrievedAt": "2026-07-13",
+    "recordCount": 38
+  },
+  "airlines": [
+    {
+      "id": 1,
+      "code": "MU",
+      "name": "中国东方航空"
+    },
+    {
+      "id": 2,
+      "code": "CZ",
+      "name": "中国南方航空"
+    },
+    {
+      "id": 3,
+      "code": "CA",
+      "name": "中国国际航空"
+    },
+    {
+      "id": 4,
+      "code": "HU",
+      "name": "海南航空"
+    },
+    {
+      "id": 5,
+      "code": "ZH",
+      "name": "深圳航空"
+    },
+    {
+      "id": 6,
+      "code": "MF",
+      "name": "厦门航空"
+    },
+    {
+      "id": 7,
+      "code": "3U",
+      "name": "四川航空"
+    },
+    {
+      "id": 8,
+      "code": "9C",
+      "name": "春秋航空"
+    },
+    {
+      "id": 9,
+      "code": "HO",
+      "name": "吉祥航空"
+    },
+    {
+      "id": 10,
+      "code": "CX",
+      "name": "国泰航空"
+    },
+    {
+      "id": 11,
+      "code": "SQ",
+      "name": "新加坡航空"
+    },
+    {
+      "id": 12,
+      "code": "NH",
+      "name": "全日空"
+    },
+    {
+      "id": 13,
+      "code": "KE",
+      "name": "大韩航空"
+    },
+    {
+      "id": 14,
+      "code": "FM",
+      "name": "上海航空"
+    },
+    {
+      "id": 15,
+      "code": "SC",
+      "name": "山东航空"
+    },
+    {
+      "id": 16,
+      "code": "JD",
+      "name": "首都航空"
+    },
+    {
+      "id": 17,
+      "code": "GS",
+      "name": "天津航空"
+    },
+    {
+      "id": 18,
+      "code": "KN",
+      "name": "中国联合航空"
+    },
+    {
+      "id": 19,
+      "code": "EU",
+      "name": "成都航空"
+    },
+    {
+      "id": 20,
+      "code": "PN",
+      "name": "西部航空"
+    },
+    {
+      "id": 21,
+      "code": "GJ",
+      "name": "长龙航空"
+    },
+    {
+      "id": 22,
+      "code": "NS",
+      "name": "河北航空"
+    },
+    {
+      "id": 23,
+      "code": "TV",
+      "name": "西藏航空"
+    },
+    {
+      "id": 24,
+      "code": "OQ",
+      "name": "重庆航空"
+    },
+    {
+      "id": 25,
+      "code": "BK",
+      "name": "奥凯航空"
+    },
+    {
+      "id": 26,
+      "code": "GX",
+      "name": "北部湾航空"
+    },
+    {
+      "id": 27,
+      "code": "RY",
+      "name": "江西航空"
+    },
+    {
+      "id": 28,
+      "code": "8L",
+      "name": "祥鹏航空"
+    },
+    {
+      "id": 29,
+      "code": "Y8",
+      "name": "金鹏航空"
+    },
+    {
+      "id": 30,
+      "code": "KY",
+      "name": "昆明航空"
+    },
+    {
+      "id": 31,
+      "code": "JL",
+      "name": "日本航空"
+    },
+    {
+      "id": 32,
+      "code": "TG",
+      "name": "泰国国际航空"
+    },
+    {
+      "id": 33,
+      "code": "MH",
+      "name": "马来西亚航空"
+    },
+    {
+      "id": 34,
+      "code": "UA",
+      "name": "美国联合航空"
+    },
+    {
+      "id": 35,
+      "code": "BA",
+      "name": "英国航空"
+    },
+    {
+      "id": 36,
+      "code": "EK",
+      "name": "阿联酋航空"
+    },
+    {
+      "id": 37,
+      "code": "QR",
+      "name": "卡塔尔航空"
+    },
+    {
+      "id": 38,
+      "code": "LH",
+      "name": "德国汉莎航空"
+    }
+  ]
+}

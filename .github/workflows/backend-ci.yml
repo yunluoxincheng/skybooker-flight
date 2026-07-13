@@ -32,6 +32,72 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Run test-data tool tests
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: Run test-data generation matrix
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          for spec in \
+            "all direct" \
+            "all refund" \
+            "all change" \
+            "all waitlist" \
+            "all connecting" \
+            "flights connecting" \
+            "flights direct" \
+            "orders direct" \
+            "refunds refund" \
+            "changes change" \
+            "waitlists waitlist" \
+            "ai direct"; do
+            read -r components scenarios <<< "$spec"
+            output="$tmp_dir/${components}-${scenarios}.sql"
+            python3 scripts/generate_test_data.py \
+              --profile dev --seed 20260707 --base-date 2026-07-07 \
+              --components "$components" --scenarios "$scenarios" --output "$output"
+            python3 scripts/validate_test_data.py --file "$output"
+          done
+          for spec in \
+            "flights,orders default-flights-orders" \
+            "users default-users"; do
+            read -r components output_name <<< "$spec"
+            output="$tmp_dir/${output_name}.sql"
+            python3 scripts/generate_test_data.py \
+              --profile dev --seed 20260707 --base-date 2026-07-07 \
+              --components "$components" --output "$output"
+            python3 scripts/validate_test_data.py --file "$output"
+          done
+          coverage_sql="$tmp_dir/test-airport-coverage.sql"
+          coverage_summary="$tmp_dir/test-airport-coverage.json"
+          python3 scripts/generate_test_data.py \
+            --profile test --seed 20260707 --base-date 2026-07-07 \
+            --components reference,flights --scenarios direct \
+            --output "$coverage_sql" --summary-file "$coverage_summary"
+          python3 scripts/validate_test_data.py --file "$coverage_sql"
+          python3 - "$coverage_summary" <<'PY'
+          import json
+          import sys
+
+          summary = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert summary["airportReferenceCount"] == 311
+          assert summary["airportReferenceCount"] == len(summary["airportCodes"])
+          assert summary["domesticAirportCount"] == 270
+          assert summary["specialRegionAirportCount"] == 15
+          assert summary["internationalAirportCount"] == 26
+          assert summary["mainlandAirportCodeSetSha256"] == "533d61d6bb6ead694c794091ea777875bd584f9d0c8b78a610a8e2d5e3a230a8"
+          assert summary["flightAirportCount"] == 311
+          assert summary["flightAirportCount"] == len(summary["flightAirportCodes"])
+          assert summary["airportsWithoutOutboundFlights"] == []
+          assert summary["airportsWithoutInboundFlights"] == []
+          assert summary["airportsWithoutMainlandGateway"] == []
+          assert summary["airportsWithOutboundFlights"] == summary["flightAirportCount"]
+          assert summary["airportsWithInboundFlights"] == summary["flightAirportCount"]
+          assert summary["validation"]["flightCoverageComplete"] is True
+          PY
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -49,3 +115,60 @@ jobs:
           MYSQL_TEST_DB: flight_booking_test
           JWT_SECRET: test-secret-key-at-least-256-bits-long-for-hmac-sha-algorithm-usage
         run: mvn test
+
+      - name: Run ownership-backed MySQL smoke matrix
+        env:
+          MYSQL_PASSWORD: 123456
+        run: |
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names <<'SQL'
+          INSERT INTO airline(code, name, status) VALUES ('ZZ', '手工测试航司', 'ENABLED');
+          INSERT INTO airport(code, name, city, province, status) VALUES
+            ('WEN', '旧 Seed 温州机场', '温州', '浙江', 'ENABLED'),
+            ('DAX', '旧 Seed 达州河市机场', '达州', '四川', 'ENABLED'),
+            ('ZZZ', '手工测试机场', '测试市', '测试省', 'ENABLED');
+          INSERT INTO flight(
+            id, flight_no, airline_id, departure_airport_id, arrival_airport_id,
+            departure_time, arrival_time, duration_minutes, base_price
+          ) VALUES (
+            99000001, 'ZZ9001',
+            (SELECT id FROM airline WHERE code='ZZ'),
+            (SELECT id FROM airport WHERE code='DAX'),
+            (SELECT id FROM airport WHERE code='ZZZ'),
+            '2030-01-02 08:00:00', '2030-01-02 09:00:00', 60, 100.00
+          );
+          SQL
+          ./scripts/test-data.sh seed \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components flights --scenarios direct \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test --yes
+          legacy_and_manual_state="$(MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "SELECT CONCAT((SELECT COUNT(*) FROM airport WHERE code='WEN'), ',', (SELECT COUNT(*) FROM airport WHERE code='DAX' AND status='DISABLED'), ',', (SELECT COUNT(*) FROM airport WHERE code='ZZZ' AND status='ENABLED'), ',', (SELECT COUNT(*) FROM flight WHERE id=99000001));")"
+          test "$legacy_and_manual_state" = "0,1,1,1"
+          ./scripts/test-data.sh seed \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components orders --scenarios direct \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test --yes
+          ./scripts/test-data.sh validate \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --file "$GITHUB_WORKSPACE/test-data/seed-dev.sql" --database \
+            --host 127.0.0.1 --port 3306 --user root --db flight_booking_test
+          MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "UPDATE flight_seat s JOIN test_data_ownership o ON o.batch_key='skybooker:dev' AND o.table_name='flight_seat' AND o.row_id=s.id SET s.status='DISABLED', s.locked_by_order_id=NULL, s.lock_expire_time=NULL WHERE s.status='AVAILABLE';"
+          ./scripts/test-data.sh clean \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components orders --host 127.0.0.1 --port 3306 \
+            --user root --db flight_booking_test --yes
+          disabled_seats="$(MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=tcp -h 127.0.0.1 -P 3306 -u root \
+            -D flight_booking_test --batch --skip-column-names \
+            -e "SELECT COUNT(*) FROM flight_seat s JOIN test_data_ownership o ON o.batch_key='skybooker:dev' AND o.table_name='flight_seat' AND o.row_id=s.id WHERE s.status='DISABLED';")"
+          test "$disabled_seats" -ge 1
+          ./scripts/test-data.sh clean \
+            --dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE" \
+            --profile dev --components users --host 127.0.0.1 --port 3306 \
+            --user root --db flight_booking_test --yes

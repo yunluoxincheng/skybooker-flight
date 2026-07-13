@@ -10,8 +10,10 @@
         JOIN flight f2 ON f2.id = ci.second_flight_id AND f2.departure_airport_id = f1.arrival_airport_id
         JOIN airport destination ON destination.id = f2.arrival_airport_id
         WHERE ci.publish_status = 'PUBLISHED'
-          AND origin.city = #{departureCity}
-          AND destination.city = #{arrivalCity}
+          AND origin.city IN
+          <foreach collection="departureCities" item="city" open="(" separator="," close=")">#{city}</foreach>
+          AND destination.city IN
+          <foreach collection="arrivalCities" item="city" open="(" separator="," close=")">#{city}</foreach>
           AND DATE(f1.departure_time) = #{departureDate}
           AND f1.departure_time &gt; NOW()
           AND f2.departure_time &gt;= f1.arrival_time + INTERVAL 90 MINUTE
@@ -42,7 +44,11 @@
         FROM (
           SELECT DATE(f.departure_time) AS departure_date, f.base_price AS price
           FROM flight f JOIN airport da ON da.id=f.departure_airport_id JOIN airport aa ON aa.id=f.arrival_airport_id
-          WHERE da.city=#{departureCity} AND aa.city=#{arrivalCity} AND DATE(f.departure_time) BETWEEN #{startDate} AND #{endDate}
+          WHERE da.city IN
+          <foreach collection="departureCities" item="city" open="(" separator="," close=")">#{city}</foreach>
+          AND aa.city IN
+          <foreach collection="arrivalCities" item="city" open="(" separator="," close=")">#{city}</foreach>
+          AND DATE(f.departure_time) BETWEEN #{startDate} AND #{endDate}
             AND f.departure_time&gt;NOW() AND f.publish_status='PUBLISHED' AND f.status IN ('ON_TIME','DELAYED')
             AND f.direct_flag=1 AND f.remaining_seats&gt;0
           UNION ALL
@@ -50,7 +56,10 @@
           FROM connecting_itinerary ci
           JOIN flight f1 ON f1.id=ci.first_flight_id JOIN flight f2 ON f2.id=ci.second_flight_id
           JOIN airport da ON da.id=f1.departure_airport_id JOIN airport aa ON aa.id=f2.arrival_airport_id
-          WHERE ci.publish_status='PUBLISHED' AND da.city=#{departureCity} AND aa.city=#{arrivalCity}
+          WHERE ci.publish_status='PUBLISHED' AND da.city IN
+          <foreach collection="departureCities" item="city" open="(" separator="," close=")">#{city}</foreach>
+          AND aa.city IN
+          <foreach collection="arrivalCities" item="city" open="(" separator="," close=")">#{city}</foreach>
             AND DATE(f1.departure_time) BETWEEN #{startDate} AND #{endDate} AND f1.departure_time&gt;NOW()
             AND f1.publish_status='PUBLISHED' AND f2.publish_status='PUBLISHED'
             AND f1.status IN ('ON_TIME','DELAYED') AND f2.status IN ('ON_TIME','DELAYED')

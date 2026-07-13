@@ -1,0 +1,381 @@
+{
+  "metadata": {
+    "source": "公开机场资料整理；香港、澳门、台湾地区机场与国际枢纽按测试航线需求维护",
+    "asOf": "2025-12-31",
+    "retrievedAt": "2026-07-13",
+    "notes": "与大陆颁证运输机场固定快照分开维护；ID 全局唯一且稳定。",
+    "scope": "special_region_and_international",
+    "recordCount": 41
+  },
+  "airports": [
+    {
+      "id": 18,
+      "code": "HKG",
+      "name": "香港国际机场",
+      "city": "香港",
+      "province": "香港",
+      "countryOrRegion": "中国香港",
+      "scope": "special_region"
+    },
+    {
+      "id": 19,
+      "code": "MFM",
+      "name": "澳门国际机场",
+      "city": "澳门",
+      "province": "澳门",
+      "countryOrRegion": "中国澳门",
+      "scope": "special_region"
+    },
+    {
+      "id": 20,
+      "code": "SIN",
+      "name": "新加坡樟宜机场",
+      "city": "新加坡",
+      "province": "新加坡",
+      "countryOrRegion": "新加坡",
+      "scope": "international"
+    },
+    {
+      "id": 21,
+      "code": "HND",
+      "name": "东京羽田机场",
+      "city": "东京",
+      "province": "日本",
+      "countryOrRegion": "日本",
+      "scope": "international"
+    },
+    {
+      "id": 22,
+      "code": "NRT",
+      "name": "东京成田机场",
+      "city": "东京",
+      "province": "日本",
+      "countryOrRegion": "日本",
+      "scope": "international"
+    },
+    {
+      "id": 23,
+      "code": "ICN",
+      "name": "首尔仁川机场",
+      "city": "首尔",
+      "province": "韩国",
+      "countryOrRegion": "韩国",
+      "scope": "international"
+    },
+    {
+      "id": 24,
+      "code": "BKK",
+      "name": "曼谷素万那普机场",
+      "city": "曼谷",
+      "province": "泰国",
+      "countryOrRegion": "泰国",
+      "scope": "international"
+    },
+    {
+      "id": 87,
+      "code": "KUL",
+      "name": "吉隆坡国际机场",
+      "city": "吉隆坡",
+      "province": "马来西亚",
+      "countryOrRegion": "马来西亚",
+      "scope": "international"
+    },
+    {
+      "id": 88,
+      "code": "SGN",
+      "name": "胡志明市新山一国际机场",
+      "city": "胡志明市",
+      "province": "越南",
+      "countryOrRegion": "越南",
+      "scope": "international"
+    },
+    {
+      "id": 89,
+      "code": "HAN",
+      "name": "河内内排国际机场",
+      "city": "河内",
+      "province": "越南",
+      "countryOrRegion": "越南",
+      "scope": "international"
+    },
+    {
+      "id": 90,
+      "code": "DAD",
+      "name": "岘港国际机场",
+      "city": "岘港",
+      "province": "越南",
+      "countryOrRegion": "越南",
+      "scope": "international"
+    },
+    {
+      "id": 91,
+      "code": "MNL",
+      "name": "马尼拉尼诺伊阿基诺国际机场",
+      "city": "马尼拉",
+      "province": "菲律宾",
+      "countryOrRegion": "菲律宾",
+      "scope": "international"
+    },
+    {
+      "id": 92,
+      "code": "CGK",
+      "name": "雅加达苏加诺-哈达国际机场",
+      "city": "雅加达",
+      "province": "印度尼西亚",
+      "countryOrRegion": "印度尼西亚",
+      "scope": "international"
+    },
+    {
+      "id": 93,
+      "code": "DPS",
+      "name": "巴厘岛伍拉赖国际机场",
+      "city": "巴厘岛",
+      "province": "印度尼西亚",
+      "countryOrRegion": "印度尼西亚",
+      "scope": "international"
+    },
+    {
+      "id": 94,
+      "code": "SYD",
+      "name": "悉尼金斯福德·史密斯机场",
+      "city": "悉尼",
+      "province": "澳大利亚",
+      "countryOrRegion": "澳大利亚",
+      "scope": "international"
+    },
+    {
+      "id": 95,
+      "code": "MEL",
+      "name": "墨尔本机场",
+      "city": "墨尔本",
+      "province": "澳大利亚",
+      "countryOrRegion": "澳大利亚",
+      "scope": "international"
+    },
+    {
+      "id": 96,
+      "code": "LAX",
+      "name": "洛杉矶国际机场",
+      "city": "洛杉矶",
+      "province": "美国",
+      "countryOrRegion": "美国",
+      "scope": "international"
+    },
+    {
+      "id": 97,
+      "code": "SFO",
+      "name": "旧金山国际机场",
+      "city": "旧金山",
+      "province": "美国",
+      "countryOrRegion": "美国",
+      "scope": "international"
+    },
+    {
+      "id": 98,
+      "code": "JFK",
+      "name": "纽约肯尼迪国际机场",
+      "city": "纽约",
+      "province": "美国",
+      "countryOrRegion": "美国",
+      "scope": "international"
+    },
+    {
+      "id": 99,
+      "code": "LHR",
+      "name": "伦敦希思罗机场",
+      "city": "伦敦",
+      "province": "英国",
+      "countryOrRegion": "英国",
+      "scope": "international"
+    },
+    {
+      "id": 100,
+      "code": "CDG",
+      "name": "巴黎戴高乐机场",
+      "city": "巴黎",
+      "province": "法国",
+      "countryOrRegion": "法国",
+      "scope": "international"
+    },
+    {
+      "id": 101,
+      "code": "FRA",
+      "name": "法兰克福机场",
+      "city": "法兰克福",
+      "province": "德国",
+      "countryOrRegion": "德国",
+      "scope": "international"
+    },
+    {
+      "id": 102,
+      "code": "DXB",
+      "name": "迪拜国际机场",
+      "city": "迪拜",
+      "province": "阿联酋",
+      "countryOrRegion": "阿联酋",
+      "scope": "international"
+    },
+    {
+      "id": 103,
+      "code": "DOH",
+      "name": "多哈哈马德国际机场",
+      "city": "多哈",
+      "province": "卡塔尔",
+      "countryOrRegion": "卡塔尔",
+      "scope": "international"
+    },
+    {
+      "id": 285,
+      "code": "CYI",
+      "name": "嘉义机场",
+      "city": "嘉义市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 286,
+      "code": "HUN",
+      "name": "花莲机场",
+      "city": "花莲市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 287,
+      "code": "KHH",
+      "name": "高雄国际机场",
+      "city": "高雄市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 288,
+      "code": "KNH",
+      "name": "金门机场",
+      "city": "金门县",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 289,
+      "code": "KYD",
+      "name": "兰屿机场",
+      "city": "台东县",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 290,
+      "code": "LZN",
+      "name": "马祖南竿机场",
+      "city": "连江县",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 291,
+      "code": "MFK",
+      "name": "马祖北竿机场",
+      "city": "连江县",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 292,
+      "code": "MZG",
+      "name": "澎湖机场",
+      "city": "澎湖县",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 293,
+      "code": "RMQ",
+      "name": "台中国际机场",
+      "city": "台中市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 294,
+      "code": "TNN",
+      "name": "台南机场",
+      "city": "台南市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 295,
+      "code": "TPE",
+      "name": "台湾桃园国际机场",
+      "city": "桃园市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 296,
+      "code": "TSA",
+      "name": "台北松山机场",
+      "city": "台北市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 297,
+      "code": "TTT",
+      "name": "台东机场",
+      "city": "台东市",
+      "province": "中国台湾",
+      "countryOrRegion": "中国台湾",
+      "scope": "special_region"
+    },
+    {
+      "id": 310,
+      "code": "AMS",
+      "name": "阿姆斯特丹史基浦机场",
+      "city": "阿姆斯特丹",
+      "province": "荷兰",
+      "countryOrRegion": "荷兰",
+      "scope": "international"
+    },
+    {
+      "id": 311,
+      "code": "AUH",
+      "name": "阿布扎比扎耶德国际机场",
+      "city": "阿布扎比",
+      "province": "阿联酋",
+      "countryOrRegion": "阿联酋",
+      "scope": "international"
+    },
+    {
+      "id": 312,
+      "code": "YVR",
+      "name": "温哥华国际机场",
+      "city": "温哥华",
+      "province": "加拿大",
+      "countryOrRegion": "加拿大",
+      "scope": "international"
+    },
+    {
+      "id": 313,
+      "code": "YYZ",
+      "name": "多伦多皮尔逊国际机场",
+      "city": "多伦多",
+      "province": "加拿大",
+      "countryOrRegion": "加拿大",
+      "scope": "international"
+    }
+  ]
+}

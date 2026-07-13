@@ -53,11 +53,13 @@
         <if test="flightNo != null and flightNo != ''">
             AND f.flight_no = #{flightNo}
         </if>
-        <if test="departureCity != null and departureCity != ''">
-            AND da.city = #{departureCity}
+        <if test="departureCities != null and !departureCities.isEmpty()">
+            AND da.city IN
+            <foreach collection="departureCities" item="city" open="(" separator="," close=")">#{city}</foreach>
         </if>
-        <if test="arrivalCity != null and arrivalCity != ''">
-            AND aa.city = #{arrivalCity}
+        <if test="arrivalCities != null and !arrivalCities.isEmpty()">
+            AND aa.city IN
+            <foreach collection="arrivalCities" item="city" open="(" separator="," close=")">#{city}</foreach>
         </if>
         <choose>
             <when test="departureDateStart != null and departureDateEnd != null">
@@ -192,11 +194,13 @@
         WHERE f.publish_status = 'PUBLISHED'
             AND f.departure_time > NOW()
             AND f.status IN ('ON_TIME', 'DELAYED')
-        <if test="departureCity != null and departureCity != ''">
-            AND da.city = #{departureCity}
+        <if test="departureCities != null and !departureCities.isEmpty()">
+            AND da.city IN
+            <foreach collection="departureCities" item="city" open="(" separator="," close=")">#{city}</foreach>
         </if>
-        <if test="arrivalCity != null and arrivalCity != ''">
-            AND aa.city = #{arrivalCity}
+        <if test="arrivalCities != null and !arrivalCities.isEmpty()">
+            AND aa.city IN
+            <foreach collection="arrivalCities" item="city" open="(" separator="," close=")">#{city}</foreach>
         </if>
         <choose>
             <when test="departureDateStart != null and departureDateEnd != null">

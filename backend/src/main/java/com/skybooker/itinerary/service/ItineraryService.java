@@ -6,6 +6,7 @@ import com.skybooker.common.response.PageResponse;
 import com.skybooker.common.security.SecurityUtil;
 import com.skybooker.flight.dto.FlightSearchDTO;
 import com.skybooker.flight.mapper.FlightMapper;
+import com.skybooker.flight.service.CityQueryService;
 import com.skybooker.flight.service.FlightService;
 import com.skybooker.flight.vo.FlightVO;
 import com.skybooker.itinerary.dto.ItineraryQuoteDTO;
@@ -32,12 +33,13 @@ public class ItineraryService {
     private final ItineraryMapper itineraryMapper;
     private final FlightMapper flightMapper;
     private final FlightService flightService;
+    private final CityQueryService cityQueryService;
     private final PassengerMapper passengerMapper;
     private final Clock businessClock;
 
     public PageResponse<ItineraryVO> search(FlightSearchDTO dto) {
-        dto.setDepartureCity(trimRequired(dto.getDepartureCity()));
-        dto.setArrivalCity(trimRequired(dto.getArrivalCity()));
+        dto.setDepartureCity(cityQueryService.normalizeRequired(dto.getDepartureCity()));
+        dto.setArrivalCity(cityQueryService.normalizeRequired(dto.getArrivalCity()));
         if (dto.getDepartureDate() == null) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         int page = Math.max(1, dto.getPage() == null ? 1 : dto.getPage());
         int size = Math.min(100, Math.max(1, dto.getSize() == null ? 10 : dto.getSize()));
@@ -58,7 +60,8 @@ public class ItineraryService {
 
         if (!Boolean.TRUE.equals(dto.getDirectOnly()) && dto.getDepartureCity() != null
                 && dto.getArrivalCity() != null && dto.getDepartureDate() != null) {
-            itineraryMapper.findConnectingPairs(dto.getDepartureCity(), dto.getArrivalCity(), dto.getDepartureDate(),
+            itineraryMapper.findConnectingPairs(cityQueryService.candidates(dto.getDepartureCity()),
+                            cityQueryService.candidates(dto.getArrivalCity()), dto.getDepartureDate(),
                             passengerCount, dto.getCabinClass()).stream()
                     .map(pair -> build(pair.getItineraryId(), List.of(flightMapper.findPublishedFlightById(pair.getFirstFlightId()),
                             flightMapper.findPublishedFlightById(pair.getSecondFlightId())), dto.getCabinClass()))
@@ -72,17 +75,11 @@ public class ItineraryService {
     }
 
     public List<FareCalendarVO> fareCalendar(String departureCity, String arrivalCity, LocalDate startDate, int days) {
-        String origin = trimRequired(departureCity);
-        String destination = trimRequired(arrivalCity);
+        String origin = cityQueryService.normalizeRequired(departureCity);
+        String destination = cityQueryService.normalizeRequired(arrivalCity);
         if (startDate == null || days < 1 || days > 14) throw new BusinessException(ErrorCode.VALIDATION_ERROR);
-        return itineraryMapper.findFareCalendar(origin, destination, startDate, startDate.plusDays(days - 1L));
-    }
-
-    private String trimRequired(String value) {
-        if (value == null || value.trim().isEmpty() || value.trim().length() > 50) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
-        }
-        return value.trim();
+        return itineraryMapper.findFareCalendar(cityQueryService.candidates(origin),
+                cityQueryService.candidates(destination), startDate, startDate.plusDays(days - 1L));
     }
 
     public ItineraryVO quote(ItineraryQuoteDTO dto) {

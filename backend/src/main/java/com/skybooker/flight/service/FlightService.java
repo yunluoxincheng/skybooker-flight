@@ -18,8 +18,13 @@ import java.util.List;
 public class FlightService {
 
     private final FlightMapper flightMapper;
+    private final CityQueryService cityQueryService;
 
     public PageResponse<FlightVO> searchFlights(FlightSearchDTO dto) {
+        String departureCity = cityQueryService.normalizeOptional(dto.getDepartureCity());
+        String arrivalCity = cityQueryService.normalizeOptional(dto.getArrivalCity());
+        List<String> departureCities = cityQueryService.candidates(departureCity);
+        List<String> arrivalCities = cityQueryService.candidates(arrivalCity);
         int page = dto.getPage() != null && dto.getPage() > 0 ? dto.getPage() : 1;
         int size = dto.getSize() != null && dto.getSize() > 0 ? dto.getSize() : 10;
         int offset = (page - 1) * size;
@@ -51,14 +56,14 @@ public class FlightService {
             String orderBy = sort.orderBy(dto.getCabinClass());
 
             List<FlightVO> records = flightMapper.searchFlightsAdvanced(
-                    dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
+                    dto.getFlightNo(), departureCities, arrivalCities,
                     dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
                     dto.getDirectOnly(), dto.getStatus(), dto.getPassengerCount(), dto.getCabinClass(),
                     dto.getIncludeSoldOut(), orderBy, offset, size);
             long total = flightMapper.countFlightsAdvanced(
-                    dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
+                    dto.getFlightNo(), departureCities, arrivalCities,
                     dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(),
                     dto.getAirlineId(), dto.getMinPrice(), dto.getMaxPrice(),
                     dto.getDepartureTimeStart(), dto.getDepartureTimeEnd(), dto.getMaxDurationMinutes(),
@@ -69,10 +74,10 @@ public class FlightService {
         }
 
         List<FlightVO> records = flightMapper.searchFlights(
-                dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
+                dto.getFlightNo(), departureCities, arrivalCities,
                 dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd(), offset, size);
         long total = flightMapper.countFlights(
-                dto.getFlightNo(), dto.getDepartureCity(), dto.getArrivalCity(),
+                dto.getFlightNo(), departureCities, arrivalCities,
                 dto.getDepartureDate(), dto.getDepartureDateStart(), dto.getDepartureDateEnd());
 
         return new PageResponse<>(records, total, page, size);

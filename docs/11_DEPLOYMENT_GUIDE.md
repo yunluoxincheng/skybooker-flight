@@ -504,23 +504,34 @@ SKYBOOKER_BASE_URL=http://localhost:8088 scripts/smoke/backend-smoke.sh
 
 Smoke 覆盖公共航班查询、用户/管理员登录边界、订单、AI 聊天和管理员统计。更多测试重点见 `docs/12_TESTING_GUIDE.md`。
 
-如果演示数据日期过期，在确认目标数据库后重新生成并导入 seed。不要使用 Flyway migration 承载大规模演示数据，也不要在生产库导入测试 seed。
+如果演示数据日期过期，在确认目标数据库后使用统一入口重新生成并导入 seed。不要使用 Flyway migration 承载大规模演示数据，也不要在生产库导入测试 seed。
+
+服务器有仓库 checkout 时：
 
 ```bash
 cd /path/to/skybooker-flight
-python3 scripts/generate_test_data.py --profile dev --seed 20260707 --base-date <YYYY-MM-DD>
-python3 scripts/validate_test_data.py --file backend/src/main/resources/db/seed/seed-dev.sql
+./scripts/test-data.sh seed --dir /opt/skybooker \
+  --source-dir /path/to/skybooker-flight \
+  --profile dev --base-date "$(date +%F)" --scenarios all --yes
+./scripts/test-data.sh validate --dir /opt/skybooker \
+  --source-dir /path/to/skybooker-flight \
+  --file /opt/skybooker/test-data/seed-dev.sql --database
 ```
 
-确认目标库是演示/测试库后导入：
+仅有部署目录时，入口会按固定 ref 下载匹配版本的生成器、校验器和清理器：
 
 ```bash
-cd /path/to/skybooker-flight
-set -a; source /opt/skybooker/.env; set +a
-docker compose --env-file /opt/skybooker/.env -f /opt/skybooker/docker-compose.yml exec -T mysql \
-  mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_PASSWORD" "$MYSQL_DB" \
-  < backend/src/main/resources/db/seed/seed-dev.sql
+curl -fsSL \
+  https://raw.githubusercontent.com/yunluoxincheng/skybooker-flight/<commit-sha>/scripts/test-data.sh \
+  -o /tmp/skybooker-test-data.sh
+bash /tmp/skybooker-test-data.sh seed \
+  --dir /opt/skybooker \
+  --repo yunluoxincheng/skybooker-flight \
+  --ref <commit-sha> \
+  --profile dev --base-date "$(date +%F)" --scenarios all --yes
 ```
+
+`doctor` 会检查可选的 Compose、MySQL 连接和 Flyway V18+；没有 Docker 时可以使用宿主机 MySQL。`status` 输出 ownership 批次规模与联程覆盖；`clean --profile dev --yes` 只删除 dev ownership 批次，保留默认账号、航司机场、未登记手工数据和其他 profile。`seed`、`import`、`clean` 默认要求确认；生产标记环境还必须显式使用 `--allow-production --confirm-production --yes`。
 
 ## 10. 备份、升级和回滚安全
 
