@@ -286,18 +286,18 @@ public class IntentParserService implements IntentParser {
         }
 
         // Time-of-day preference
-        if (text.contains("早上") || text.contains("早班")) {
+        if (text.contains("凌晨")) {
+            departureTimeStart = LocalTime.of(0, 0);
+            departureTimeEnd = LocalTime.of(6, 0);
+        } else if (text.contains("早上") || text.contains("早班") || text.contains("上午")) {
             departureTimeStart = LocalTime.of(6, 0);
             departureTimeEnd = LocalTime.of(12, 0);
         } else if (text.contains("下午")) {
             departureTimeStart = LocalTime.of(12, 0);
             departureTimeEnd = LocalTime.of(18, 0);
-        } else if (text.contains("晚上") || text.contains("晚班") || text.contains("夜间")) {
+        } else if (text.contains("晚上") || text.contains("晚间") || text.contains("晚班") || text.contains("夜间")) {
             departureTimeStart = LocalTime.of(18, 0);
             departureTimeEnd = LocalTime.of(23, 59);
-        } else if (text.contains("上午")) {
-            departureTimeStart = LocalTime.of(8, 0);
-            departureTimeEnd = LocalTime.of(12, 0);
         }
 
         // Direct flight

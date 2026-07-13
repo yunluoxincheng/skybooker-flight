@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +62,22 @@ class IntentParserServiceTest {
     void parse_durationInMin_notMultipliedBy60() {
         ParsedCondition result = parser.parse("从上海到北京明天出发 最多120min");
         assertThat(result.getMaxDurationMinutes()).isEqualTo(120);
+    }
+
+    @Test
+    void parse_timePeriods_matchFlightSearchDefinitions() {
+        assertPeriod("凌晨航班", 0, 0, 6, 0);
+        assertPeriod("上午航班", 6, 0, 12, 0);
+        assertPeriod("早上航班", 6, 0, 12, 0);
+        assertPeriod("早班", 6, 0, 12, 0);
+        assertPeriod("下午航班", 12, 0, 18, 0);
+        assertPeriod("晚间航班", 18, 0, 23, 59);
+    }
+
+    private void assertPeriod(String message, int startHour, int startMinute, int endHour, int endMinute) {
+        ParsedCondition result = parser.parse(message);
+        assertThat(result.getDepartureTimeStart()).isEqualTo(LocalTime.of(startHour, startMinute));
+        assertThat(result.getDepartureTimeEnd()).isEqualTo(LocalTime.of(endHour, endMinute));
     }
 
     @Test

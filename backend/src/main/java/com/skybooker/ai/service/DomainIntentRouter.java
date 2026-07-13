@@ -102,10 +102,6 @@ public class DomainIntentRouter {
             if (explicitNonSearch != null) {
                 return new RouteResult(explicitNonSearch, cfg, false);
             }
-            ParsedCondition currentCondition = ruleIntentParserService.parse(text);
-            if (currentCondition.getDepartureCity() != null && currentCondition.getArrivalCity() != null) {
-                return new RouteResult(DomainIntent.FLIGHT_QUERY, cfg, false);
-            }
             if (isContinuationSlotFill(text)) {
                 return new RouteResult(DomainIntent.FLIGHT_QUERY_CONTINUATION, cfg, false);
             }

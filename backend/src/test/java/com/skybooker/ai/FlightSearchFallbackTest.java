@@ -64,4 +64,21 @@ class FlightSearchFallbackTest {
                 .containsEntry("arrivalCity", "北京")
                 .doesNotContainKey("airlineRaw");
     }
+
+    @Test
+    void explicitDateFallbackStartsAfterTheRequestedDate() {
+        FlightRecommendationService service = mock(FlightRecommendationService.class);
+        when(service.recommend(any(), isNull()))
+                .thenReturn(List.of()).thenReturn(List.of(Map.of("id", 3L)));
+        when(service.buildSearchUrl(any(), isNull())).thenReturn("/flights");
+        FlightSearchTool tool = new FlightSearchTool(service, mock(FlightMapper.class), CLOCK);
+
+        FlightSearchResult result = tool.search(ParsedCondition.builder()
+                .departureCity("广州").arrivalCity("北京")
+                .departureDate(LocalDate.of(2026, 7, 20)).build());
+
+        assertThat(result.matchLevel()).isEqualTo(FlightMatchLevel.PARTIAL);
+        assertThat(result.appliedCondition()).containsEntry("departureDate", "2026-07-21");
+        assertThat(result.relaxedFields()).contains("departureDate");
+    }
 }

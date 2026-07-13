@@ -123,10 +123,9 @@ public class AiAssistantOrchestrator {
         ParsedCondition condition = applyBareSlotFill(message, semantic.condition(), state, explicitDestinationCity);
         condition = withDestination(condition, explicitDestinationCity);
         condition = withDestination(condition, state.getRecommendedDestinationCity());
-        ParsedCondition base = state.hasPendingFlightQuery()
-                ? state.getPendingFlightCondition() : state.getActiveFlightCondition();
-        if (base != null && (semantic.intent() == DomainIntent.FLIGHT_QUERY_CONTINUATION
-                || state.hasPendingFlightQuery())) {
+        ParsedCondition base = state.getActiveFlightCondition() != null
+                ? state.getActiveFlightCondition() : state.getPendingFlightCondition();
+        if (base != null) {
             condition = ParsedConditionMaps.mergePending(base, condition);
         }
         condition = applyExplicitClears(message, condition);
@@ -229,8 +228,10 @@ public class AiAssistantOrchestrator {
     private AiChatReplyVO buildRecommendationReply(String sessionId, ParsedCondition condition,
                                                    FlightSearchResult result, DomainIntent intent) {
         List<Map<String, String>> quickActions = List.of(
-                Map.of("label", "查看全部航班", "value", "查看全部航班"),
-                Map.of("label", "换个时间", "value", "换个时间")
+                Map.of("label", "凌晨", "value", "凌晨航班"),
+                Map.of("label", "上午", "value", "上午航班"),
+                Map.of("label", "下午", "value", "下午航班"),
+                Map.of("label", "晚间", "value", "晚间航班")
         );
 
         return AiChatReplyVO.builder()

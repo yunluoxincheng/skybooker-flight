@@ -44,9 +44,14 @@ public class FlightSearchTool {
         }
 
         ParsedCondition core = relaxed;
+        LocalDate futureSearchBase = core.getDepartureDate() != null
+                ? core.getDepartureDate() : LocalDate.now(businessClock);
+        if (futureSearchBase.isBefore(LocalDate.now(businessClock))) {
+            futureSearchBase = LocalDate.now(businessClock);
+        }
         for (int offset = 1; offset <= FUTURE_SEARCH_DAYS; offset++) {
             ParsedCondition candidate = core.toBuilder()
-                    .departureDate(LocalDate.now(businessClock).plusDays(offset))
+                    .departureDate(futureSearchBase.plusDays(offset))
                     .departureDateStart(null).departureDateEnd(null).build();
             flights = recommend(candidate, null);
             if (!flights.isEmpty()) {
