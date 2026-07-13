@@ -1037,6 +1037,34 @@ class AiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void chat_plainResetIsSafeAndClearsConditions() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("清空条件");
+
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyText").value("已清空当前航班查询条件，我们可以重新开始。"))
+                .andExpect(jsonPath("$.data.parsedCondition").isEmpty());
+    }
+
+    @Test
+    void chat_resetWithNewConditionsExecutesTheNewSearch() throws Exception {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessage("重新查询明天广州到北京");
+
+        mockMvc.perform(post("/api/ai/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replyType").value("FLIGHT_RECOMMENDATION"))
+                .andExpect(jsonPath("$.data.replyText").value(
+                        org.hamcrest.Matchers.not("已清空当前航班查询条件，我们可以重新开始。")))
+                .andExpect(jsonPath("$.data.parsedCondition.departureCity").value("广州"))
+                .andExpect(jsonPath("$.data.parsedCondition.arrivalCity").value("北京"))
+                .andExpect(jsonPath("$.data.parsedCondition.departureDate").value(tomorrowStr));
+    }
+
+    @Test
     void chat_multiTurnAmbiguousDateKeepsSpecificFollowUp() throws Exception {
         String sessionId = startRouteFollowUpSession("查上海到北京机票");
 

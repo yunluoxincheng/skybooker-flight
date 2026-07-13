@@ -13,6 +13,7 @@ import com.skybooker.ai.parser.SemanticParser;
 import com.skybooker.ai.policy.DialogueAction;
 import com.skybooker.ai.policy.DialogueActionType;
 import com.skybooker.ai.policy.DialoguePolicy;
+import com.skybooker.ai.service.AiReplyComposer;
 import com.skybooker.ai.state.ConversationState;
 import com.skybooker.ai.state.ConversationStateService;
 import com.skybooker.ai.tool.BookingHelpTool;
@@ -44,6 +45,7 @@ public class AiAssistantOrchestrator {
     private final TravelPlanTool travelPlanTool;
     private final ConversationStateService conversationStateService;
     private final IntentParserService ruleIntentParserService;
+    private final AiReplyComposer aiReplyComposer;
 
     public AssistantTurnResult handle(AiChatSession session, String message, List<AiChatMessage> history) {
         ConversationState state = conversationStateService.load(history);
@@ -51,35 +53,42 @@ public class AiAssistantOrchestrator {
         String explicitDestinationCity = ruleIntentParserService.parseDestinationSwitchCity(message);
         ParsedCondition condition = prepareCondition(message, semantic, state, explicitDestinationCity);
         DialogueAction action = dialoguePolicy.decide(message, semantic.intent(), condition, state);
+        ParsedCondition explicitCondition = semantic.condition();
 
         DestinationRecommendation destinationRecommendation = null;
         TravelPlanResult travelPlanResult = null;
         RecommendationLog recommendationLog = null;
         AiChatReplyVO reply;
 
-        if (action.type() == DialogueActionType.RECOMMEND_DESTINATION_AND_FOLLOW_UP) {
+        if (isPureResetRequest(message)) {
+            condition = ParsedConditionMaps.recomputeRequiredFields(condition);
+            reply = buildFollowUpReply(session.getPublicSessionId(), condition, semantic.intent(),
+                    aiReplyComposer.composeResetReply());
+        } else if (action.type() == DialogueActionType.RECOMMEND_DESTINATION_AND_FOLLOW_UP) {
             destinationRecommendation = destinationRecommendTool.recommend(message);
             condition = withDestination(condition, destinationRecommendation.primaryCity());
             condition = ParsedConditionMaps.recomputeRequiredFields(condition);
             if (hasSearchableCondition(condition)) {
                 SearchReply searchReply = searchFlights(session.getPublicSessionId(), condition,
-                        message, semantic.intent());
+                        explicitCondition, state.hasActiveFlightQuery(), message, semantic.intent());
                 reply = searchReply.reply();
                 recommendationLog = searchReply.recommendationLog();
             } else {
                 reply = buildFollowUpReply(session.getPublicSessionId(), condition, semantic.intent(),
-                        destinationRecommendation.replyText() + "\n" + condition.getFollowUpQuestion());
+                        destinationRecommendation.replyText() + "\n" + aiReplyComposer.composeMissingFieldsReply(
+                                condition, explicitCondition, message, state.hasActiveFlightQuery()));
             }
         } else {
             switch (action.type()) {
                 case SEARCH_FLIGHTS -> {
                     SearchReply searchReply = searchFlights(session.getPublicSessionId(), condition,
-                            message, semantic.intent());
+                            explicitCondition, state.hasActiveFlightQuery(), message, semantic.intent());
                     reply = searchReply.reply();
                     recommendationLog = searchReply.recommendationLog();
                 }
                 case FOLLOW_UP -> reply = buildFollowUpReply(session.getPublicSessionId(),
-                        condition, semantic.intent(), condition.getFollowUpQuestion());
+                        condition, semantic.intent(), aiReplyComposer.composeMissingFieldsReply(
+                                condition, explicitCondition, message, state.hasActiveFlightQuery()));
                 case RECOMMEND_DESTINATION -> {
                     destinationRecommendation = destinationRecommendTool.recommend(message);
                     reply = buildTravelReply(session.getPublicSessionId(), semantic.intent(),
@@ -107,6 +116,9 @@ public class AiAssistantOrchestrator {
 
         ConversationState nextState = conversationStateService.nextState(state, reply, condition,
                 destinationRecommendation, travelPlanResult, explicitDestinationCity);
+        if (isPureResetRequest(message)) {
+            nextState = conversationStateService.clearFlightQueryState(nextState);
+        }
         Map<String, Object> extraJson = buildExtraJson(reply, nextState);
         return new AssistantTurnResult(reply, extraJson, recommendationLog);
     }
@@ -157,6 +169,13 @@ public class AiAssistantOrchestrator {
                 || message.contains("重新查询") || message.contains("重新查一下"));
     }
 
+    private boolean isPureResetRequest(String message) {
+        if (message == null) return false;
+        String normalized = message.replaceAll("[\\s，。！？,.!?]", "");
+        return normalized.equals("清空条件") || normalized.equals("换个行程")
+                || normalized.equals("重新查询") || normalized.equals("重新查一下");
+    }
+
     private ParsedCondition applyBareSlotFill(String message, ParsedCondition condition,
                                               ConversationState state, String explicitDestinationCity) {
         if (!state.hasPendingFlightQuery()
@@ -195,6 +214,7 @@ public class AiAssistantOrchestrator {
     }
 
     private SearchReply searchFlights(String sessionId, ParsedCondition condition,
+                                      ParsedCondition explicitCondition, boolean hadActiveCondition,
                                       String originalQuery, DomainIntent intent) {
         ParsedCondition normalized = ParsedConditionMaps.normalizeForSearch(condition);
         FlightSearchResult result = flightSearchTool.search(normalized);
@@ -202,7 +222,8 @@ public class AiAssistantOrchestrator {
             return new SearchReply(buildNoResultReply(sessionId, normalized, intent), null);
         }
 
-        AiChatReplyVO reply = buildRecommendationReply(sessionId, normalized, result, intent);
+        AiChatReplyVO reply = buildRecommendationReply(sessionId, normalized, explicitCondition,
+                hadActiveCondition, originalQuery, result, intent);
         RecommendationLog recommendationLog = new RecommendationLog(originalQuery,
                 ParsedConditionMaps.toMap(normalized), result.flights(), result.searchUrl());
         return new SearchReply(reply, recommendationLog);
@@ -229,6 +250,8 @@ public class AiAssistantOrchestrator {
     }
 
     private AiChatReplyVO buildRecommendationReply(String sessionId, ParsedCondition condition,
+                                                   ParsedCondition explicitCondition,
+                                                   boolean hadActiveCondition, String originalQuery,
                                                    FlightSearchResult result, DomainIntent intent) {
         List<Map<String, String>> quickActions = List.of(
                 Map.of("label", "凌晨", "value", "凌晨航班"),
@@ -241,7 +264,8 @@ public class AiAssistantOrchestrator {
                 .sessionId(sessionId)
                 .replyType(AiReplyType.FLIGHT_RECOMMENDATION.name())
                 .intent(intent.name())
-                .replyText(recommendationText(result))
+                .replyText(aiReplyComposer.composeSearchReply(condition, explicitCondition, result,
+                        originalQuery, hadActiveCondition))
                 .parsedCondition(ParsedConditionMaps.toMap(condition))
                 .missingFields(Collections.emptyList())
                 .followUpQuestion(null)
@@ -255,16 +279,6 @@ public class AiAssistantOrchestrator {
                 .build();
     }
 
-    private String recommendationText(FlightSearchResult result) {
-        return switch (result.matchLevel()) {
-            case EXACT -> "为您找到 " + result.flights().size() + " 个符合当前条件的航班：";
-            case RELAXED -> "没有找到符合全部筛选条件的航班，已放宽次要条件，为您找到 "
-                    + result.flights().size() + " 个航班：";
-            case PARTIAL -> "以下是最近未来日期的相关航班：";
-            case FALLBACK -> "没有找到符合条件的航班，为你推荐一些可能感兴趣的其他航班。";
-        };
-    }
-
     private AiChatReplyVO buildNoResultReply(String sessionId, ParsedCondition condition, DomainIntent intent) {
         List<Map<String, String>> quickActions = List.of(
                 Map.of("label", "换个日期", "value", "换个日期"),
@@ -275,7 +289,7 @@ public class AiAssistantOrchestrator {
                 .sessionId(sessionId)
                 .replyType(AiReplyType.NO_RESULT.name())
                 .intent(intent.name())
-                .replyText("抱歉，没有找到符合条件的航班。请尝试调整搜索条件。")
+                .replyText(aiReplyComposer.composeNoResultReply(condition))
                 .parsedCondition(ParsedConditionMaps.toMap(condition))
                 .missingFields(Collections.emptyList())
                 .followUpQuestion("是否需要调整搜索条件？")
